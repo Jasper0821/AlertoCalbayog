@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-//hh
+
 function Register() {
   const [isAgreementAccepted, setIsAgreementAccepted] = useState(false);
 
@@ -12,327 +12,23 @@ function Register() {
   const copyText = "Create your resident profile with the essentials only, so sign-up stays fast and clean.";
 
   return (
-    <main className="auth-page auth-page--register">
-      <style>{`
-        .auth-page {
-          position: relative;
-          min-height: 100vh;
-          display: grid;
-          place-items: center;
-          padding: 24px;
-          overflow: hidden;
-          background:
-            radial-gradient(circle at top left, rgba(239, 68, 68, 0.16), transparent 28%),
-            radial-gradient(circle at bottom right, rgba(255, 255, 255, 0.08), transparent 26%),
-            linear-gradient(180deg, #070707 0%, #050505 100%);
-        }
+    <main className="relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-4 sm:px-6 lg:px-8">
+      <div
+        className="pointer-events-none absolute -right-20 -top-16 h-72 w-72 rounded-full bg-[radial-gradient(circle,_rgba(239,68,68,0.22)_0%,_rgba(239,68,68,0.06)_42%,_transparent_72%)] blur-2xl"
+        aria-hidden="true"
+      />
+      <div
+        className="pointer-events-none absolute -bottom-24 -left-16 h-64 w-64 rounded-full bg-[radial-gradient(circle,_rgba(255,255,255,0.08)_0%,_rgba(255,255,255,0.03)_42%,_transparent_72%)] blur-2xl"
+        aria-hidden="true"
+      />
 
-        .auth-orb {
-          position: absolute;
-          border-radius: 999px;
-          filter: blur(16px);
-          pointer-events: none;
-        }
-
-        .auth-orb--one {
-          top: -4rem;
-          right: -5rem;
-          width: 18rem;
-          height: 18rem;
-          background: radial-gradient(circle, rgba(239, 68, 68, 0.22) 0%, rgba(239, 68, 68, 0.06) 42%, transparent 72%);
-        }
-
-        .auth-orb--two {
-          bottom: -6rem;
-          left: -4rem;
-          width: 16rem;
-          height: 16rem;
-          background: radial-gradient(circle, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.03) 42%, transparent 72%);
-        }
-
-        .auth-back {
-          position: absolute;
-          top: 20px;
-          left: 20px;
-          z-index: 2;
-          width: 44px;
-          height: 44px;
-          display: grid;
-          place-items: center;
-          border-radius: 999px;
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          background: linear-gradient(180deg, #dc2626 0%, #991b1b 100%);
-          color: #ffffff;
-          text-decoration: none;
-          box-shadow: 0 12px 30px rgba(239, 68, 68, 0.24);
-          transition:
-            transform 180ms ease,
-            border-color 180ms ease,
-            background 180ms ease,
-            color 180ms ease;
-        }
-
-        .auth-back:hover {
-          transform: translateY(-1px);
-          border-color: rgba(239, 68, 68, 0.75);
-          background: linear-gradient(180deg, #fb7185 0%, #ef4444 100%);
-          color: #ffffff;
-        }
-
-        .auth-back:focus-visible {
-          outline: 3px solid rgba(239, 68, 68, 0.45);
-          outline-offset: 3px;
-        }
-
-        .auth-back svg {
-          width: 20px;
-          height: 20px;
-        }
-
-        .auth-card {
-          position: relative;
-          width: min(100%, 680px);
-          padding: 72px 28px 28px;
-          border-radius: 32px;
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          background: linear-gradient(180deg, rgba(16, 16, 16, 0.92), rgba(8, 8, 8, 0.96));
-          box-shadow: 0 30px 90px rgba(0, 0, 0, 0.45);
-          backdrop-filter: blur(18px);
-          -webkit-backdrop-filter: blur(18px);
-        }
-
-        .auth-card::before {
-          content: "";
-          position: absolute;
-          inset: 1px;
-          border-radius: inherit;
-          border: 1px solid rgba(255, 255, 255, 0.04);
-          pointer-events: none;
-        }
-
-        .auth-card__header {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 12px;
-          margin-bottom: 18px;
-        }
-
-        .auth-badge,
-        .auth-status {
-          display: inline-flex;
-          align-items: center;
-          border-radius: 999px;
-          font-size: 0.8rem;
-          font-weight: 800;
-          letter-spacing: 0.08em;
-          text-transform: uppercase;
-        }
-
-        .auth-badge {
-          padding: 0.5rem 0.8rem;
-          color: rgba(255, 255, 255, 0.78);
-          border: 1px solid rgba(255, 255, 255, 0.09);
-          background: rgba(255, 255, 255, 0.03);
-        }
-
-        .auth-status {
-          padding: 0.5rem 0.8rem;
-          color: #fecaca;
-          border: 1px solid rgba(239, 68, 68, 0.24);
-          background: rgba(239, 68, 68, 0.08);
-        }
-
-        .auth-title {
-          margin: 0;
-          font-family: "Space Grotesk", "Manrope", sans-serif;
-          font-size: clamp(2.3rem, 5vw, 3.4rem);
-          line-height: 0.95;
-          letter-spacing: -0.06em;
-          color: #f6f4ef;
-        }
-
-        .auth-copy {
-          margin: 14px 0 0;
-          color: rgba(246, 244, 239, 0.74);
-          font-size: 1rem;
-        }
-
-        .auth-form {
-          margin-top: 24px;
-        }
-
-        .auth-grid {
-          display: grid;
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-          gap: 16px;
-        }
-
-        .auth-copy--compact {
-          max-width: 42rem;
-        }
-
-        .auth-field {
-          display: grid;
-          gap: 8px;
-        }
-
-        .auth-field--full {
-          grid-column: 1 / -1;
-        }
-
-        .auth-label {
-          color: rgba(246, 244, 239, 0.88);
-          font-size: 0.95rem;
-          font-weight: 700;
-        }
-
-        .auth-input {
-          width: 100%;
-          min-height: 54px;
-          padding: 0.95rem 1rem;
-          border-radius: 16px;
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          background: rgba(255, 255, 255, 0.03);
-          color: #f6f4ef;
-          outline: none;
-          transition: border-color 180ms ease, box-shadow 180ms ease, background-color 180ms ease;
-        }
-
-        .auth-input::placeholder {
-          color: rgba(246, 244, 239, 0.4);
-        }
-
-        .auth-input:focus {
-          border-color: rgba(239, 68, 68, 0.65);
-          box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.14);
-          background: rgba(255, 255, 255, 0.05);
-        }
-
-        .auth-button {
-          width: 100%;
-          min-height: 54px;
-          margin-top: 20px;
-          border: none;
-          border-radius: 16px;
-          background: var(--button-red-gradient);
-          color: #161310;
-          font-weight: 800;
-          letter-spacing: 0.02em;
-          cursor: pointer;
-          box-shadow: 0 16px 30px rgba(239, 68, 68, 0.24);
-          transition:
-            transform 180ms ease,
-            box-shadow 180ms ease,
-            background 180ms ease;
-        }
-
-        .auth-button:hover {
-          transform: translateY(-1px);
-          background: var(--button-red-gradient-hover);
-        }
-
-        .auth-button:focus-visible {
-          outline: 3px solid rgba(239, 68, 68, 0.45);
-          outline-offset: 3px;
-        }
-
-        .auth-button:disabled {
-          cursor: not-allowed;
-          opacity: 0.6;
-          box-shadow: none;
-          background: linear-gradient(180deg, rgba(239, 68, 68, 0.42) 0%, rgba(153, 27, 27, 0.42) 100%);
-          color: rgba(255, 255, 255, 0.82);
-          transform: none;
-        }
-
-        .auth-button:disabled:hover {
-          transform: none;
-          background: linear-gradient(180deg, rgba(239, 68, 68, 0.42) 0%, rgba(153, 27, 27, 0.42) 100%);
-        }
-
-        .auth-footer {
-          margin: 18px 0 0;
-          color: rgba(246, 244, 239, 0.72);
-          font-size: 0.95rem;
-          text-align: center;
-        }
-
-        .auth-footer a {
-          color: #fecaca;
-          font-weight: 800;
-          text-decoration: none;
-        }
-
-        .auth-footer a:hover {
-          color: #ffffff;
-        }
-
-        .auth-agreement {
-          display: flex;
-          align-items: flex-start;
-          gap: 12px;
-          padding: 14px 16px;
-          border-radius: 16px;
-          border: 1px solid rgba(239, 68, 68, 0.16);
-          background: rgba(239, 68, 68, 0.06);
-          color: rgba(246, 244, 239, 0.84);
-          font-size: 0.92rem;
-          line-height: 1.45;
-        }
-
-        .auth-agreement input {
-          margin-top: 2px;
-          width: 1rem;
-          height: 1rem;
-          flex: 0 0 auto;
-          accent-color: #ef4444;
-        }
-
-        .auth-agreement a {
-          color: #fecaca;
-          font-weight: 800;
-          text-decoration: none;
-        }
-
-        .auth-agreement a:hover {
-          color: #ffffff;
-        }
-
-        @media (max-width: 560px) {
-          .auth-page {
-            padding: 12px;
-          }
-
-          .auth-card {
-            padding: 64px 18px 18px;
-            border-radius: 24px;
-          }
-
-          .auth-back {
-            top: 12px;
-            left: 12px;
-            width: 42px;
-            height: 42px;
-          }
-
-          .auth-card__header {
-            flex-direction: column;
-            align-items: flex-start;
-          }
-
-          .auth-grid {
-            grid-template-columns: 1fr;
-          }
-        }
-      `}</style>
-
-      <div className="auth-orb auth-orb--one" aria-hidden="true" />
-      <div className="auth-orb auth-orb--two" aria-hidden="true" />
-
-      <section className="auth-card">
-        <Link className="auth-back" to="/" aria-label="Back to home">
-          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <section className="relative w-full max-w-[680px] rounded-[32px] border border-white/10 bg-zinc-950/92 px-7 pb-7 pt-[4.5rem] shadow-[0_30px_90px_rgba(0,0,0,0.45)] backdrop-blur-xl">
+        <Link
+          className="absolute left-4 top-4 grid h-11 w-11 place-items-center rounded-full border border-white/10 bg-gradient-to-b from-red-600 to-red-800 text-white shadow-[0_12px_30px_rgba(239,68,68,0.24)] transition hover:-translate-y-0.5 hover:from-red-500 hover:to-red-600 focus:outline-none focus:ring-4 focus:ring-red-500/20 sm:left-5 sm:top-5"
+          to="/"
+          aria-label="Back to home"
+        >
+          <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" aria-hidden="true">
             <path
               d="M15 18L9 12L15 6"
               stroke="currentColor"
@@ -343,22 +39,28 @@ function Register() {
           </svg>
         </Link>
 
-        <div className="auth-card__header">
-          <span className="auth-badge">Alerto Calbayog</span>
-          <span className="auth-status">{statusLabel}</span>
+        <div className="mb-5 flex items-center justify-between gap-3">
+          <span className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-bold uppercase tracking-[0.08em] text-stone-200/80">
+            Alerto Calbayog
+          </span>
+          <span className="inline-flex items-center rounded-full border border-red-500/20 bg-red-500/10 px-4 py-2 text-xs font-bold uppercase tracking-[0.08em] text-red-200">
+            {statusLabel}
+          </span>
         </div>
 
-        <h1 className="auth-title">Create account</h1>
-        <p className="auth-copy auth-copy--compact">{copyText}</p>
+        <h1 className="font-display text-4xl font-bold leading-[0.95] tracking-[-0.06em] text-stone-50 sm:text-[3.4rem]">
+          Create account
+        </h1>
+        <p className="mt-4 max-w-[42rem] text-base text-stone-300">{copyText}</p>
 
-        <form className="auth-form" onSubmit={handleSubmit}>
-          <div className="auth-grid">
-            <div className="auth-field auth-field--full">
-              <label className="auth-label" htmlFor="fullName">
+        <form className="mt-6" onSubmit={handleSubmit}>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-2 sm:col-span-2">
+              <label className="text-sm font-bold text-stone-100/90" htmlFor="fullName">
                 Full Name
               </label>
               <input
-                className="auth-input"
+                className="min-h-14 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-stone-100 outline-none transition placeholder:text-stone-400/70 focus:border-red-400/70 focus:bg-white/10 focus:ring-4 focus:ring-red-500/20"
                 id="fullName"
                 name="fullName"
                 type="text"
@@ -370,12 +72,12 @@ function Register() {
 
             <input type="hidden" name="role" value="resident" />
 
-            <div className="auth-field">
-              <label className="auth-label" htmlFor="email">
+            <div className="grid gap-2">
+              <label className="text-sm font-bold text-stone-100/90" htmlFor="email">
                 Email
               </label>
               <input
-                className="auth-input"
+                className="min-h-14 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-stone-100 outline-none transition placeholder:text-stone-400/70 focus:border-red-400/70 focus:bg-white/10 focus:ring-4 focus:ring-red-500/20"
                 id="email"
                 name="email"
                 type="email"
@@ -385,12 +87,12 @@ function Register() {
               />
             </div>
 
-            <div className="auth-field">
-              <label className="auth-label" htmlFor="phoneNumber">
+            <div className="grid gap-2">
+              <label className="text-sm font-bold text-stone-100/90" htmlFor="phoneNumber">
                 Phone Number
               </label>
               <input
-                className="auth-input"
+                className="min-h-14 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-stone-100 outline-none transition placeholder:text-stone-400/70 focus:border-red-400/70 focus:bg-white/10 focus:ring-4 focus:ring-red-500/20"
                 id="phoneNumber"
                 name="phoneNumber"
                 type="tel"
@@ -400,12 +102,12 @@ function Register() {
               />
             </div>
 
-            <div className="auth-field auth-field--full">
-              <label className="auth-label" htmlFor="password">
+            <div className="grid gap-2 sm:col-span-2">
+              <label className="text-sm font-bold text-stone-100/90" htmlFor="password">
                 Password
               </label>
               <input
-                className="auth-input"
+                className="min-h-14 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-stone-100 outline-none transition placeholder:text-stone-400/70 focus:border-red-400/70 focus:bg-white/10 focus:ring-4 focus:ring-red-500/20"
                 id="password"
                 name="password"
                 type="password"
@@ -415,9 +117,13 @@ function Register() {
               />
             </div>
 
-            <div className="auth-field auth-field--full">
-              <label className="auth-agreement" htmlFor="userAgreement">
+            <div className="sm:col-span-2">
+              <label
+                className="flex items-start gap-3 rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-4 text-sm leading-6 text-stone-200"
+                htmlFor="userAgreement"
+              >
                 <input
+                  className="mt-1 h-4 w-4 shrink-0 rounded border-stone-500/60 bg-transparent accent-red-500"
                   id="userAgreement"
                   name="userAgreement"
                   type="checkbox"
@@ -426,19 +132,33 @@ function Register() {
                   required
                 />
                 <span>
-                  I agree to the <a href="/" onClick={(event) => event.preventDefault()}>User Agreement</a> and the
-                  privacy terms for this registration.
+                  I agree to the{" "}
+                  <a
+                    className="font-extrabold text-red-200 transition hover:text-white"
+                    href="/"
+                    onClick={(event) => event.preventDefault()}
+                  >
+                    User Agreement
+                  </a>{" "}
+                  and the privacy terms for this registration.
                 </span>
               </label>
             </div>
           </div>
 
-          <button className="auth-button" type="submit" disabled={!isAgreementAccepted}>
+          <button
+            className="mt-6 inline-flex min-h-14 w-full items-center justify-center rounded-2xl bg-gradient-to-b from-red-300 to-red-500 px-6 font-extrabold tracking-[0.02em] text-stone-900 shadow-[0_16px_30px_rgba(239,68,68,0.24)] transition hover:-translate-y-0.5 hover:from-red-200 hover:to-red-400 focus:outline-none focus:ring-4 focus:ring-red-500/20 disabled:cursor-not-allowed disabled:bg-zinc-700/50 disabled:text-stone-300 disabled:shadow-none disabled:hover:translate-y-0"
+            type="submit"
+            disabled={!isAgreementAccepted}
+          >
             Register
           </button>
 
-          <p className="auth-footer">
-            Already have an account? <Link to="/login">Login</Link>
+          <p className="mt-5 text-center text-sm text-stone-300">
+            Already have an account?{" "}
+            <Link className="font-extrabold text-red-200 transition hover:text-white" to="/login">
+              Login
+            </Link>
           </p>
         </form>
       </section>
