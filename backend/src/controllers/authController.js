@@ -7,6 +7,7 @@ const generateToken = (id, role) => {
 };
 
 exports.register = async (req, res) => {
+  console.log("Registration request received:", req.body);
   try {
     const { fullName, email, password, role, agency, phoneNumber } = req.body;
 
@@ -19,6 +20,7 @@ exports.register = async (req, res) => {
 
     const user = await User.create({
       fullName,
+      username: email, // Satisfy MongoDB unique index
       email,
       password: hashedPassword,
       role: role || "resident",
