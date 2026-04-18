@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { cn } from "../../lib/cn.js";
+
 import { BellIcon, BoltIcon, LogoutIcon, DashboardIcon, MapIcon, ReportIcon, QueueIcon, ProfileIcon, MenuIcon } from "./icons.jsx";
 
 const innerCard = "rounded-[24px] border border-white/10 bg-white/5";
@@ -27,10 +27,7 @@ function Shell({ activeSection, onNavigate, children }) {
         />
       )}
 
-      <aside className={cn(
-        "flex flex-col gap-4 border-b border-white/10 bg-zinc-950/95 px-4 py-5 backdrop-blur-xl lg:fixed lg:inset-y-0 lg:left-0 lg:z-30 lg:h-screen lg:w-[290px] lg:border-b-0 lg:border-r lg:overflow-y-auto transition-transform duration-300",
-        isMobileMenuOpen ? "fixed inset-y-0 left-0 z-50 w-[290px] translate-x-0" : "hidden lg:flex"
-      )}>
+      <aside className={`flex flex-col gap-4 border-b border-white/10 bg-zinc-950/95 px-4 py-5 backdrop-blur-xl lg:fixed lg:inset-y-0 lg:left-0 lg:z-30 lg:h-screen lg:w-[290px] lg:border-b-0 lg:border-r lg:overflow-y-auto transition-transform duration-300 ${isMobileMenuOpen ? "fixed inset-y-0 left-0 z-50 w-[290px] translate-x-0" : "hidden lg:flex"}`}>
         <div className="flex items-center gap-3 rounded-[22px] border border-white/10 bg-white/5 p-4">
           <div className="grid h-[3.25rem] w-[3.25rem] place-items-center rounded-2xl bg-gradient-to-b from-red-200 to-red-400 text-stone-950 shadow-[0_18px_30px_rgba(239,68,68,0.16)]">
             <BoltIcon className="h-6 w-6" />
@@ -50,12 +47,7 @@ function Shell({ activeSection, onNavigate, children }) {
               <a
                 key={item.id}
                 href={`#${item.id}`}
-                className={cn(
-                  "flex items-center gap-3 rounded-2xl border px-4 py-3 transition",
-                  isActive
-                    ? "border-red-400/30 bg-red-400/10 text-stone-50 shadow-[0_18px_36px_rgba(239,68,68,0.06)]"
-                    : "border-transparent text-stone-300 hover:border-white/10 hover:bg-white/5 hover:text-stone-50",
-                )}
+                className={`flex items-center gap-3 rounded-2xl border px-4 py-3 transition ${isActive ? "border-red-400/30 bg-red-400/10 text-stone-50 shadow-[0_18px_36px_rgba(239,68,68,0.06)]" : "border-transparent text-stone-300 hover:border-white/10 hover:bg-white/5 hover:text-stone-50"}`}
                 aria-current={isActive ? "page" : undefined}
                 onClick={(event) => {
                   onNavigate(event, item.id);
@@ -63,12 +55,7 @@ function Shell({ activeSection, onNavigate, children }) {
                 }}
               >
                 <span
-                  className={cn(
-                    "grid h-11 w-11 shrink-0 place-items-center rounded-xl border",
-                    isActive
-                      ? "border-red-400/20 bg-red-400/10 text-red-300"
-                      : "border-white/10 bg-white/5 text-red-300",
-                  )}
+                  className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl border ${isActive ? "border-red-400/20 bg-red-400/10 text-red-300" : "border-white/10 bg-white/5 text-red-300"}`}
                 >
                   <ItemIcon className="h-5 w-5" />
                 </span>
@@ -136,7 +123,7 @@ function Shell({ activeSection, onNavigate, children }) {
           </div>
         </header>
 
-        <main className={cn("flex-1 w-full h-[calc(100vh-80px)] p-4 sm:p-6 lg:p-8", activeSection === "map-report" ? "overflow-hidden" : "overflow-y-auto")}>
+        <main className={`flex-1 w-full h-[calc(100vh-80px)] p-4 sm:p-6 lg:p-8 ${activeSection === "map-report" ? "overflow-hidden" : "overflow-y-auto"}`}>
           {children}
         </main>
       </div>

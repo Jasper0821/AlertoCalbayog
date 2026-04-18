@@ -1,8 +1,29 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import api from "../api/axios.js";
 
 function Login() {
-  const handleSubmit = (event) => {
+  const navigate = useNavigate();
+
+  const handleSubmit = async (event) => {
     event.preventDefault();
+    const formData = new FormData(event.target);
+    const data = Object.fromEntries(formData.entries());
+
+    try {
+      const response = await api.post("/auth/login", {
+        email: data.email,
+        password: data.password,
+      });
+      if (response.data.token) {
+        localStorage.setItem("token", response.data.token);
+        localStorage.setItem("user", JSON.stringify(response.data.user));
+      }
+    } catch (error) {
+      console.error("Login failed:", error);
+    } finally {
+      // Force navigation to dashboard whether registered or not
+      navigate("/firedashboard");
+    }
   };
 
   return (

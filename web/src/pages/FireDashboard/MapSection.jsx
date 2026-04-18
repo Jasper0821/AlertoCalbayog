@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { CircleMarker, MapContainer, Popup, TileLayer, ZoomControl, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
-import { cn } from "../../lib/cn.js";
+
 import { CloseIcon, ExpandIcon } from "./icons.jsx";
 import { SectionHeader } from "./SharedUI.jsx";
 import api from "../../api/axios.js";
@@ -171,7 +171,7 @@ function MapSection() {
 
   return (
     <>
-      <section id="map-report" className={cn(shellCard, "h-full flex flex-col")}>
+      <section id="map-report" className={`${shellCard} h-full flex flex-col`}>
         <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
           <SectionHeader
             eyebrow="Map Report"
@@ -209,19 +209,14 @@ function MapSection() {
                 return (
                   <div
                     key={pin._id || pin.id}
-                    className={cn(
-                      "min-w-[#280px] shrink-0 rounded-2xl border px-4 py-3 shadow-[0_18px_28px_rgba(0,0,0,0.42)] backdrop-blur-xl",
-                      tone === "danger"
-                        ? "border-red-500/20 bg-red-500/10 text-red-100"
-                        : "border-emerald-500/20 bg-emerald-500/10 text-emerald-100",
-                    )}
+                    className={`min-w-[#280px] shrink-0 rounded-2xl border px-4 py-3 shadow-[0_18px_28px_rgba(0,0,0,0.42)] backdrop-blur-xl ${tone === "danger" ? "border-red-500/20 bg-red-500/10 text-red-100" : "border-emerald-500/20 bg-emerald-500/10 text-emerald-100"}`}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <p className="text-xs font-bold uppercase tracking-[0.12em] text-stone-100">{pin.emergencyType}</p>
                         <p className="max-w-[200px] truncate mt-1 text-xs text-stone-200/80">{pin.description || "Incoming Call"}</p>
                       </div>
-                      <span className={cn("mt-1 h-3 w-3 shrink-0 rounded-full", mapPinTone[tone])} />
+                      <span className={`mt-1 h-3 w-3 shrink-0 rounded-full ${mapPinTone[tone]}`} />
                     </div>
                     <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-stone-200/60">
                       {pin.status || "Ongoing"}

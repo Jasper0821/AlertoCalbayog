@@ -1,4 +1,4 @@
-import { cn } from "../../lib/cn.js";
+
 import { shellCard, innerCard, pillBase, SectionHeader, profileStats } from "./SharedUI.jsx";
 
 export function ProfileSection() {
@@ -9,7 +9,7 @@ export function ProfileSection() {
           eyebrow="Profile"
           title="Account and shift details"
           description="Keep the responder profile visible so the whole team knows who is on duty and what network they manage."
-          action={<span className={cn(pillBase, "border-white/10 bg-white/5 text-stone-200")}>Operations Lead</span>}
+          action={<span className={`${pillBase} border-white/10 bg-white/5 text-stone-200`}>Operations Lead</span>}
         />
 
         <div className="flex justify-center">

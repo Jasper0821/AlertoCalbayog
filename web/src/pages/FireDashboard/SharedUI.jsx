@@ -1,4 +1,4 @@
-import { cn } from "../../lib/cn.js";
+
 
 export const shellCard = "overflow-hidden rounded-[28px] border border-white/10 bg-zinc-950/80 shadow-[0_30px_90px_rgba(0,0,0,0.42)] backdrop-blur-xl";
 export const innerCard = "rounded-[24px] border border-white/10 bg-white/5";
@@ -61,19 +61,19 @@ export function ReportsTable({ detailed = false }) {
             <tr className="border-b border-white/5 transition hover:bg-white/5" key={report.id}>
               <td className="px-6 py-5">
                 <div className="grid gap-1">
-                  <span className={cn(pillBase, incidentChip[report.type.toLowerCase()])}>{report.type}</span>
+                  <span className={`${pillBase} ${incidentChip[report.type.toLowerCase()] || ""}`}>{report.type}</span>
                   <span className="text-xs text-stone-400">{report.id}</span>
                 </div>
               </td>
               <td className="px-6 py-5 text-sm text-stone-200">{report.location}</td>
               {detailed ? (
                 <td className="px-6 py-5">
-                  <span className={cn(pillBase, statusChip.neutral)}>{report.priority}</span>
+                  <span className={`${pillBase} ${statusChip.neutral}`}>{report.priority}</span>
                 </td>
               ) : null}
               {detailed ? <td className="px-6 py-5 text-sm text-stone-200">{report.unit}</td> : null}
               <td className="px-6 py-5">
-                <span className={cn(pillBase, report.status === "Ongoing" ? statusChip.danger : statusChip.success)}>
+                <span className={`${pillBase} ${report.status === "Ongoing" ? statusChip.danger : statusChip.success}`}>
                   {report.status}
                 </span>
               </td>

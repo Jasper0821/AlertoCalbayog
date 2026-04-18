@@ -1,14 +1,31 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { Notification } from "./Notification.jsx";
+import api from "../api/axios.js";
 
 function Register() {
-  const [isAgreementAccepted, setIsAgreementAccepted] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
+    const formData = new FormData(event.target);
+    const data = Object.fromEntries(formData.entries());
+    
+    try {
+      await api.post("/auth/register", {
+        fullName: data.fullName,
+        email: data.email,
+        phoneNumber: data.phoneNumber,
+        password: data.password,
+        role: data.responderRole || "responder"
+      });
+      setIsSuccess(true);
+    } catch (error) {
+      console.error("Registration failed:", error);
+    }
   };
 
-  const statusLabel = "Resident Registration";
+  const statusLabel = "Responder Registration";
   const copyText = "Create your resident profile with the essentials only, so sign-up stays fast and clean.";
 
   return (
@@ -117,39 +134,24 @@ function Register() {
               />
             </div>
 
-            <div className="sm:col-span-2">
-              <label
-                className="flex items-start gap-3 rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-4 text-sm leading-6 text-stone-200"
-                htmlFor="userAgreement"
-              >
-                <input
-                  className="mt-1 h-4 w-4 shrink-0 rounded border-stone-500/60 bg-transparent accent-red-500"
-                  id="userAgreement"
-                  name="userAgreement"
-                  type="checkbox"
-                  checked={isAgreementAccepted}
-                  onChange={(event) => setIsAgreementAccepted(event.target.checked)}
-                  required
-                />
-                <span>
-                  I agree to the{" "}
-                  <a
-                    className="font-extrabold text-red-200 transition hover:text-white"
-                    href="/"
-                    onClick={(event) => event.preventDefault()}
-                  >
-                    User Agreement
-                  </a>{" "}
-                  and the privacy terms for this registration.
-                </span>
+            <div className="grid gap-2 sm:col-span-2">
+              <label className="text-sm font-bold text-stone-100/90" htmlFor="responderRole">
+                Responder Role
               </label>
+              <input
+                className="min-h-14 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-stone-100 outline-none transition placeholder:text-stone-400/70 focus:border-red-400/70 focus:bg-white/10 focus:ring-4 focus:ring-red-500/20"
+                id="responderRole"
+                name="responderRole"
+                type="text"
+                placeholder="e.g. Firefighter, Medical Team, Traffic Enforcer"
+                required
+              />
             </div>
           </div>
 
           <button
             className="mt-6 inline-flex min-h-14 w-full items-center justify-center rounded-2xl bg-gradient-to-b from-red-300 to-red-500 px-6 font-extrabold tracking-[0.02em] text-stone-900 shadow-[0_16px_30px_rgba(239,68,68,0.24)] transition hover:-translate-y-0.5 hover:from-red-200 hover:to-red-400 focus:outline-none focus:ring-4 focus:ring-red-500/20 disabled:cursor-not-allowed disabled:bg-zinc-700/50 disabled:text-stone-300 disabled:shadow-none disabled:hover:translate-y-0"
             type="submit"
-            disabled={!isAgreementAccepted}
           >
             Register
           </button>
@@ -162,6 +164,8 @@ function Register() {
           </p>
         </form>
       </section>
+      
+      <Notification isVisible={isSuccess} onClose={() => setIsSuccess(false)} />
     </main>
   );
 }
