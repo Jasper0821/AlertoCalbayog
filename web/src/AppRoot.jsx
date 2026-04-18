@@ -5,7 +5,7 @@ import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
 import Reports from "./pages/Reports";
 import IncidentMap from "./pages/IncidentMap";
-
+//import
 function App() {
   return (
     <Router>

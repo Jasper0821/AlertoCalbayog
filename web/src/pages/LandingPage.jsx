@@ -5,7 +5,7 @@ const stats = [
   { value: "Live", label: "City alerts" },
   { value: "1 Tap", label: "Report flow" },
 ];
-
+//kk
 function LandingPage() {
   return (
     <main className="landing">
