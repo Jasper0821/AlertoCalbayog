@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-
+//hh
 function Register() {
   const [isAgreementAccepted, setIsAgreementAccepted] = useState(false);
 
