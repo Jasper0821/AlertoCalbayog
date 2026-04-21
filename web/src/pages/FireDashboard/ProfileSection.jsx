@@ -1,46 +1,125 @@
-import { cn } from "../../lib/cn.js";
-import { shellCard, innerCard, pillBase, SectionHeader, profileStats } from "./SharedUI.jsx";
+import { useState } from "react";
+import { shellCard, innerCard, SectionHeader } from "./SharedUI.jsx";
 
 export function ProfileSection() {
+  const [isEditing, setIsEditing] = useState(false);
+  const [profileData, setProfileData] = useState({
+    name: "Jasper Alerto",
+    role: "Emergency Ops Lead",
+    description: "Head of City Operations. Coordinating fire response units and managing city-wide emergency synchronization.",
+    rank: "Ops Commander",
+    shift: "08:00 - 20:00",
+    net: "Full Admin",
+    id: "AC-5829-01"
+  });
+
+  const handleSave = (e) => {
+    e.preventDefault();
+    setIsEditing(false);
+  };
+
   return (
     <section id="profile" className={shellCard}>
-      <div className="p-6">
+      <div className="p-6 sm:p-10 lg:p-16">
         <SectionHeader
-          eyebrow="Profile"
-          title="Account and shift details"
-          description="Keep the responder profile visible so the whole team knows who is on duty and what network they manage."
-          action={<span className={cn(pillBase, "border-white/10 bg-white/5 text-stone-200")}>Operations Lead</span>}
+          title={isEditing ? "Edit terminal profile" : "Account profile"}
+          action={
+            !isEditing && (
+              <button 
+                onClick={() => setIsEditing(true)}
+                className="flex items-center gap-2 rounded-2xl bg-slate-900 border border-slate-900 px-6 py-3 text-[10px] font-black uppercase tracking-widest text-white transition hover:bg-black shadow-lg shadow-slate-900/20 active:scale-95"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="h-4 w-4">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                </svg>
+                Edit Profile
+              </button>
+            )
+          }
         />
 
         <div className="flex justify-center">
-          <article className="rounded-[24px] border border-white/10 bg-white/5 p-5 w-full max-w-2xl">
-            <div className="flex items-center gap-4">
-              <div className="grid h-[4.5rem] w-[4.5rem] place-items-center rounded-[24px] bg-gradient-to-b from-red-200 to-red-400 text-2xl font-extrabold tracking-[-0.06em] text-stone-950 shadow-[0_20px_32px_rgba(239,68,68,0.16)]">
-                AC
-              </div>
-              <div className="min-w-0">
-                <p className="text-xs font-bold uppercase tracking-[0.14em] text-red-400">Admin / Responder</p>
-                <h3 className="mt-2 font-display text-2xl font-bold tracking-[-0.04em] text-stone-50">
-                  Operations Lead
-                </h3>
-                <p className="mt-3 max-w-2xl text-sm leading-7 text-stone-300">
-                  Monitoring all emergency channels, dispatching units, and keeping city-wide alerts in sync.
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-6 grid gap-3 sm:grid-cols-2">
-              {profileStats.map((item) => (
-                <div key={item.id} className="rounded-2xl border border-white/10 bg-zinc-950/70 px-4 py-3">
-                  <span className="block text-xs font-bold uppercase tracking-[0.08em] text-stone-400">{item.label}</span>
-                  <strong className="mt-2 block text-sm text-stone-100">{item.value}</strong>
+          {isEditing ? (
+            <form onSubmit={handleSave} className="w-full max-w-3xl rounded-[40px] border border-slate-100 bg-white p-8 sm:p-12 shadow-2xl shadow-slate-200/50">
+               <div className="grid gap-8">
+                  <div className="grid gap-3">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Full Operational Name</label>
+                    <input 
+                      className="h-14 w-full rounded-2xl border border-slate-100 bg-slate-50 px-6 text-sm font-bold text-slate-900 outline-none focus:border-red-600 focus:ring-4 focus:ring-red-600/5 transition-all"
+                      value={profileData.name}
+                      onChange={(e) => setProfileData({...profileData, name: e.target.value})}
+                    />
+                  </div>
+                  <div className="grid gap-3">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Designated Role</label>
+                    <input 
+                      className="h-14 w-full rounded-2xl border border-slate-100 bg-slate-50 px-6 text-sm font-bold text-slate-900 outline-none focus:border-red-600 focus:ring-4 focus:ring-red-600/5 transition-all"
+                      value={profileData.role}
+                      onChange={(e) => setProfileData({...profileData, role: e.target.value})}
+                    />
+                  </div>
+                  <div className="grid gap-3">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Mission Description</label>
+                    <textarea 
+                      className="h-32 w-full rounded-2xl border border-slate-100 bg-slate-50 px-6 py-4 text-sm font-bold text-slate-900 outline-none focus:border-red-600 focus:ring-4 focus:ring-red-600/5 transition-all resize-none"
+                      value={profileData.description}
+                      onChange={(e) => setProfileData({...profileData, description: e.target.value})}
+                    />
+                  </div>
+                  
+                  <div className="flex flex-col sm:flex-row gap-4 pt-4">
+                    <button 
+                      type="submit"
+                      className="flex-1 h-14 rounded-2xl bg-red-600 text-[10px] font-black uppercase tracking-widest text-white shadow-xl shadow-red-600/20 hover:bg-red-700 transition-all active:scale-95"
+                    >
+                      Update Terminal Data
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => setIsEditing(false)}
+                      className="h-14 px-10 rounded-2xl bg-slate-50 border border-slate-100 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:bg-slate-100 transition-all"
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+               </div>
+            </form>
+          ) : (
+            <article className="rounded-[40px] border border-slate-100 bg-white p-8 sm:p-12 w-full max-w-3xl shadow-2xl shadow-slate-200/50 transition-all">
+              <div className="flex flex-col sm:flex-row items-center sm:items-start gap-8 lg:gap-10">
+                <div className="grid h-24 w-24 sm:h-32 sm:w-32 shrink-0 place-items-center rounded-[40px] bg-red-600 text-3xl sm:text-4xl font-black text-white shadow-2xl shadow-red-600/20">
+                  {profileData.name.split(' ').map(n => n[0]).join('')}
                 </div>
-              ))}
-            </div>
-          </article>
+                <div className="min-w-0 text-center sm:text-left">
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-red-600 mb-2">{profileData.role}</p>
+                  <h3 className="font-display text-3xl sm:text-4xl font-black tracking-tighter text-slate-900">
+                    {profileData.name}
+                  </h3>
+                  <p className="mt-4 text-base sm:text-lg font-bold text-slate-600 leading-relaxed">
+                    {profileData.description}
+                  </p>
+                </div>
+              </div>
 
+              <div className="mt-12 grid gap-4 sm:gap-6 sm:grid-cols-2">
+                {[
+                  { id: "rank", label: "Operational Rank", value: profileData.rank },
+                  { id: "shift", label: "Current Shift", value: profileData.shift },
+                  { id: "net", label: "Network Access", value: profileData.net },
+                  { id: "id", label: "Responder ID", value: profileData.id },
+                ].map((item) => (
+                  <div key={item.id} className="rounded-3xl border border-slate-50 bg-slate-50 px-6 py-5 hover:bg-white hover:border-slate-100 transition-all group">
+                    <span className="block text-[8px] font-black uppercase tracking-[0.2em] text-slate-500 group-hover:text-red-600">{item.label}</span>
+                    <strong className="mt-2 block text-sm font-black text-slate-900">{item.value}</strong>
+                  </div>
+                ))}
+              </div>
+            </article>
+          )}
         </div>
       </div>
     </section>
   );
 }
+

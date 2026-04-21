@@ -1,16 +1,12 @@
 import { useEffect, useState, useRef } from "react";
 import { CircleMarker, MapContainer, Popup, TileLayer, ZoomControl, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
-import { cn } from "../../lib/cn.js";
-import { CloseIcon, ExpandIcon } from "./icons.jsx";
-import { SectionHeader } from "./SharedUI.jsx";
+import { CloseIcon, ExpandIcon, BoltIcon, MapIcon } from "./icons.jsx";
+import { SectionHeader, shellCard, innerCard } from "./SharedUI.jsx";
 import api from "../../api/axios.js";
 import { io } from "socket.io-client";
 
 const cityCenter = [12.068, 124.597];
-
-const shellCard = "overflow-hidden rounded-[28px] border border-white/10 bg-zinc-950/80 shadow-[0_30px_90px_rgba(0,0,0,0.42)] backdrop-blur-xl";
-const innerCard = "rounded-[24px] border border-white/10 bg-white/5";
 
 const mapPinTone = {
   danger: "bg-red-500 shadow-[0_0_0_8px_rgba(239,68,68,0.12)]",
@@ -20,19 +16,20 @@ const mapPinTone = {
 };
 
 const markerStyle = {
-  danger: { color: "#fecaca", fillColor: "#ef4444" },
-  yellow: { color: "#fde68a", fillColor: "#facc15" },
-  neutral: { color: "#e7e5e4", fillColor: "#d6d3d1" },
-  success: { color: "#bbf7d0", fillColor: "#4ade80" },
+  danger: { color: "#ef4444", fillColor: "#ffffff" },
+  yellow: { color: "#f59e0b", fillColor: "#ffffff" },
+  neutral: { color: "#64748b", fillColor: "#ffffff" },
+  success: { color: "#10b981", fillColor: "#ffffff" },
 };
 
 function MapResizeBridge({ refreshKey }) {
   const map = useMap();
 
   useEffect(() => {
+    // Longer timeout to wait for modal transition
     const timer = window.setTimeout(() => {
       map.invalidateSize();
-    }, 0);
+    }, 250);
 
     return () => window.clearTimeout(timer);
   }, [map, refreshKey]);
@@ -171,123 +168,149 @@ function MapSection() {
 
   return (
     <>
-      <section id="map-report" className={cn(shellCard, "h-full flex flex-col")}>
-        <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
+      <section id="map-report" className={`${shellCard} flex flex-col`}>
+        <div className="flex items-center justify-between border-b border-slate-100 px-8 py-6">
           <SectionHeader
-            eyebrow="Map Report"
-            title="City coverage and hotspots"
-            description="View the live distribution of emergency responding grid exclusively for Fire reports."
-            action={
-              <button
-                type="button"
-                onClick={() => setIsFullscreen(true)}
-                className="inline-flex items-center gap-2 rounded-full border border-red-400/20 bg-red-400/10 px-4 py-2 text-xs font-bold uppercase tracking-[0.12em] text-red-100 transition hover:bg-red-400/15 hover:text-red-50"
-              >
-                <ExpandIcon className="h-4 w-4" />
-                Open fullscreen
-              </button>
-            }
+            title="Live Grid"
+            description="Access the secure city-wide emergency distribution terminal."
           />
         </div>
 
-        <div className="flex-1 relative bg-zinc-950/80">
-          <MapView interactive={true} mapKey="map-live" pins={pins} />
-
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(239,68,68,0.12),transparent_40%),linear-gradient(180deg,rgba(9,9,11,0.02),rgba(9,9,11,0.26))] z-[400]" />
-
-          <div className="absolute left-6 top-6 flex flex-col gap-2 z-[400]">
-            <span className="inline-flex max-w-max items-center rounded-full border border-red-500/30 bg-red-500/20 px-3 py-2 text-xs font-bold uppercase tracking-[0.12em] text-red-100 shadow-xl backdrop-blur-md">
-              <span className="mr-2 h-2 w-2 animate-pulse rounded-full bg-red-400"></span>
-              Live Tracking
-            </span>
+        <div className="p-12 sm:p-20 flex flex-col items-center text-center bg-slate-50/50">
+          <div className="relative mb-10 group">
+             <div className="absolute inset-0 bg-red-600 blur-3xl opacity-10 group-hover:opacity-20 transition-opacity" />
+             <div className="relative grid h-32 w-32 place-items-center rounded-[40px] bg-white border border-slate-100 text-red-600 shadow-2xl transition hover:scale-105">
+                <MapIcon className="h-12 w-12" />
+             </div>
+             <div className="absolute -bottom-2 -right-2 h-10 w-10 rounded-2xl bg-slate-900 border-4 border-white flex items-center justify-center text-white shadow-xl">
+                <ExpandIcon className="h-4 w-4" />
+             </div>
           </div>
 
-          <div className="absolute bottom-6 left-6 right-6 top-auto z-[400]">
-            <div className="flex gap-4 overflow-x-auto pb-4">
-              {pins.map((pin) => {
-                const tone = pin.status === "Closed" ? "success" : "danger";
-                return (
-                  <div
-                    key={pin._id || pin.id}
-                    className={cn(
-                      "min-w-[#280px] shrink-0 rounded-2xl border px-4 py-3 shadow-[0_18px_28px_rgba(0,0,0,0.42)] backdrop-blur-xl",
-                      tone === "danger"
-                        ? "border-red-500/20 bg-red-500/10 text-red-100"
-                        : "border-emerald-500/20 bg-emerald-500/10 text-emerald-100",
-                    )}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-xs font-bold uppercase tracking-[0.12em] text-stone-100">{pin.emergencyType}</p>
-                        <p className="max-w-[200px] truncate mt-1 text-xs text-stone-200/80">{pin.description || "Incoming Call"}</p>
-                      </div>
-                      <span className={cn("mt-1 h-3 w-3 shrink-0 rounded-full", mapPinTone[tone])} />
-                    </div>
-                    <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-stone-200/60">
-                      {pin.status || "Ongoing"}
-                    </p>
-                  </div>
-                );
-              })}
-            </div>
+          <h3 className="text-3xl font-black tracking-tighter text-slate-900 uppercase leading-none">Operational Terminal</h3>
+          <p className="mt-4 max-w-md text-base font-bold text-slate-500 leading-relaxed">
+            Initialize the secure interactive grid to view real-time fire response units, sector telemetry, and active incident distribution across Calbayog City.
+          </p>
+
+          <div className="mt-10 flex flex-col sm:flex-row gap-4 w-full max-w-lg">
+            <button
+              type="button"
+              onClick={() => setIsFullscreen(true)}
+              className="flex-1 flex h-16 items-center justify-center gap-3 rounded-[24px] bg-slate-900 px-8 text-[11px] font-black uppercase tracking-[0.2em] text-white shadow-2xl shadow-slate-900/20 transition-all hover:bg-black hover:scale-[1.02] active:scale-95"
+            >
+              <ExpandIcon className="h-4 w-4" />
+              Launch Fullscreen Terminal
+            </button>
+          </div>
+
+          <div className="mt-12 grid grid-cols-2 sm:grid-cols-3 gap-8 w-full max-w-2xl border-t border-slate-100 pt-12">
+             <div className="text-center">
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total Districts</p>
+                <p className="mt-1 text-xl font-black text-slate-900 uppercase">42 Active</p>
+             </div>
+             <div className="text-center">
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Current Load</p>
+                <p className="mt-1 text-xl font-black text-slate-900 uppercase">{pins.length} Alerts</p>
+             </div>
+             <div className="hidden sm:block text-center">
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Sync Health</p>
+                <p className="mt-1 text-xl font-black text-emerald-600 uppercase">Optimal</p>
+             </div>
           </div>
         </div>
       </section>
 
 
-
       {isFullscreen ? (
-        <div className="fixed inset-0 z-50 bg-black/80 p-4 sm:p-6" onClick={() => setIsFullscreen(false)}>
-          <div
-            className="mx-auto flex h-full max-w-7xl flex-col overflow-hidden rounded-[28px] border border-white/10 bg-zinc-950 shadow-[0_30px_90px_rgba(0,0,0,0.55)]"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="flex items-center justify-between gap-4 border-b border-white/10 px-4 py-4 sm:px-5">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-[0.14em] text-red-400">Fullscreen map</p>
-                <h3 className="mt-2 font-display text-xl font-bold tracking-[-0.04em] text-stone-50">
-                  Interactive incident map
-                </h3>
+        <div className="fixed inset-0 z-[100] bg-white animate-in fade-in duration-500 overflow-hidden">
+          {/* MINIMALIST FLOATING BACK BUTTON */}
+          <div className="absolute top-8 left-8 z-[1000]">
+            <button 
+              onClick={() => setIsFullscreen(false)}
+              className="flex items-center gap-3 bg-white border border-slate-100 p-2 pr-6 rounded-2xl shadow-2xl hover:scale-105 transition-all group active:scale-95"
+            >
+              <div className="grid h-12 w-12 place-items-center rounded-xl bg-slate-900 text-white shadow-lg shadow-slate-900/20">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="h-5 w-5 transition-transform group-hover:-translate-x-1">
+                  <path d="M19 12H5M12 19l-7-7 7-7" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
               </div>
+              <div className="text-left">
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Back to Hub</p>
+                <p className="text-sm font-black tracking-tight text-slate-900 uppercase">Exit Terminal</p>
+              </div>
+            </button>
+          </div>
 
-              <button
-                type="button"
-                onClick={() => setIsFullscreen(false)}
-                className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-stone-100 transition hover:border-red-400/30 hover:bg-red-400/10 hover:text-red-100"
-              >
-                <CloseIcon className="h-4 w-4" />
-                Close
-              </button>
+          {/* STATUS OVERLAY */}
+          <div className="absolute top-8 right-8 z-[1000] hidden sm:block pointer-events-none">
+            <div className="bg-white/90 backdrop-blur-md border border-slate-100 px-6 py-4 rounded-3xl shadow-2xl flex items-center gap-6">
+                <div className="flex items-center gap-3">
+                    <div className="h-2.5 w-2.5 rounded-full bg-red-600 animate-pulse" />
+                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-900 leading-none">Full Terminal Mode</span>
+                </div>
+                <div className="h-8 w-[1px] bg-slate-100" />
+                <div className="text-right">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Current Grid</p>
+                  <p className="text-xs font-bold text-slate-900 uppercase tracking-tight">Active Districts</p>
+                </div>
             </div>
+          </div>
 
-            <div className="min-h-0 flex-1">
-              <MapView interactive={true} mapKey="map-fullscreen" pins={pins} />
+          {/* THE MAP */}
+          <div className="h-full w-full">
+            <MapView interactive={true} mapKey="map-fullscreen" pins={pins} />
+            
+            {/* STUDIO LIGHT OVERLAYS */}
+            <div className="pointer-events-none absolute inset-0 z-[400] ring-inset ring-[40px] ring-white/10 opacity-50" />
+            <div className="pointer-events-none absolute inset-0 z-[400] bg-[radial-gradient(circle_at_center,transparent_40%,rgba(255,255,255,0.05)_100%)]" />
+          </div>
+
+          {/* BOTTOM INCIDENT CARDS */}
+          <div className="absolute bottom-10 left-10 right-10 top-auto z-[1000] pointer-events-none">
+            <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide pointer-events-auto">
+              {pins.map((pin) => (
+                  <div
+                    key={pin.id || pin._id}
+                    className="bg-slate-900/95 border border-slate-800 p-6 rounded-[32px] shadow-2xl min-w-[320px] backdrop-blur-xl"
+                  >
+                     <div className="flex justify-between items-start">
+                        <div>
+                          <p className="text-[10px] font-black uppercase tracking-widest text-red-500 mb-1">{pin.emergencyType}</p>
+                          <h4 className="text-sm font-black text-white uppercase tracking-tight truncate max-w-[220px]">{pin.description || "Active Alert"}</h4>
+                          <p className="mt-2 text-[9px] font-bold text-slate-500 uppercase tracking-widest">{pin.location?.name || "Sector " + (pin.sector || "01")}</p>
+                        </div>
+                        <div className="h-2.5 w-2.5 rounded-full bg-red-500 animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.5)]" />
+                     </div>
+                  </div>
+              ))}
             </div>
           </div>
         </div>
       ) : null}
 
+
       {liveAlert ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm pointer-events-none transition-all duration-500">
-          <div className="pointer-events-auto flex max-w-md flex-col items-center gap-4 rounded-[28px] border border-red-500/20 bg-red-500/10 p-8 shadow-[0_40px_100px_rgba(239,68,68,0.3)] backdrop-blur-xl animate-in zoom-in-95 duration-300">
-            <div className="grid h-16 w-16 place-items-center rounded-full bg-red-500 animate-pulse">
-              <span className="text-white font-black text-2xl">!</span>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 p-4 backdrop-blur-xl pointer-events-none transition-all duration-700">
+          <div className="pointer-events-auto flex max-w-md flex-col items-center gap-6 rounded-[56px] border border-slate-100 bg-white p-12 shadow-[0_40px_120px_rgba(0,0,0,0.1)] transition-all animate-in zoom-in-95 slide-in-from-bottom-10 duration-500">
+            <div className="grid h-20 w-20 place-items-center rounded-[32px] bg-red-600 shadow-2xl shadow-red-600/30 animate-bounce">
+              <BoltIcon className="h-10 w-10 text-white" />
             </div>
             <div className="text-center">
-              <p className="text-xs font-bold uppercase tracking-[0.16em] text-red-200">New Emergency Alert</p>
-              <h3 className="mt-2 font-display text-3xl font-bold text-stone-50">{liveAlert.emergencyType}</h3>
-              <p className="mt-3 text-base text-stone-200">{liveAlert.description}</p>
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-red-600 mb-4">Urgent Grid Notification</p>
+              <h3 className="font-display text-4xl font-black tracking-tighter text-slate-900 uppercase leading-[0.9]">{liveAlert.emergencyType} Alert</h3>
+              <p className="mt-6 text-lg font-bold text-slate-500 leading-relaxed">{liveAlert.description}</p>
             </div>
             <button
               type="button"
               onClick={() => setLiveAlert(null)}
-              className="mt-4 rounded-xl bg-red-500 px-6 py-3 font-bold text-white shadow-lg hover:bg-red-400 active:scale-95 transition-all"
+              className="mt-4 h-16 w-full rounded-2xl bg-slate-900 px-8 text-[11px] font-black uppercase tracking-[0.2em] text-white shadow-2xl shadow-slate-900/20 hover:bg-black active:scale-95 transition-all"
             >
-              Acknowledge
+              Acknowledge Ops
             </button>
           </div>
         </div>
       ) : null}
+
     </>
   );
 }
