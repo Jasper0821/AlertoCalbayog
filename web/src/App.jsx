@@ -1,4 +1,6 @@
+import { useEffect } from "react";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { initTheme } from "./theme";
 import LandingPage from "./pages/LandingPage.jsx";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
@@ -9,6 +11,10 @@ import CityGridMap from "./pages/CityGridMap";
 import ForgotPassword from "./pages/ForgotPassword";
 
 function App() {
+  useEffect(() => {
+    initTheme();
+  }, []);
+
   return (
     <Router>
       <Routes>
@@ -29,4 +35,3 @@ function App() {
 }
 
 export default App;
-

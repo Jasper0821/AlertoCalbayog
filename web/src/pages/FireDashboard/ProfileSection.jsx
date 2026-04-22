@@ -41,12 +41,12 @@ export function ProfileSection() {
 
         <div className="flex justify-center">
           {isEditing ? (
-            <form onSubmit={handleSave} className="w-full max-w-3xl rounded-[40px] border border-slate-100 bg-white p-8 sm:p-12 shadow-2xl shadow-slate-200/50">
+            <form onSubmit={handleSave} className="w-full max-w-3xl rounded-[40px] border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 p-8 sm:p-12 shadow-2xl shadow-slate-200/50 transition-all">
                <div className="grid gap-8">
                   <div className="grid gap-3">
                     <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Full Operational Name</label>
                     <input 
-                      className="h-14 w-full rounded-2xl border border-slate-100 bg-slate-50 px-6 text-sm font-bold text-slate-900 outline-none focus:border-red-600 focus:ring-4 focus:ring-red-600/5 transition-all"
+                      className="h-14 w-full rounded-2xl border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-6 text-sm font-bold text-slate-900 dark:text-white outline-none focus:border-red-600 focus:ring-4 focus:ring-red-600/5 transition-all"
                       value={profileData.name}
                       onChange={(e) => setProfileData({...profileData, name: e.target.value})}
                     />
@@ -54,7 +54,7 @@ export function ProfileSection() {
                   <div className="grid gap-3">
                     <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Designated Role</label>
                     <input 
-                      className="h-14 w-full rounded-2xl border border-slate-100 bg-slate-50 px-6 text-sm font-bold text-slate-900 outline-none focus:border-red-600 focus:ring-4 focus:ring-red-600/5 transition-all"
+                      className="h-14 w-full rounded-2xl border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-6 text-sm font-bold text-slate-900 dark:text-white outline-none focus:border-red-600 focus:ring-4 focus:ring-red-600/5 transition-all"
                       value={profileData.role}
                       onChange={(e) => setProfileData({...profileData, role: e.target.value})}
                     />
@@ -62,7 +62,7 @@ export function ProfileSection() {
                   <div className="grid gap-3">
                     <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Mission Description</label>
                     <textarea 
-                      className="h-32 w-full rounded-2xl border border-slate-100 bg-slate-50 px-6 py-4 text-sm font-bold text-slate-900 outline-none focus:border-red-600 focus:ring-4 focus:ring-red-600/5 transition-all resize-none"
+                      className="h-32 w-full rounded-2xl border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-6 py-4 text-sm font-bold text-slate-900 dark:text-white outline-none focus:border-red-600 focus:ring-4 focus:ring-red-600/5 transition-all resize-none"
                       value={profileData.description}
                       onChange={(e) => setProfileData({...profileData, description: e.target.value})}
                     />
@@ -78,7 +78,7 @@ export function ProfileSection() {
                     <button 
                       type="button"
                       onClick={() => setIsEditing(false)}
-                      className="h-14 px-10 rounded-2xl bg-slate-50 border border-slate-100 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:bg-slate-100 transition-all"
+                      className="h-14 px-10 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 text-[10px] font-black uppercase tracking-widest text-slate-500 transition-all"
                     >
                       Dismiss
                     </button>
@@ -86,17 +86,17 @@ export function ProfileSection() {
                </div>
             </form>
           ) : (
-            <article className="rounded-[40px] border border-slate-100 bg-white p-8 sm:p-12 w-full max-w-3xl shadow-2xl shadow-slate-200/50 transition-all">
+            <article className="rounded-[40px] border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 p-8 sm:p-12 w-full max-w-3xl shadow-2xl shadow-slate-200/50 transition-all text-center sm:text-left">
               <div className="flex flex-col sm:flex-row items-center sm:items-start gap-8 lg:gap-10">
                 <div className="grid h-24 w-24 sm:h-32 sm:w-32 shrink-0 place-items-center rounded-[40px] bg-red-600 text-3xl sm:text-4xl font-black text-white shadow-2xl shadow-red-600/20">
                   {profileData.name.split(' ').map(n => n[0]).join('')}
                 </div>
-                <div className="min-w-0 text-center sm:text-left">
+                <div className="min-w-0">
                   <p className="text-[10px] font-black uppercase tracking-[0.2em] text-red-600 mb-2">{profileData.role}</p>
-                  <h3 className="font-display text-3xl sm:text-4xl font-black tracking-tighter text-slate-900">
+                  <h3 className="font-display text-3xl sm:text-4xl font-black tracking-tighter text-slate-900 dark:text-white transition-colors">
                     {profileData.name}
                   </h3>
-                  <p className="mt-4 text-base sm:text-lg font-bold text-slate-600 leading-relaxed">
+                  <p className="mt-4 text-base sm:text-lg font-bold text-slate-600 dark:text-slate-400 leading-relaxed transition-colors">
                     {profileData.description}
                   </p>
                 </div>
@@ -109,9 +109,9 @@ export function ProfileSection() {
                   { id: "net", label: "Network Access", value: profileData.net },
                   { id: "id", label: "Responder ID", value: profileData.id },
                 ].map((item) => (
-                  <div key={item.id} className="rounded-3xl border border-slate-50 bg-slate-50 px-6 py-5 hover:bg-white hover:border-slate-100 transition-all group">
-                    <span className="block text-[8px] font-black uppercase tracking-[0.2em] text-slate-500 group-hover:text-red-600">{item.label}</span>
-                    <strong className="mt-2 block text-sm font-black text-slate-900">{item.value}</strong>
+                  <div key={item.id} className="rounded-3xl border border-slate-50 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/40 px-6 py-5 hover:bg-white dark:hover:bg-slate-800/50 hover:border-slate-100 dark:hover:border-slate-700 transition-all group">
+                    <span className="block text-[8px] font-black uppercase tracking-[0.2em] text-slate-500 dark:text-slate-500 group-hover:text-red-600">{item.label}</span>
+                    <strong className="mt-2 block text-sm font-black text-slate-900 dark:text-slate-100 transition-colors">{item.value}</strong>
                   </div>
                 ))}
               </div>
