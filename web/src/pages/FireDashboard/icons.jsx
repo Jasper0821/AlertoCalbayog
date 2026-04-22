@@ -141,3 +141,27 @@ export function MenuIcon(props) {
     </Icon>
   );
 }
+
+export function SunIcon(props) {
+  return (
+    <Icon {...props}>
+      <circle cx="12" cy="12" r="4.2" />
+      <path d="M12 2.5V5" />
+      <path d="M12 19v2.5" />
+      <path d="M5.3 5.3l1.8 1.8" />
+      <path d="M16.9 16.9l1.8 1.8" />
+      <path d="M2.5 12H5" />
+      <path d="M19 12h2.5" />
+      <path d="M5.3 18.7l1.8-1.8" />
+      <path d="M16.9 7.1l1.8-1.8" />
+    </Icon>
+  );
+}
+
+export function MoonIcon(props) {
+  return (
+    <Icon {...props}>
+      <path d="M12 3a6.1 6.1 0 0 0 9 9 9 9 0 1 1-9-9Z" />
+    </Icon>
+  );
+}

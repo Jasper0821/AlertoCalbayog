@@ -3,26 +3,34 @@
 @tailwind utilities;
 
 @layer base {
+  html {
+    font-size: 18px;
+  }
+
   body {
-    @apply bg-slate-50 text-slate-900 font-sans antialiased;
+    @apply bg-slate-50 text-slate-900 font-sans antialiased transition-colors duration-300;
+  }
+  
+  .dark body {
+    @apply bg-slate-950 text-slate-100 placeholder:text-slate-600;
   }
 }
 
 @layer components {
   /* Studio Light System */
   .studio-bg {
-    @apply bg-[#f9fafb];
+    @apply bg-[#f9fafb] dark:bg-slate-950;
   }
 
   .studio-card {
-    @apply bg-white border border-slate-100 rounded-[32px] shadow-sm;
+    @apply bg-white border border-slate-100 rounded-[32px] shadow-sm dark:bg-slate-900/50 dark:border-slate-800 dark:backdrop-blur-xl;
   }
 
   .studio-card-dark {
-    @apply bg-slate-900 text-white rounded-[32px] shadow-2xl;
+    @apply bg-slate-900 text-white rounded-[32px] shadow-2xl dark:bg-slate-950;
   }
 
   .btn-primary {
-    @apply h-14 px-8 rounded-2xl bg-red-600 text-white font-black uppercase tracking-widest text-[10px] hover:bg-red-700 transition-all shadow-lg active:scale-95 flex items-center justify-center;
+    @apply h-14 px-8 rounded-2xl bg-red-600 text-white font-black uppercase tracking-widest text-[10px] hover:bg-red-700 transition-all shadow-lg active:scale-95 flex items-center justify-center dark:shadow-red-900/20;
   }
 }

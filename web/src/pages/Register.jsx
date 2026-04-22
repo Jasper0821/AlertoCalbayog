@@ -1,13 +1,23 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 function Register() {
+  const navigate = useNavigate();
   const [isAgreementAccepted, setIsAgreementAccepted] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState("");
 
   const handleSubmit = (event) => {
     event.preventDefault();
+    setIsSubmitting(true);
+    
+    // Simulate registration
+    setTimeout(() => {
+      navigate("/dashboard");
+    }, 1000);
   };
+
 
   return (
     <main className="relative flex min-h-screen items-center justify-center bg-slate-50 px-4 py-12 sm:px-6 lg:px-8 font-sans antialiased">
@@ -106,6 +116,14 @@ function Register() {
               />
             </div>
 
+            {error && (
+              <div className="sm:col-span-2">
+                <p className="text-xs font-bold text-red-600 bg-red-50 p-4 rounded-xl border border-red-100">
+                  {error}
+                </p>
+              </div>
+            )}
+
             <div className="sm:col-span-2">
               <label
                 className="group flex items-start gap-4 rounded-2xl border border-slate-100 bg-slate-50/50 p-5 transition hover:bg-slate-50 cursor-pointer"
@@ -130,12 +148,14 @@ function Register() {
           <button
             className="group relative flex h-16 w-full items-center justify-center overflow-hidden rounded-2xl bg-slate-900 px-8 text-[11px] font-black uppercase tracking-[0.2em] text-white shadow-2xl shadow-slate-900/20 transition-all hover:bg-black hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:scale-100 disabled:bg-slate-400 disabled:cursor-not-allowed"
             type="submit"
-            disabled={!isAgreementAccepted}
+            disabled={!isAgreementAccepted || isSubmitting}
           >
-            Create Profile
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="ml-3 h-4 w-4 transition-transform group-hover:translate-x-1">
-              <path d="M5 12h14M12 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
+            {isSubmitting ? "Creating Profile..." : "Create Profile"}
+            {!isSubmitting && (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="ml-3 h-4 w-4 transition-transform group-hover:translate-x-1">
+                <path d="M5 12h14M12 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            )}
           </button>
 
           <p className="pt-4 text-center text-sm font-bold text-slate-400">
@@ -193,6 +213,7 @@ function Register() {
             </div>
 
             <div className="p-8 border-t border-slate-50 bg-slate-50/30 flex justify-end">
+
               <button 
                 onClick={() => setShowTermsModal(false)}
                 className="h-14 px-10 rounded-2xl bg-slate-900 text-[11px] font-black uppercase tracking-[0.2em] text-white shadow-xl hover:bg-black transition-all"
@@ -207,6 +228,4 @@ function Register() {
   );
 }
 
-
 export default Register;
-

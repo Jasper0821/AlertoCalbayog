@@ -5,6 +5,7 @@ import { OverviewSection } from "./OverviewSection.jsx";
 import { ProfileSection } from "./ProfileSection.jsx";
 import { QueueSection } from "./QueueSection.jsx";
 import { ReportsSection } from "./ReportsSection.jsx";
+import { recentReports } from "./SharedUI.jsx";
 
 const navigation = [
   { id: "dashboard" },
@@ -24,6 +25,9 @@ function FireDashboard() {
     return navigation.some((item) => item.id === hash) ? hash : "dashboard";
   });
 
+  const [reports, setReports] = useState(recentReports);
+  const [isOffline, setIsOffline] = useState(true);
+
   const handleNavClick = (event, id) => {
     event.preventDefault();
     setActiveSection(id);
@@ -35,13 +39,15 @@ function FireDashboard() {
 
   return (
     <Shell activeSection={activeSection} onNavigate={handleNavClick}>
-      {activeSection === "dashboard" && <OverviewSection />}
-      {activeSection === "map-report" && <MapSection />}
-      {activeSection === "reported-incidents" && <ReportsSection />}
-      {activeSection === "queuing" && <QueueSection />}
+      {activeSection === "dashboard" && <OverviewSection reports={reports} isOffline={isOffline} />}
+      {activeSection === "map-report" && <MapSection reports={reports} isOffline={isOffline} />}
+      {activeSection === "reported-incidents" && <ReportsSection reports={reports} />}
+      {activeSection === "queuing" && <QueueSection reports={reports} />}
       {activeSection === "profile" && <ProfileSection />}
     </Shell>
   );
 }
 
 export default FireDashboard;
+
+

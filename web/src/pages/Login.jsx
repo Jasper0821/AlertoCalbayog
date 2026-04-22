@@ -5,21 +5,14 @@ function Login() {
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loginSuccess, setLoginSuccess] = useState(false);
+  const [error, setError] = useState("");
 
   const handleSubmit = (event) => {
     event.preventDefault();
-    setIsSubmitting(true);
-
-    // Simulate login delay
-    setTimeout(() => {
-      setLoginSuccess(true);
-      
-      // Navigate to dashboard after showing success message for a bit
-      setTimeout(() => {
-        navigate("/dashboard");
-      }, 1500);
-    }, 1000);
+    navigate("/dashboard");
   };
+
+
 
   return (
     <main className="relative flex min-h-screen items-center justify-center bg-slate-50 px-4 py-12 sm:px-6 lg:px-8 font-sans antialiased">
@@ -27,7 +20,7 @@ function Login() {
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(239,68,68,0.05),transparent_40%)]" />
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgba(239,68,68,0.03),transparent_40%)]" />
 
-      <section className="relative w-full max-w-xl overflow-hidden rounded-[48px] border border-slate-100 bg-white p-8 shadow-[0_50px_120px_-30px_rgba(0,0,0,0.12),0_0_1px_rgba(0,0,0,0.1)] sm:p-16">
+      <section className="relative w-full max-w-xl overflow-hidden rounded-[40px] sm:rounded-[48px] border border-slate-100 bg-white p-6 sm:p-16 shadow-[0_50px_120px_-30px_rgba(0,0,0,0.12),0_0_1px_rgba(0,0,0,0.1)]">
         <Link
           className="absolute left-6 top-6 grid h-12 w-12 place-items-center rounded-2xl border border-slate-100 bg-white text-slate-900 shadow-sm transition hover:scale-105 hover:bg-slate-50 active:scale-95 sm:left-10 sm:top-10"
           to="/"
@@ -54,7 +47,7 @@ function Login() {
           </span>
         </div>
 
-        <h1 className="font-display text-5xl font-black leading-[0.85] tracking-[-0.06em] text-slate-900 sm:text-6xl">
+        <h1 className="font-display text-4xl font-black leading-[0.85] tracking-[-0.06em] text-slate-900 sm:text-6xl">
           Sign In
         </h1>
         <p className="mt-8 text-xl font-medium leading-relaxed text-slate-500">
@@ -74,8 +67,8 @@ function Login() {
                 type="email"
                 autoComplete="email"
                 placeholder="name@example.com"
-                required
               />
+
             </div>
 
             <div className="grid gap-3">
@@ -89,10 +82,15 @@ function Login() {
                 type="password"
                 autoComplete="current-password"
                 placeholder="••••••••"
-                required
               />
+
             </div>
 
+            {error && (
+              <p className="text-xs font-bold text-red-600 bg-red-50 p-4 rounded-xl border border-red-100">
+                {error}
+              </p>
+            )}
           </div>
 
 
