@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { cn } from "../../lib/cn.js";
 import { shellCard, innerCard, pillBase, SectionHeader, queueGroups, incidentChip, statusChip } from "./SharedUI.jsx";
 
 export function QueueSection() {
@@ -7,136 +6,109 @@ export function QueueSection() {
 
   return (
     <section id="queuing" className={shellCard}>
-      <div className="p-6">
+      <div className="p-10">
         <SectionHeader
-          eyebrow="Queuing"
           title="Dispatch queue"
-          description="Review pending dispatches, what is active now, and what has been successfully closed."
-          action={<span className={cn(pillBase, "border-white/10 bg-white/5 text-stone-200")}>Auto-refreshes seamlessly</span>}
+          action={<span className={`${pillBase} ${statusChip.neutral}`}>Auto-sync verified</span>}
         />
 
-        <div className="mb-6 flex gap-3 border-b border-white/10 pb-4">
-          <button
-            onClick={() => setActiveTab("pending")}
-            className={cn(
-              pillBase,
-              "transition-all",
-              activeTab === "pending"
-                ? "border-red-400/20 bg-red-400/10 text-red-100"
-                : "border-transparent bg-transparent text-stone-400 hover:text-stone-200 hover:bg-white/5"
-            )}
-          >
-            Pending
-          </button>
-          <button
-            onClick={() => setActiveTab("active")}
-            className={cn(
-              pillBase,
-              "transition-all",
-              activeTab === "active"
-                ? "border-red-500/20 bg-red-500/10 text-red-100"
-                : "border-transparent bg-transparent text-stone-400 hover:text-stone-200 hover:bg-white/5"
-            )}
-          >
-            Active
-          </button>
-          <button
-            onClick={() => setActiveTab("completed")}
-            className={cn(
-              pillBase,
-              "transition-all",
-              activeTab === "completed"
-                ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-100"
-                : "border-transparent bg-transparent text-stone-400 hover:text-stone-200 hover:bg-white/5"
-            )}
-          >
-            Completed
-          </button>
+        <div className="mb-10 flex gap-4 border-b border-slate-100 pb-6">
+          {[
+            { id: "pending", label: "Pending", tone: "red" },
+            { id: "active", label: "Active", tone: "red" },
+            { id: "completed", label: "Completed", tone: "emerald" },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`${pillBase} transition-all px-8 py-3 ${
+                activeTab === tab.id
+                  ? `bg-${tab.tone}-600 text-white shadow-lg shadow-${tab.tone}-600/20`
+                  : "bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+              }`}
+            >
+              <span className="text-[10px] font-black uppercase tracking-[0.2em]">{tab.label}</span>
+            </button>
+          ))}
         </div>
 
-        <div className="grid gap-6">
+        <div className="grid gap-8">
           {activeTab === "pending" && (
-            <article className={cn(innerCard, "p-4")}>
-              <div className="mb-4 flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-[0.14em] text-stone-400">Waiting</p>
-                  <h3 className="mt-2 font-display text-xl font-bold tracking-[-0.04em] text-stone-50">Pending Dispatches</h3>
+            <div className="grid gap-4">
+               {(!queueGroups.pending || queueGroups.pending.length === 0) ? (
+                <div className="p-12 text-center border-2 border-dashed border-slate-100 rounded-[40px] bg-slate-50/30">
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Queue is clear</p>
+                  <p className="mt-2 text-sm font-bold text-slate-600">No pending dispatches at this moment.</p>
                 </div>
-                <span className={cn(pillBase, statusChip.neutral)}>0 waiting</span>
-              </div>
-              <div className="grid gap-3">
-                <p className="text-stone-400 text-sm py-4">No pending operations at this time.</p>
-              </div>
-            </article>
+              ) : (
+                queueGroups.pending.map((item) => (
+                    <article key={item.id} className={`${innerCard} p-8`}>
+                        {/* Item layout */}
+                    </article>
+                ))
+              )}
+            </div>
           )}
 
           {activeTab === "active" && (
-            <article className={cn(innerCard, "p-4")}>
-              <div className="mb-4 flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-[0.14em] text-stone-400">Ongoing</p>
-                  <h3 className="mt-2 font-display text-xl font-bold tracking-[-0.04em] text-stone-50">Active operations</h3>
-                </div>
-                <span className={cn(pillBase, statusChip.danger)}>{queueGroups.ongoing?.length || 0} active</span>
-              </div>
-              <div className="grid gap-3">
-                {(!queueGroups.ongoing || queueGroups.ongoing.length === 0) ? (
-                  <p className="text-stone-400 text-sm py-4">No active operations at this time.</p>
-                ) : (
-                  queueGroups.ongoing.map((item) => (
-                    <div key={item.id} className={cn(innerCard, "grid gap-3 p-4")}>
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="grid gap-1">
-                          <span className={cn(pillBase, incidentChip[item.type.toLowerCase()])}>{item.type}</span>
-                          <span className="text-xs text-stone-400">{item.id}</span>
+            <div className="grid gap-6">
+              {(!queueGroups.ongoing || queueGroups.ongoing.length === 0) ? (
+                 <div className="p-12 text-center border-2 border-dashed border-slate-100 rounded-[40px] bg-slate-50/30">
+                 <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Tactical Zero</p>
+                 <p className="mt-2 text-sm font-bold text-slate-600">No active operations in progress.</p>
+               </div>
+              ) : (
+                queueGroups.ongoing.map((item) => (
+                  <article key={item.id} className={`${innerCard} p-8 flex items-center justify-between`}>
+                    <div className="flex gap-6 items-center">
+                        <div className="h-16 w-16 rounded-3xl bg-white border border-slate-100 flex items-center justify-center text-xl font-black text-slate-900 shadow-sm">
+                            {item.type[0]}
                         </div>
-                        <span className="text-xs font-semibold text-stone-400">{item.assigned}</span>
-                      </div>
-                      <p className="text-sm leading-6 text-stone-200">{item.location}</p>
-                      <div className="flex items-center justify-between gap-3">
-                        <span className={cn(pillBase, statusChip.danger)}>ETA {item.eta}</span>
-                      </div>
+                        <div>
+                            <span className={`${pillBase} ${incidentChip[item.type.toLowerCase()]} mb-2`}>{item.type}</span>
+                            <h4 className="text-lg font-black text-slate-900 tracking-tight">{item.location}</h4>
+                        </div>
                     </div>
-                  ))
-                )}
-              </div>
-            </article>
+                    <div className="text-right">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Unit Assigned</p>
+                        <p className="text-sm font-bold text-slate-900 mt-1">{item.assigned}</p>
+                    </div>
+                  </article>
+                ))
+              )}
+            </div>
           )}
 
           {activeTab === "completed" && (
-            <article className={cn(innerCard, "p-4")}>
-              <div className="mb-4 flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-[0.14em] text-stone-400">Completed</p>
-                  <h3 className="mt-2 font-display text-xl font-bold tracking-[-0.04em] text-stone-50">Closed cases</h3>
+            <div className="grid gap-6">
+              {(!queueGroups.completed || queueGroups.completed.length === 0) ? (
+                  <div className="p-12 text-center border-2 border-dashed border-slate-100 rounded-[40px] bg-slate-50/30">
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">History Empty</p>
+                  <p className="mt-2 text-sm font-bold text-slate-600">No successfully closed reports today.</p>
                 </div>
-                <span className={cn(pillBase, statusChip.success)}>{queueGroups.completed?.length || 0} done</span>
-              </div>
-              <div className="grid gap-3">
-                 {(!queueGroups.completed || queueGroups.completed.length === 0) ? (
-                  <p className="text-stone-400 text-sm py-4">No closed operations at this time.</p>
-                ) : (
-                  queueGroups.completed.map((item) => (
-                    <div key={item.id} className={cn(innerCard, "grid gap-3 p-4")}>
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="grid gap-1">
-                          <span className={cn(pillBase, incidentChip[item.type.toLowerCase()])}>{item.type}</span>
-                          <span className="text-xs text-stone-400">{item.id}</span>
+              ) : (
+                queueGroups.completed.map((item) => (
+                  <article key={item.id} className={`${innerCard} p-8 flex items-center justify-between opacity-80 grayscale hover:grayscale-0 hover:opacity-100`}>
+                    <div className="flex gap-6 items-center">
+                        <div className="h-12 w-12 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center text-sm font-black text-red-600">
+                             ✓
                         </div>
-                        <span className="text-xs font-semibold text-stone-400">{item.assigned}</span>
-                      </div>
-                      <p className="text-sm leading-6 text-stone-200">{item.location}</p>
-                      <div className="flex items-center justify-between gap-3">
-                        <span className={cn(pillBase, statusChip.success)}>Closed {item.closedAt}</span>
-                      </div>
+                        <div>
+                            <h4 className="text-sm font-black text-slate-900 tracking-tight">{item.location}</h4>
+                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mt-1">Status: Closed</p>
+                        </div>
                     </div>
-                  ))
-                )}
-              </div>
-            </article>
+                    <span className={`${pillBase} ${statusChip.success}`}>Handled by {item.assigned}</span>
+                  </article>
+                ))
+              )}
+            </div>
           )}
+
         </div>
       </div>
     </section>
   );
 }
+
+export default QueueSection;

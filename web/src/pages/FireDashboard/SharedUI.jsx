@@ -1,17 +1,15 @@
-import { cn } from "../../lib/cn.js";
-
-export const shellCard = "overflow-hidden rounded-[28px] border border-white/10 bg-zinc-950/80 shadow-[0_30px_90px_rgba(0,0,0,0.42)] backdrop-blur-xl";
-export const innerCard = "rounded-[24px] border border-white/10 bg-white/5";
+export const shellCard = "bg-white border border-slate-100 rounded-[48px] overflow-hidden shadow-[0_40px_100px_-20px_rgba(0,0,0,0.06),0_0_1px_rgba(0,0,0,0.1)]";
+export const innerCard = "rounded-[32px] border border-slate-100 bg-slate-50/50 transition-all hover:bg-white hover:border-slate-200 hover:shadow-[0_30px_60px_-15px_rgba(0,0,0,0.08)] hover:-translate-y-1";
 export const pillBase = "inline-flex items-center justify-center rounded-full border px-3 py-1.5 text-[0.7rem] font-bold uppercase tracking-[0.08em]";
 
 export const statusChip = {
-  neutral: "border-white/10 bg-white/5 text-stone-200",
-  danger: "border-red-500/20 bg-red-500/10 text-red-100",
-  success: "border-emerald-500/20 bg-emerald-500/10 text-emerald-100",
+  neutral: "border-slate-100 bg-slate-50 text-slate-500",
+  danger: "border-red-100 bg-red-50 text-red-600",
+  success: "border-emerald-100 bg-emerald-50 text-emerald-600",
 };
 
 export const incidentChip = {
-  fire: "border-red-500/20 bg-red-500/10 text-red-100",
+  fire: "border-red-100 bg-red-50 text-red-600",
 };
 
 export const iconTone = {
@@ -27,57 +25,44 @@ export const queueGroups = { ongoing: [], completed: [] };
 export const recentReports = [];
 export const summaryCards = [];
 
-export function SectionHeader({ eyebrow, title, description, action }) {
-  return (
-    <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-      <div className="max-w-3xl">
-        <p className="text-xs font-bold uppercase tracking-[0.14em] text-red-400">{eyebrow}</p>
-        <h2 className="mt-2 font-display text-2xl font-bold tracking-[-0.04em] text-stone-50 sm:text-[1.9rem]">
-          {title}
-        </h2>
-        <p className="mt-3 max-w-3xl text-sm leading-7 text-stone-300">{description}</p>
-      </div>
-      {action ? <div className="shrink-0">{action}</div> : null}
-    </div>
-  );
-}
+export const SectionHeader = ({ title, action }) => (
+  <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <h2 className="text-3xl font-black text-slate-900 tracking-tighter uppercase">
+      {title}
+    </h2>
+    {action ? <div className="shrink-0">{action}</div> : null}
+  </div>
+);
 
 export function ReportsTable({ detailed = false }) {
   return (
-    <div className="overflow-x-auto rounded-[20px] border border-white/10 bg-white/5">
-      <table className="min-w-[640px] w-full border-collapse text-left">
+    <div className="overflow-x-auto rounded-[32px] border border-slate-100 bg-white">
+      <table className="w-full text-left border-collapse">
         <thead>
-          <tr className="border-b border-white/10 text-xs font-bold uppercase tracking-[0.12em] text-stone-400">
-            <th className="px-6 py-4">Incident</th>
-            <th className="px-6 py-4">Location</th>
-            {detailed ? <th className="px-6 py-4">Priority</th> : null}
-            {detailed ? <th className="px-6 py-4">Unit</th> : null}
-            <th className="px-6 py-4">Status</th>
-            <th className="px-6 py-4">Time</th>
+          <tr className="border-b border-slate-100 bg-slate-50/50 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
+            <th className="px-8 py-5">Incident</th>
+            <th className="px-8 py-5">Location</th>
+            {detailed && <th className="px-8 py-5">Status</th>}
+            <th className="px-8 py-5 text-right">Time</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody className="divide-y divide-slate-100">
           {recentReports.map((report) => (
-            <tr className="border-b border-white/5 transition hover:bg-white/5" key={report.id}>
-              <td className="px-6 py-5">
-                <div className="grid gap-1">
-                  <span className={cn(pillBase, incidentChip[report.type.toLowerCase()])}>{report.type}</span>
-                  <span className="text-xs text-stone-400">{report.id}</span>
-                </div>
+            <tr className="transition hover:bg-slate-50/50" key={report.id}>
+              <td className="px-8 py-6">
+                <span className="text-xs font-black text-slate-900 uppercase">{report.emergencyType || "Fire Alert"}</span>
               </td>
-              <td className="px-6 py-5 text-sm text-stone-200">{report.location}</td>
-              {detailed ? (
-                <td className="px-6 py-5">
-                  <span className={cn(pillBase, statusChip.neutral)}>{report.priority}</span>
+              <td className="px-8 py-6 text-xs font-bold text-slate-600 uppercase">{report.location || "Sector Alpha"}</td>
+              {detailed && (
+                <td className="px-8 py-6">
+                  <span className={`${pillBase} ${report.status === "Open" ? statusChip.danger : statusChip.success}`}>
+                    {report.status || "Open"}
+                  </span>
                 </td>
-              ) : null}
-              {detailed ? <td className="px-6 py-5 text-sm text-stone-200">{report.unit}</td> : null}
-              <td className="px-6 py-5">
-                <span className={cn(pillBase, report.status === "Ongoing" ? statusChip.danger : statusChip.success)}>
-                  {report.status}
-                </span>
+              )}
+              <td className="px-8 py-6 text-[10px] font-black text-slate-500 uppercase text-right">
+                {report.createdAt ? new Date(report.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "Active"}
               </td>
-              <td className="px-6 py-5 text-sm text-stone-200">{report.time}</td>
             </tr>
           ))}
         </tbody>
