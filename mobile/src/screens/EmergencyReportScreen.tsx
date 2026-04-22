@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from "react-native";
+import { View, Text, TouchableOpacity, Alert, ActivityIndicator } from "react-native";
 import * as Location from "expo-location";
 import Header from "../components/Header";
 import CustomInput from "../components/CustomInput";
@@ -23,14 +23,16 @@ export default function EmergencyReportScreen({ route, navigation }: Props): Rea
   const [description, setDescription] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
 
-  const getEmergencyColor = (): string => {
+  const getEmergencyStyles = () => {
     switch(emergencyType) {
-      case 'fire': return COLORS.red;
-      case 'flood': return COLORS.blue;
-      case 'medical': return COLORS.green;
-      default: return COLORS.primary;
+      case 'fire': return { bg: 'bg-red/10', border: 'border-red', text: 'text-red', btn: 'bg-red' };
+      case 'flood': return { bg: 'bg-blue/10', border: 'border-blue', text: 'text-blue', btn: 'bg-blue' };
+      case 'medical': return { bg: 'bg-green/10', border: 'border-green', text: 'text-green', btn: 'bg-green' };
+      default: return { bg: 'bg-primary/10', border: 'border-primary', text: 'text-primary', btn: 'bg-primary' };
     }
   };
+
+  const { bg, border, text, btn } = getEmergencyStyles();
 
   const handleSubmit = async () => {
     setLoading(true);
@@ -77,37 +79,38 @@ export default function EmergencyReportScreen({ route, navigation }: Props): Rea
   };
 
   return (
-    <View style={styles.container}>
-      <Header title="Report Emergency" />
+    <View className="flex-1 bg-darkBlue">
+      <Header title="Report Emergency" showBack />
 
-      <View style={styles.content}>
-        <View style={styles.card}>
-          <Text style={styles.label}>Emergency Type</Text>
-          <View style={[styles.typeBadge, { backgroundColor: `${getEmergencyColor()}20`, borderColor: getEmergencyColor() }]}>
-             <Text style={[styles.typeText, { color: getEmergencyColor() }]}>
+      <View className="flex-1 p-5">
+        <View className="bg-surface rounded-3xl p-6 border border-border shadow-2xl shadow-black">
+          <Text className="text-textGray mb-4 font-black text-[10px] uppercase tracking-widest">Emergency Type</Text>
+          <View className={`py-2 px-4 rounded-xl border self-start mb-8 ${bg} ${border}`}>
+             <Text className={`text-base font-black tracking-widest ${text}`}>
                {emergencyType.toUpperCase()}
              </Text>
           </View>
 
-          <Text style={styles.label}>Additional Details (Optional)</Text>
+          <Text className="text-textGray mb-2 font-black text-[10px] uppercase tracking-widest">Additional Details</Text>
           <CustomInput
             placeholder="Describe the situation briefly..."
             value={description}
             onChangeText={setDescription}
             multiline
             numberOfLines={4}
-            style={{ height: 100, textAlignVertical: 'top' }}
+            className="h-[120px]"
+            style={{ textAlignVertical: 'top' }}
           />
 
           <TouchableOpacity 
-            style={[styles.button, { backgroundColor: getEmergencyColor(), shadowColor: getEmergencyColor() }]} 
+            className={`py-4 rounded-2xl items-center mt-6 shadow-lg ${btn} shadow-black/20`}
             onPress={handleSubmit}
             disabled={loading}
           >
             {loading ? (
-               <ActivityIndicator color={COLORS.white} />
+               <ActivityIndicator color="white" />
             ) : (
-               <Text style={styles.buttonText}>Submit Report</Text>
+               <Text className="text-white font-black text-base uppercase tracking-widest">Submit Report</Text>
             )}
           </TouchableOpacity>
         </View>
@@ -115,62 +118,4 @@ export default function EmergencyReportScreen({ route, navigation }: Props): Rea
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.darkBlue,
-  },
-  content: {
-    flex: 1,
-    padding: 20,
-    justifyContent: 'flex-start',
-  },
-  card: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 20,
-    padding: 24,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
-    elevation: 6,
-  },
-  label: {
-    color: COLORS.white,
-    marginBottom: 8,
-    fontWeight: "700",
-    fontSize: 16,
-  },
-  typeBadge: {
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    alignSelf: 'flex-start',
-    marginBottom: 24,
-  },
-  typeText: {
-    fontSize: 16,
-    fontWeight: "900",
-    letterSpacing: 1,
-  },
-  button: {
-    paddingVertical: 16,
-    borderRadius: 14,
-    alignItems: "center",
-    marginTop: 16,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  buttonText: {
-    color: COLORS.white,
-    fontWeight: "bold",
-    fontSize: 16,
-    letterSpacing: 0.5,
-  }
-});
+

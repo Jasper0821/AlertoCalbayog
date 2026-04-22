@@ -1,8 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
-import { View, Text, StyleSheet, Alert, TouchableOpacity, Platform } from "react-native";
+import { View, Text, Alert, TouchableOpacity, Platform } from "react-native";
 import * as Location from "expo-location";
 import Header from "../components/Header";
-import { COLORS } from "../styles/colors";
 import api from "../api/axios";
 import { getToken } from "../utils/Storage";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -13,6 +12,7 @@ import type { RootStackParamList } from "../navigation/AppNavigator";
 let MapView: any;
 let Marker: any;
 let UrlTile: any;
+
 if (Platform.OS !== "web") {
   const Maps = require("react-native-maps");
   MapView = Maps.default;
@@ -21,14 +21,20 @@ if (Platform.OS !== "web") {
 }
 
 type LiveTrackingScreenRouteProp = RouteProp<RootStackParamList, "LiveTracking">;
-type LiveTrackingScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, "LiveTracking">;
+type LiveTrackingScreenNavigationProp = NativeStackNavigationProp<
+  RootStackParamList,
+  "LiveTracking"
+>;
 
 interface Props {
   route: LiveTrackingScreenRouteProp;
   navigation: LiveTrackingScreenNavigationProp;
 }
 
-export default function LiveTrackingScreen({ route, navigation }: Props): React.JSX.Element {
+export default function LiveTrackingScreen({
+  route,
+  navigation,
+}: Props): React.JSX.Element {
   const { reportId, latitude, longitude, emergencyType } = route.params;
   const [currentLocation, setCurrentLocation] = useState({ latitude, longitude });
   const watchRef = useRef<Location.LocationSubscription | null>(null);
@@ -46,11 +52,15 @@ export default function LiveTrackingScreen({ route, navigation }: Props): React.
   }, []);
 
   const getEmergencyColor = (): string => {
-    switch(emergencyType) {
-      case 'fire': return COLORS.red;
-      case 'flood': return COLORS.blue;
-      case 'medical': return COLORS.green;
-      default: return COLORS.primary;
+    switch (emergencyType) {
+      case "fire":
+        return "#EF4444";
+      case "flood":
+        return "#3B82F6";
+      case "medical":
+        return "#22C55E";
+      default:
+        return "#3B82F6";
     }
   };
 
@@ -69,12 +79,12 @@ export default function LiveTrackingScreen({ route, navigation }: Props): React.
         {
           accuracy: Location.Accuracy.High,
           timeInterval: 5000,
-          distanceInterval: 5
+          distanceInterval: 5,
         },
         async (location) => {
           const newCoords = {
             latitude: location.coords.latitude,
-            longitude: location.coords.longitude
+            longitude: location.coords.longitude,
           };
 
           setCurrentLocation(newCoords);
@@ -85,12 +95,12 @@ export default function LiveTrackingScreen({ route, navigation }: Props): React.
               reportId,
               latitude: newCoords.latitude,
               longitude: newCoords.longitude,
-              role: "resident"
+              role: "resident",
             },
             {
               headers: {
-                Authorization: `Bearer ${token}`
-              }
+                Authorization: `Bearer ${token}`,
+              },
             }
           );
         }
@@ -101,32 +111,47 @@ export default function LiveTrackingScreen({ route, navigation }: Props): React.
   };
 
   return (
-    <View style={styles.container}>
-      <Header title="Live Tracking" />
+    <View className="flex-1 bg-darkBlue">
+      <Header title="Live Tracking" showBack />
 
-      <View style={styles.content}>
-        <View style={styles.infoBanner}>
-          <Text style={styles.infoText}>Tracking active for:</Text>
-          <View style={[styles.badge, { backgroundColor: `${getEmergencyColor()}20` }]}>
-            <Text style={[styles.badgeText, { color: getEmergencyColor() }]}>
+      <View className="flex-1 px-5 pb-5">
+        <View className="mb-5 flex-row items-center justify-between rounded-3xl border border-border bg-surface p-5 shadow-lg shadow-black/20">
+          <View>
+            <Text className="text-[10px] font-black uppercase tracking-widest text-textGray mb-0.5">Tracking Status</Text>
+            <Text className="text-base font-bold text-white tracking-tight">Active Connection</Text>
+          </View>
+
+          <View
+            className="rounded-xl px-4 py-2 border"
+            style={{ backgroundColor: `${getEmergencyColor()}15`, borderColor: getEmergencyColor() }}
+          >
+            <Text
+              className="font-black tracking-widest text-xs"
+              style={{ color: getEmergencyColor() }}
+            >
               {emergencyType.toUpperCase()}
             </Text>
           </View>
         </View>
 
-        <View style={styles.mapWrapper}>
-          {Platform.OS === 'web' ? (
-            <View style={styles.webFallbackContainer}>
-              <Text style={styles.webFallbackText}>Map features are optimized for mobile phones only.</Text>
+        <View className="flex-1 overflow-hidden rounded-[32px] border border-border shadow-2xl shadow-black bg-surface">
+          {Platform.OS === "web" ? (
+            <View className="flex-1 items-center justify-center p-8">
+              <View className="w-16 h-16 rounded-full bg-darkBlue items-center justify-center mb-4 border border-border">
+                <Text className="text-2xl">📱</Text>
+              </View>
+              <Text className="text-center text-sm font-medium text-textGray leading-5">
+                Map features are optimized for mobile phones only. Please use the mobile app for live tracking.
+              </Text>
             </View>
           ) : (
             <MapView
-              style={styles.map}
+              style={{ flex: 1 }}
               region={{
                 latitude: currentLocation.latitude,
                 longitude: currentLocation.longitude,
                 latitudeDelta: 0.01,
-                longitudeDelta: 0.01
+                longitudeDelta: 0.01,
               }}
             >
               <UrlTile
@@ -137,92 +162,17 @@ export default function LiveTrackingScreen({ route, navigation }: Props): React.
             </MapView>
           )}
         </View>
-        
-        <TouchableOpacity 
-          style={styles.doneButton} 
+
+        <TouchableOpacity
+          className="mt-6 items-center rounded-2xl bg-primary py-4 shadow-lg shadow-primary/40"
           onPress={() => navigation.navigate("Home")}
           activeOpacity={0.8}
         >
-          <Text style={styles.doneText}>Return to Home</Text>
+          <Text className="text-base font-black uppercase tracking-widest text-white">
+            Return to Dashboard
+          </Text>
         </TouchableOpacity>
       </View>
     </View>
   );
-}
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.darkBlue,
-  },
-  content: {
-    flex: 1,
-    padding: 20,
-    paddingTop: 0,
-  },
-  infoBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: COLORS.surface,
-    padding: 16,
-    borderRadius: 16,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  infoText: {
-    color: COLORS.white,
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  badge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  badgeText: {
-    fontWeight: 'bold',
-  },
-  mapWrapper: {
-    flex: 1,
-    borderRadius: 24,
-    overflow: "hidden",
-    borderWidth: 2,
-    borderColor: COLORS.surface,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.3,
-    shadowRadius: 15,
-    elevation: 8,
-  },
-  map: {
-    flex: 1,
-  },
-  webFallbackContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: COLORS.surface,
-    padding: 20,
-  },
-  webFallbackText: {
-    color: COLORS.textGray,
-    textAlign: 'center',
-    fontSize: 16,
-  },
-  doneButton: {
-    backgroundColor: COLORS.glass,
-    paddingVertical: 16,
-    borderRadius: 14,
-    alignItems: 'center',
-    marginTop: 20,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  doneText: {
-    color: COLORS.white,
-    fontWeight: 'bold',
-    fontSize: 16,
-  }
-});
+}

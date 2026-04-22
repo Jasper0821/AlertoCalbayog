@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, ScrollView } from "react-native";
+import { View, Text, ScrollView } from "react-native";
 import Header from "../components/Header";
-import { COLORS } from "../styles/colors";
 import api from "../api/axios";
 import { getToken } from "../utils/Storage";
 
@@ -35,110 +34,56 @@ export default function ReportHistoryScreen(): React.JSX.Element {
     }
   };
 
-  const getStatusColor = (status: any) => {
+  const getStatusConfig = (status: string) => {
     switch (status?.toLowerCase()) {
-      case 'resolved': return COLORS.green;
-      case 'responding': return COLORS.blue;
-      case 'pending': return COLORS.primary;
-      default: return COLORS.textGray;
+      case 'resolved': return { border: 'border-green', text: 'text-green', bg: 'bg-green/10' };
+      case 'responding': return { border: 'border-blue', text: 'text-blue', bg: 'bg-blue/10' };
+      case 'pending': return { border: 'border-primary', text: 'text-primary', bg: 'bg-primary/10' };
+      default: return { border: 'border-textGray', text: 'text-textGray', bg: 'bg-textGray/10' };
     }
   };
 
   return (
-    <View style={styles.container}>
-      <Header title="Report History" />
+    <View className="flex-1 bg-darkBlue">
+      <Header title="Report History" showBack />
 
-      <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerClassName="p-5 pt-0 pb-10" showsVerticalScrollIndicator={false}>
         {reports.length === 0 ? (
-          <Text style={styles.emptyText}>No emergency reports found.</Text>
+          <Text className="text-textGray text-center mt-10 text-base">No emergency reports found.</Text>
         ) : (
-          reports.map((report) => (
-            <View key={report._id} style={styles.card}>
-              <View style={styles.cardHeader}>
-                <Text style={styles.typeText}>{report.emergencyType.toUpperCase()}</Text>
-                <View style={[styles.statusBadge, { borderColor: getStatusColor(report.status), backgroundColor: `${getStatusColor(report.status)}15` }]}>
-                  <Text style={[styles.statusText, { color: getStatusColor(report.status) }]}>
-                    {report.status || 'Pending'}
-                  </Text>
+          reports.map((report) => {
+            const { border, text, bg } = getStatusConfig(report.status);
+            
+            return (
+              <View key={report._id} className="bg-surface rounded-3xl p-5 mb-4 border border-border shadow-2xl shadow-black">
+                <View className="flex-row justify-between items-center mb-3">
+                  <Text className="text-white text-lg font-black tracking-tight">{report.emergencyType.toUpperCase()}</Text>
+                  <View className={`px-3 py-1 rounded-xl border ${border} ${bg}`}>
+                    <Text className={`text-[10px] font-black uppercase ${text}`}>
+                      {report.status || 'Pending'}
+                    </Text>
+                  </View>
+                </View>
+
+                <View className="h-[1px] bg-border mb-4" />
+                
+                <View className="flex-row items-center">
+                  <View className="w-10 h-10 rounded-2xl bg-darkBlue items-center justify-center mr-3 border border-border">
+                    <Text className="text-base">🏢</Text>
+                  </View>
+                  <View>
+                    <Text className="text-textGray text-[10px] font-black uppercase tracking-widest mb-0.5">Assigned Agency</Text>
+                    <Text className="text-white text-sm font-bold">
+                      {report.assignedAgency || "Awaiting Assignment"}
+                    </Text>
+                  </View>
                 </View>
               </View>
-              <View style={styles.separator} />
-              
-              <Text style={styles.detailText}>
-                <Text style={styles.label}>Agency: </Text>
-                {report.assignedAgency || "Awaiting Assignment"}
-              </Text>
-            </View>
-          ))
+            );
+          })
         )}
       </ScrollView>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.darkBlue,
-  },
-  scrollContainer: {
-    padding: 20,
-    paddingTop: 0,
-    paddingBottom: 40,
-  },
-  emptyText: {
-    color: COLORS.textGray,
-    textAlign: "center",
-    marginTop: 40,
-    fontSize: 16,
-  },
-  card: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  typeText: {
-    color: COLORS.white,
-    fontSize: 18,
-    fontWeight: "bold",
-    letterSpacing: 0.5,
-  },
-  statusBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-    borderWidth: 1,
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: "bold",
-    textTransform: "uppercase",
-  },
-  separator: {
-    height: 1,
-    backgroundColor: COLORS.border,
-    marginBottom: 12,
-  },
-  detailText: {
-    color: COLORS.white,
-    fontSize: 14,
-  },
-  label: {
-    color: COLORS.textGray,
-    fontWeight: "600",
-  }
-});
+
