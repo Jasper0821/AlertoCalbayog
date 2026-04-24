@@ -3,10 +3,6 @@
 @tailwind utilities;
 
 @layer base {
-  html {
-    font-size: 18px;
-  }
-
   body {
     @apply bg-slate-50 text-slate-900 font-sans antialiased transition-colors duration-300;
   }
@@ -31,6 +27,6 @@
   }
 
   .btn-primary {
-    @apply h-14 px-8 rounded-2xl bg-red-600 text-white font-black uppercase tracking-widest text-[10px] hover:bg-red-700 transition-all shadow-lg active:scale-95 flex items-center justify-center dark:shadow-red-900/20;
+    @apply h-10 px-5 rounded-2xl bg-red-600 text-white font-black uppercase tracking-widest text-xs hover:bg-red-700 transition-all shadow-lg active:scale-95 flex items-center justify-center dark:shadow-red-900/20;
   }
 }

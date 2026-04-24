@@ -10,6 +10,7 @@ import EmergencyDashboard from "./pages/AGENCY/EMERGENCY/EmergencyDashboard.jsx"
 import Reports from "./pages/Reports";
 import Services from "./pages/Services";
 import ForgotPassword from "./pages/ForgotPassword";
+import IncidentMap from "./pages/IncidentMap";
 
 function App() {
   useEffect(() => {
@@ -32,6 +33,7 @@ function App() {
 
         <Route path="/reports" element={<Reports />} />
         <Route path="/services" element={<Services />} />
+        <Route path="/map" element={<IncidentMap />} />
         <Route path="*" element={<LandingPage />} />
       </Routes>
     </Router>

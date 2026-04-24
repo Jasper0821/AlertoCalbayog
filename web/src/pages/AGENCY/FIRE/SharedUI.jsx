@@ -1,5 +1,5 @@
-export const shellCard = "bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-[48px] overflow-hidden shadow-[0_40px_100px_-20px_rgba(0,0,0,0.06),0_0_1px_rgba(0,0,0,0.1)] transition-colors duration-300";
-export const innerCard = "rounded-[32px] border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40 transition-all hover:bg-white dark:hover:bg-slate-800/60 hover:border-slate-200 dark:hover:border-slate-700 hover:shadow-[0_30px_60px_-15px_rgba(0,0,0,0.08)] hover:-translate-y-1";
+export const shellCard = "bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl overflow-hidden shadow-[0_40px_100px_-20px_rgba(0,0,0,0.06),0_0_1px_rgba(0,0,0,0.1)] transition-colors duration-300";
+export const innerCard = "rounded-2xl border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40 transition-all hover:bg-white dark:hover:bg-slate-800/60 hover:border-slate-200 dark:hover:border-slate-700 hover:shadow-[0_30px_60px_-15px_rgba(0,0,0,0.08)] hover:-translate-y-1";
 export const pillBase = "inline-flex items-center justify-center rounded-full border px-3 py-1.5 text-[0.7rem] font-bold uppercase tracking-[0.08em]";
 
 export const statusChip = {
@@ -93,7 +93,7 @@ export const SectionHeader = ({ title, action }) => (
 
 export function ReportsTable({ detailed = false, data = [] }) {
   return (
-    <div className="overflow-x-auto rounded-[32px] border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm transition-colors">
+    <div className="overflow-x-auto rounded-2xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm transition-colors">
       <table className="w-full text-left border-collapse">
         <thead>
           <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
