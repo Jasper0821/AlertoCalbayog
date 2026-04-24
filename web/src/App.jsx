@@ -9,6 +9,8 @@ import Reports from "./pages/Reports";
 import Services from "./pages/Services";
 import CityGridMap from "./pages/CityGridMap";
 import ForgotPassword from "./pages/ForgotPassword";
+import VerifyOTP from "./pages/VerifyOTP";
+import AmbulanceDashboard from "./pages/AmbulanceDashboard/AmbulanceDashboard";
 
 function App() {
   useEffect(() => {
@@ -22,7 +24,9 @@ function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/verify-otp" element={<VerifyOTP />} />
         <Route path="/dashboard" element={<FireDashboard />} />
+        <Route path="/ambulancedashboard" element={<AmbulanceDashboard />} />
 
         <Route path="/firedashboard" element={<FireDashboard />} />
         <Route path="/reports" element={<Reports />} />

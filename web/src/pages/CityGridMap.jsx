@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { MapContainer, TileLayer, ZoomControl } from "react-leaflet";
 import { toggleDarkMode } from "../theme";
-import { SunIcon, MoonIcon } from "./FireDashboard/icons";
+import { SunIcon, MoonIcon } from "../icons";
 import "leaflet/dist/leaflet.css";
 
 const cityCenter = [12.068, 124.597];
