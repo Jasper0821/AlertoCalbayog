@@ -1,3 +1,4 @@
+import "./global.css";
 import React from 'react';
 import { Platform } from 'react-native';
 import { StatusBar } from 'expo-status-bar';

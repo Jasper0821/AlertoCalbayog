@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import api from "../api/axios.js";
 
 function Register() {
   const navigate = useNavigate();
@@ -7,15 +8,37 @@ function Register() {
   const [showTermsModal, setShowTermsModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
     setIsSubmitting(true);
-    
-    // Simulate registration
-    setTimeout(() => {
-      navigate("/dashboard");
-    }, 1000);
+    setError("");
+
+    const formData = new FormData(event.target);
+    const fullName = formData.get("fullName");
+    const email = formData.get("email");
+    const password = formData.get("password");
+    const phoneNumber = formData.get("phoneNumber");
+
+    try {
+      await api.post("/auth/register", {
+        fullName,
+        email,
+        password,
+        phoneNumber,
+        role: "responder",
+      });
+
+      setSuccessMessage("Account created successfully! Redirecting to login...");
+      
+      setTimeout(() => {
+        navigate("/login");
+      }, 2000);
+    } catch (err) {
+      setError(err.response?.data?.message || "Registration failed. Please try again.");
+      setIsSubmitting(false);
+    }
   };
 
 
@@ -120,6 +143,14 @@ function Register() {
               <div className="sm:col-span-2">
                 <p className="text-xs font-bold text-red-600 bg-red-50 p-4 rounded-xl border border-red-100">
                   {error}
+                </p>
+              </div>
+            )}
+
+            {successMessage && (
+              <div className="sm:col-span-2">
+                <p className="text-xs font-bold text-emerald-600 bg-emerald-50 p-4 rounded-xl border border-emerald-100">
+                  {successMessage}
                 </p>
               </div>
             )}
