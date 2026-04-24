@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { shellCard, innerCard, pillBase, SectionHeader, incidentChip, statusChip } from "./SharedUI.jsx";
+import api from "../../../api/axios.js";
 
 export function QueueSection({ reports = [] }) {
   const [activeTab, setActiveTab] = useState("pending");
@@ -21,7 +22,7 @@ export function QueueSection({ reports = [] }) {
 
   return (
     <section id="queuing" className={shellCard}>
-      <div className="p-10">
+      <div className="p-6 sm:p-8">
         <SectionHeader
           title="Dispatch queue"
           action={<span className={`${pillBase} ${statusChip.neutral}`}>Auto-sync verified</span>}
@@ -56,9 +57,9 @@ export function QueueSection({ reports = [] }) {
           ) : (
             <div className="grid gap-4">
               {currentData.map((item) => (
-                <article key={item.id || item._id} className={`${innerCard} p-8 flex items-center justify-between`}>
-                  <div className="flex gap-6 items-center">
-                    <div className="h-16 w-16 rounded-3xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 flex items-center justify-center text-xl font-black text-slate-900 dark:text-white shadow-sm transition-colors">
+                <article key={item.id || item._id} className={`${innerCard} p-6 flex flex-col sm:flex-row gap-4 sm:items-center justify-between`}>
+                  <div className="flex gap-4 items-center">
+                    <div className="h-12 w-12 rounded-xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 flex items-center justify-center text-lg font-black text-slate-900 dark:text-white shadow-sm transition-colors">
                       {item.emergencyType[0].toUpperCase()}
                     </div>
                     <div>
@@ -67,12 +68,26 @@ export function QueueSection({ reports = [] }) {
                       <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{item.description || "No description provided"}</p>
                     </div>
                   </div>
-                  <div className="text-right">
+                  <div className="text-left sm:text-right flex flex-col sm:items-end">
                     <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Assigned Agency</p>
                     <p className="text-sm font-bold text-slate-900 dark:text-slate-200 mt-1 transition-colors">{item.assignedAgency || "Dispatching..."}</p>
-                    <span className={`${pillBase} mt-2 ${item.status === "pending" ? statusChip.danger : statusChip.success}`}>
-                      {item.status}
-                    </span>
+                    <select
+                      className={`${pillBase} mt-2 cursor-pointer outline-none ${item.status === "pending" ? statusChip.danger : statusChip.success}`}
+                      value={item.status}
+                      onChange={async (e) => {
+                        try {
+                           await api.put(`/emergency/${item._id || item.id}`, { ...item, status: e.target.value });
+                           window.location.reload();
+                        } catch (err) {
+                           console.error("Failed to update report status:", err);
+                        }
+                      }}
+                    >
+                      <option value="pending">Pending</option>
+                      <option value="responding">Responding</option>
+                      <option value="resolved">Resolved</option>
+                      <option value="closed">Closed</option>
+                    </select>
                   </div>
                 </article>
               ))}

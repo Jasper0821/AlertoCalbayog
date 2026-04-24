@@ -112,49 +112,17 @@ function MapSection({ reports: pins = [], isOffline }) {
           />
         </div>
 
-        <div className="p-12 sm:p-20 flex flex-col items-center text-center bg-slate-50/50 dark:bg-slate-950/20 transition-colors">
-          <div className="relative mb-10 group">
-             <div className="absolute inset-0 bg-red-600 blur-3xl opacity-10 group-hover:opacity-20 transition-opacity" />
-             <div className="relative grid h-32 w-32 place-items-center rounded-[40px] bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 text-red-600 shadow-2xl transition hover:scale-105">
-                <MapIcon className="h-12 w-12" />
-             </div>
-             <div className="absolute -bottom-2 -right-2 h-10 w-10 rounded-2xl bg-slate-900 dark:bg-slate-800 border-4 border-white dark:border-slate-900 flex items-center justify-center text-white shadow-xl">
-                <ExpandIcon className="h-4 w-4" />
-             </div>
-          </div>
-
-          <h3 className="text-3xl font-black tracking-tighter text-slate-900 dark:text-white uppercase leading-none transition-colors">Operational Terminal</h3>
-          <p className="mt-4 max-w-md text-base font-bold text-slate-500 dark:text-slate-400 leading-relaxed transition-colors">
-            Initialize the secure interactive grid to view real-time fire response units, sector telemetry, and active incident distribution across Calbayog City.
-          </p>
-
-          <div className="mt-10 flex flex-col sm:flex-row gap-4 w-full max-w-lg">
-            <button
-              type="button"
-              onClick={() => setIsFullscreen(true)}
-              className="flex-1 flex h-16 items-center justify-center gap-3 rounded-[24px] bg-slate-900 dark:bg-white px-8 text-[11px] font-black uppercase tracking-[0.2em] text-white dark:text-slate-900 shadow-2xl shadow-slate-900/20 transition-all hover:bg-black dark:hover:bg-slate-100 hover:scale-[1.02] active:scale-95"
-            >
-              <ExpandIcon className="h-4 w-4" />
-              Launch Fullscreen Terminal
-            </button>
-          </div>
-
-          <div className="mt-12 grid grid-cols-2 sm:grid-cols-3 gap-8 w-full max-w-2xl border-t border-slate-100 dark:border-slate-800 pt-12 transition-colors">
-             <div className="text-center">
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">Total Districts</p>
-                <p className="mt-1 text-xl font-black text-slate-900 dark:text-white uppercase">42 Active</p>
-             </div>
-             <div className="text-center">
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">Current Load</p>
-                <p className="mt-1 text-xl font-black text-slate-900 dark:text-white uppercase">{pins.length} Alerts</p>
-             </div>
-             <div className="hidden sm:block text-center">
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">Sync Health</p>
-                <p className={`mt-1 text-xl font-black uppercase transition-colors ${isOffline ? 'text-red-500' : 'text-emerald-600'}`}>
-                  {isOffline ? 'Local' : 'Database Ready'}
-                </p>
-             </div>
-          </div>
+        <div className="flex-1 w-full relative z-0 min-h-[600px]">
+           <MapView interactive={true} mapKey="map-inline" pins={pins} />
+           
+           <button
+             type="button"
+             onClick={() => setIsFullscreen(true)}
+             className="absolute bottom-6 right-6 z-[400] flex h-12 items-center justify-center gap-2 rounded-xl bg-slate-900 dark:bg-white px-6 text-[10px] font-black uppercase tracking-[0.2em] text-white dark:text-slate-900 shadow-2xl transition-all hover:bg-black dark:hover:bg-slate-100 hover:scale-[1.05] active:scale-95"
+           >
+             <ExpandIcon className="h-4 w-4" />
+             Expand to Hub
+           </button>
         </div>
       </section>
 
