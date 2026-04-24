@@ -1,18 +1,49 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useState } from "react";
+import api from "../api/axios.js";
 
 function Login() {
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loginSuccess, setLoginSuccess] = useState(false);
   const [error, setError] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
 
-  const handleSubmit = (event) => {
-    event.preventDefault();
-    navigate("/dashboard");
+  // Route user to correct dashboard based on their agency
+  const getAgencyRoute = (agency) => {
+    switch (agency) {
+      case "BFP": return "/firedashboard";
+      case "DRRMO": return "/flooddashboard";
+      case "EMS": return "/emergencydashboard";
+      default: return "/dashboard";
+    }
   };
 
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    setError("");
+    setIsSubmitting(true);
 
+    try {
+      const res = await api.post("/auth/login", { email, password });
+      
+      // Save token and user data
+      localStorage.setItem("token", res.data.token);
+      localStorage.setItem("user", JSON.stringify(res.data.user));
+
+      setLoginSuccess(true);
+
+      // Route to correct agency dashboard after animation
+      const route = getAgencyRoute(res.data.user.agency);
+      setTimeout(() => {
+        navigate(route);
+      }, 2000);
+    } catch (err) {
+      setError(err.response?.data?.message || "Login failed. Please try again.");
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <main className="relative flex min-h-screen items-center justify-center bg-slate-50 px-4 py-12 sm:px-6 lg:px-8 font-sans antialiased">
@@ -67,8 +98,10 @@ function Login() {
                 type="email"
                 autoComplete="email"
                 placeholder="name@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
               />
-
             </div>
 
             <div className="grid gap-3">
@@ -82,8 +115,10 @@ function Login() {
                 type="password"
                 autoComplete="current-password"
                 placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
               />
-
             </div>
 
             {error && (
@@ -92,7 +127,6 @@ function Login() {
               </p>
             )}
           </div>
-
 
           <div className="flex items-center justify-between ml-1 pt-2">
             <div className="flex items-center gap-3">
@@ -138,7 +172,6 @@ function Login() {
             )}
           </button>
 
-
           <p className="pt-4 text-center text-sm font-bold text-slate-400">
             New to the grid?{" "}
             <Link className="text-red-600 hover:text-red-700 underline underline-offset-4 decoration-2" to="/register">
@@ -160,7 +193,7 @@ function Login() {
              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-600 mb-4">Authentication Secure</p>
              <h3 className="text-4xl font-black tracking-tighter text-slate-900 uppercase leading-[0.9]">Login Successful</h3>
              <p className="mt-6 text-lg font-bold text-slate-500 leading-relaxed">
-               Welcome back, Dispatcher. Syncing with regional emergency nodes...
+               Welcome back, Dispatcher. Routing to your agency terminal...
              </p>
              <div className="mt-10 flex flex-col items-center gap-3">
                 <div className="h-1.5 w-32 rounded-full bg-slate-50 overflow-hidden">

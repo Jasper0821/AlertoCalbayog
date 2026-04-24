@@ -45,3 +45,16 @@ exports.getAllReports = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+exports.getReportsByAgency = async (req, res) => {
+  try {
+    const { agency } = req.params;
+    const reports = await EmergencyReport.find({ assignedAgency: agency })
+      .populate("userId", "fullName email role")
+      .sort({ createdAt: -1 });
+
+    res.json(reports);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};

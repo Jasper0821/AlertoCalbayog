@@ -45,7 +45,24 @@ export default function EmergencyReportScreen({ route, navigation }: Props): Rea
         return;
       }
 
-      const location = await Location.getCurrentPositionAsync({});
+      let location;
+      try {
+        location = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+      } catch (locError) {
+        location = await Location.getLastKnownPositionAsync({});
+        if (!location) {
+          // If even last known position fails, provide a mock location for the emulator
+          console.log("Providing mock location for emulator testing.");
+          location = {
+            coords: {
+              latitude: 12.0645, // Calbayog City latitude
+              longitude: 124.5950 // Calbayog City longitude
+            }
+          };
+        }
+      }
       const token = await getToken();
 
       const res = await api.post(
@@ -72,7 +89,7 @@ export default function EmergencyReportScreen({ route, navigation }: Props): Rea
         emergencyType
       });
     } catch (error: any) {
-      Alert.alert("Error", error.response?.data?.message || "Failed to send report");
+      Alert.alert("Error", error.response?.data?.message || error.message || "Failed to send report");
     } finally {
       setLoading(false);
     }
@@ -91,12 +108,12 @@ export default function EmergencyReportScreen({ route, navigation }: Props): Rea
              </Text>
           </View>
 
-          <Text className="text-textGray mb-2 font-black text-[10px] uppercase tracking-widest">Additional Details</Text>
+          <Text className="text-white mb-2 font-light text-[10px] uppercase tracking-widest">Additional Details</Text>
           <CustomInput
             placeholder="Describe the situation briefly..."
             value={description}
             onChangeText={setDescription}
-            multiline
+            multiline={true}
             numberOfLines={4}
             className="h-[120px]"
             style={{ textAlignVertical: 'top' }}
@@ -118,4 +135,4 @@ export default function EmergencyReportScreen({ route, navigation }: Props): Rea
     </View>
   );
 }
-
+

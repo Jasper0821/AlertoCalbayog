@@ -89,20 +89,24 @@ export default function LiveTrackingScreen({
 
           setCurrentLocation(newCoords);
 
-          await api.post(
-            "/tracking/update",
-            {
-              reportId,
-              latitude: newCoords.latitude,
-              longitude: newCoords.longitude,
-              role: "resident",
-            },
-            {
-              headers: {
-                Authorization: `Bearer ${token}`,
+          try {
+            await api.post(
+              "/tracking/update",
+              {
+                reportId,
+                latitude: newCoords.latitude,
+                longitude: newCoords.longitude,
+                role: "resident",
               },
-            }
-          );
+              {
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                },
+              }
+            );
+          } catch (trackingError) {
+            console.log("Failed to push tracking update:", trackingError);
+          }
         }
       );
     } catch (error: any) {
@@ -147,6 +151,7 @@ export default function LiveTrackingScreen({
           ) : (
             <MapView
               style={{ flex: 1 }}
+              mapType="satellite"
               region={{
                 latitude: currentLocation.latitude,
                 longitude: currentLocation.longitude,
@@ -154,10 +159,6 @@ export default function LiveTrackingScreen({
                 longitudeDelta: 0.01,
               }}
             >
-              <UrlTile
-                urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-                maximumZ={19}
-              />
               <Marker coordinate={currentLocation} title="Your Location" />
             </MapView>
           )}

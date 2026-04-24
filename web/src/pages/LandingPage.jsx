@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { toggleDarkMode } from "../theme";
-import { SunIcon, MoonIcon } from "./FireDashboard/icons";
+import { SunIcon, MoonIcon } from "./AGENCY/FIRE/icons";
 
 const stats = [
   { value: "24/7", label: "Dispatch-ready" },
