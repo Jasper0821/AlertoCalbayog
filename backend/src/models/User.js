@@ -27,7 +27,7 @@ const userSchema = new mongoose.Schema(
     },
     agency: {
       type: String,
-      enum: ["BFP", "DRRMO", "EMS", "NONE"],
+      enum: ["BFP", "CDRRMO", "PNP", "NONE"],
       default: "NONE"
     },
     phoneNumber: {

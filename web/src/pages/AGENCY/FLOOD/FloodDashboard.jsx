@@ -28,11 +28,11 @@ function FloodDashboard() {
   useEffect(() => {
     const fetchReports = async () => {
       try {
-        const res = await api.get("/emergency/agency/DRRMO");
+        const res = await api.get("/emergency/agency/CDRRMO");
         setReports(res.data);
         setIsOffline(false);
       } catch (error) {
-        console.error("Failed to fetch DRRMO reports:", error);
+        console.error("Failed to fetch CDRRMO reports:", error);
         setIsOffline(true);
       }
     };

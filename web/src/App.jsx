@@ -7,6 +7,8 @@ import Register from "./pages/Register";
 import FireDashboard from "./pages/AGENCY/FIRE/FireDashboard.jsx";
 import FloodDashboard from "./pages/AGENCY/FLOOD/FloodDashboard.jsx";
 import EmergencyDashboard from "./pages/AGENCY/EMERGENCY/EmergencyDashboard.jsx";
+import CrimeDashboard from "./pages/AGENCY/CRIME/CrimeDashboard.jsx";
+import AdminDashboard from "./pages/ADMIN/Dashboard.jsx";
 import Reports from "./pages/Reports";
 import Services from "./pages/Services";
 import ForgotPassword from "./pages/ForgotPassword";
@@ -30,6 +32,10 @@ function App() {
         <Route path="/firedashboard" element={<FireDashboard />} />
         <Route path="/flooddashboard" element={<FloodDashboard />} />
         <Route path="/emergencydashboard" element={<EmergencyDashboard />} />
+        <Route path="/crimedashboard" element={<CrimeDashboard />} />
+
+        {/* Admin Dashboard - sees ALL reports */}
+        <Route path="/admindashboard" element={<AdminDashboard />} />
 
         <Route path="/reports" element={<Reports />} />
         <Route path="/services" element={<Services />} />

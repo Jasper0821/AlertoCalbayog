@@ -9,7 +9,6 @@ import HomeScreen from "../screens/HomeScreen";
 import EmergencyReportScreen from "../screens/EmergencyReportScreen";
 import LiveTrackingScreen from "../screens/LiveTrackingScreen";
 import ReportHistoryScreen from "../screens/ReportHistoryScreen";
-import StatusUpdatesScreen from "../screens/StatusUpdatesScreen";
 import UserAgreementScreen from "../screens/UserAgreementScreen";
 
 export type RootStackParamList = {
@@ -20,7 +19,6 @@ export type RootStackParamList = {
   EmergencyReport: { emergencyType: string };
   LiveTracking: { reportId: string; latitude: number; longitude: number; emergencyType: string };
   ReportHistory: undefined;
-  StatusUpdates: undefined;
   UserAgreement: undefined;
 };  
 
@@ -42,7 +40,6 @@ export default function AppNavigator(): React.JSX.Element {
         <Stack.Screen name="EmergencyReport" component={EmergencyReportScreen} />
         <Stack.Screen name="LiveTracking" component={LiveTrackingScreen} />
         <Stack.Screen name="ReportHistory" component={ReportHistoryScreen} />
-        <Stack.Screen name="StatusUpdates" component={StatusUpdatesScreen} />
         <Stack.Screen name="UserAgreement" component={UserAgreementScreen} />
       </Stack.Navigator>
     </NavigationContainer>

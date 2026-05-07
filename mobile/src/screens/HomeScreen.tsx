@@ -1,7 +1,7 @@
-import React from "react";
-import { View, Text, TouchableOpacity, ScrollView } from "react-native";
+import React, { useState, useEffect, useRef } from "react";
+import { View, Text, TouchableOpacity, Animated, Easing } from "react-native";
 import Header from "../components/Header";
-import EmergencyButton from "../components/EmergencyButton";
+import IncidentPicker from "../components/IncidentPicker";
 import { clearStorage } from "../utils/Storage";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../navigation/AppNavigator";
@@ -18,89 +18,111 @@ interface Props {
 export default function HomeScreen({
   navigation,
 }: Props): React.JSX.Element {
+  const [showPicker, setShowPicker] = useState(false);
+
+  // Pulse animation for the Send Report button
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    const pulse = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.06,
+          duration: 1200,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 1200,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    pulse.start();
+    return () => pulse.stop();
+  }, [pulseAnim]);
+
   const logout = async (): Promise<void> => {
     await clearStorage();
     navigation.replace("Login");
-  };
-
-  const handleBack = (): void => {
-    if (navigation.canGoBack()) {
-      navigation.goBack();
-    } else {
-      navigation.replace("Login");
-    }
   };
 
   return (
     <View className="flex-1 bg-darkBlue">
       <Header title="Dashboard" showBack />
 
-      <ScrollView contentContainerClassName="p-5 pt-0 pb-10" showsVerticalScrollIndicator={false}>
-        <View className="mb-8">
-          <Text className="text-white text-3xl font-black tracking-tight mb-2">Need help?</Text>
-          <Text className="text-textGray text-sm font-medium">Select an emergency type to report immediately.</Text>
+      <View className="flex-1 items-center justify-center px-8">
+        {/* Top messaging */}
+        <View className="items-center mb-12">
+          <Text className="text-white text-3xl font-black tracking-tight text-center mb-2">
+            Stay Safe, Calbayog
+          </Text>
+          <Text className="text-textGray text-sm font-medium text-center leading-5">
+            Tap the button below to report an incident.{"\n"}Your location will be shared automatically.
+          </Text>
         </View>
 
-        <EmergencyButton
-          title="Fire Emergency"
-          icon="🔥"
-          color="#EF4444"
-          onPress={() =>
-            navigation.navigate("EmergencyReport", { emergencyType: "fire" })
-          }
-        />
-
-        <EmergencyButton
-          title="Flood Emergency"
-          icon="🌊"
-          color="#0EA5E9"
-          onPress={() =>
-            navigation.navigate("EmergencyReport", { emergencyType: "flood" })
-          }
-        />
-
-        <EmergencyButton
-          title="Medical Emergency"
-          icon="🚑"
-          color="#10B981"
-          onPress={() =>
-            navigation.navigate("EmergencyReport", { emergencyType: "medical" })
-          }
-        />
-
-        <View className="mt-8 gap-4">
-          <Text className="text-textGray font-black text-[10px] uppercase tracking-widest px-1">Resources</Text>
-          
+        {/* Pulsing Send Report Button */}
+        <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
           <TouchableOpacity
-            className="bg-surface flex-row items-center p-5 rounded-3xl border border-border shadow-lg"
-            onPress={() => navigation.navigate("ReportHistory")}
+            className="w-52 h-52 rounded-full items-center justify-center border-4 border-primary shadow-2xl shadow-primary/40"
+            style={{
+              backgroundColor: "rgba(255, 92, 0, 0.15)",
+            }}
+            onPress={() => setShowPicker(true)}
+            activeOpacity={0.8}
           >
-            <View className="w-10 h-10 rounded-xl bg-darkBlue items-center justify-center mr-4 border border-border">
-              <Text className="text-lg">📜</Text>
+            {/* Inner glow */}
+            <View
+              className="w-40 h-40 rounded-full items-center justify-center border-2 border-primary/40"
+              style={{
+                backgroundColor: "rgba(255, 92, 0, 0.25)",
+              }}
+            >
+              <Text className="text-white text-lg font-black uppercase tracking-widest text-center">
+                Send{"\n"}Report
+              </Text>
             </View>
-            <Text className="flex-1 text-white font-bold text-base">View Report History</Text>
-            <Text className="text-white/20 text-xl font-bold">→</Text>
           </TouchableOpacity>
+        </Animated.View>
 
-          <TouchableOpacity
-            className="bg-surface flex-row items-center p-5 rounded-3xl border border-border shadow-lg"
-            onPress={() => navigation.navigate("StatusUpdates")}
-          >
-             <View className="w-10 h-10 rounded-xl bg-darkBlue items-center justify-center mr-4 border border-border">
-              <Text className="text-lg">💡</Text>
-            </View>
-            <Text className="flex-1 text-white font-bold text-base">Status Meanings</Text>
-            <Text className="text-white/20 text-xl font-bold">→</Text>
-          </TouchableOpacity>
-        </View>
+        {/* Sub-label */}
+        <Text className="text-textGray text-xs font-bold uppercase tracking-[3px] mt-8 opacity-60">
+          Fire · Flood · Emergency · Crime
+        </Text>
+      </View>
+
+      {/* Bottom section */}
+      <View className="px-5 pb-6 gap-3">
+        <TouchableOpacity
+          className="bg-surface flex-row items-center p-4 rounded-2xl border border-border"
+          onPress={() => navigation.navigate("ReportHistory")}
+        >
+          <View className="w-9 h-9 rounded-xl bg-darkBlue items-center justify-center mr-3 border border-border">
+            <Text className="text-sm">📜</Text>
+          </View>
+          <Text className="flex-1 text-white font-bold text-sm">Report History</Text>
+          <Text className="text-white/20 text-lg font-bold">→</Text>
+        </TouchableOpacity>
 
         <TouchableOpacity
-          className="mt-12 items-center py-4 bg-red/10 rounded-2xl border border-red/20"
+          className="items-center py-3 bg-red/10 rounded-2xl border border-red/20"
           onPress={logout}
         >
-          <Text className="font-black text-red uppercase tracking-widest">Logout Session</Text>
+          <Text className="font-black text-red text-xs uppercase tracking-widest">
+            Logout
+          </Text>
         </TouchableOpacity>
-      </ScrollView>
+      </View>
+
+      {/* Incident Picker Modal */}
+      <IncidentPicker
+        visible={showPicker}
+        onClose={() => setShowPicker(false)}
+        navigation={navigation}
+      />
     </View>
   );
-}
+}

@@ -4,10 +4,11 @@ export const COLORS = {
   surface: "#1A2235",        // Card background
   
   // Accents
-  primary: "#3B82F6",        // Branding / Medical Info
+  primary: "#3B82F6",        // Branding / Main accent
   red: "#EF4444",            // Fire
   blue: "#0EA5E9",           // Flood
-  green: "#10B981",          // Medical
+  green: "#10B981",          // Emergency
+  purple: "#8B5CF6",         // Crime
   
   // Glassmorphism (Semi-transparent)
   glass: "rgba(255, 255, 255, 0.05)",
