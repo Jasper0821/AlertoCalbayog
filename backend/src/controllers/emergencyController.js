@@ -1,20 +1,20 @@
 const EmergencyReport = require("../models/EmergencyReport");
-const mapAgency = require("../utils/agencyMapper");
+const mapAgencies = require("../utils/agencyMapper");
 
 exports.createEmergencyReport = async (req, res) => {
   try {
     const { emergencyType, description, latitude, longitude } = req.body;
 
-    const assignedAgency = mapAgency(emergencyType);
+    const notifiedAgencies = mapAgencies(emergencyType);
 
-    if (!assignedAgency) {
+    if (!notifiedAgencies) {
       return res.status(400).json({ message: "Invalid emergency type" });
     }
 
     const report = await EmergencyReport.create({
       userId: req.user.id,
       emergencyType,
-      assignedAgency,
+      notifiedAgencies,
       description,
       location: {
         latitude,
@@ -22,8 +22,19 @@ exports.createEmergencyReport = async (req, res) => {
       }
     });
 
+    // Populate user info before emitting
+    const populatedReport = await EmergencyReport.findById(report._id)
+      .populate("userId", "fullName email role");
+
     const io = req.app.get("io");
-    io.emit("newEmergencyAlert", report);
+
+    // Emit to each notified agency room
+    notifiedAgencies.forEach((agency) => {
+      io.to(agency).emit("newEmergencyAlert", populatedReport);
+    });
+
+    // Always notify admin
+    io.to("admin").emit("newEmergencyAlert", populatedReport);
 
     res.status(201).json({
       message: "Emergency report created successfully",
@@ -49,7 +60,8 @@ exports.getAllReports = async (req, res) => {
 exports.getReportsByAgency = async (req, res) => {
   try {
     const { agency } = req.params;
-    const reports = await EmergencyReport.find({ assignedAgency: agency })
+    // notifiedAgencies is an array — MongoDB matches if the value exists in the array
+    const reports = await EmergencyReport.find({ notifiedAgencies: agency })
       .populate("userId", "fullName email role")
       .sort({ createdAt: -1 });
 

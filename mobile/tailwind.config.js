@@ -15,6 +15,7 @@ module.exports = {
         red: "#EF4444",
         blue: "#0EA5E9",
         green: "#10B981",
+        purple: "#8B5CF6",
         glass: "rgba(255, 255, 255, 0.05)",
         glassHighlight: "rgba(255, 255, 255, 0.1)",
         border: "rgba(255, 255, 255, 0.1)",

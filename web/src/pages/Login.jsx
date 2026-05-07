@@ -12,12 +12,13 @@ function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  // Route user to correct dashboard based on their agency
-  const getAgencyRoute = (agency) => {
-    switch (agency) {
+  // Route user to correct dashboard based on their role and agency
+  const getAgencyRoute = (user) => {
+    if (user.role === "admin") return "/admindashboard";
+    switch (user.agency) {
       case "BFP": return "/firedashboard";
-      case "DRRMO": return "/flooddashboard";
-      case "EMS": return "/emergencydashboard";
+      case "CDRRMO": return "/flooddashboard";
+      case "PNP": return "/crimedashboard";
       default: return "/dashboard";
     }
   };
@@ -37,7 +38,7 @@ function Login() {
       setLoginSuccess(true);
 
       // Route to correct agency dashboard after animation
-      const route = getAgencyRoute(res.data.user.agency);
+      const route = getAgencyRoute(res.data.user);
       setTimeout(() => {
         navigate(route);
       }, 2000);

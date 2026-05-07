@@ -41,7 +41,7 @@ function Shell({ activeSection, onNavigate, children }) {
           </div>
           <div>
             <p className="font-display text-xl font-black tracking-[-0.03em] uppercase"><span className="text-emerald-600 italic">Alerto</span> Calbayog</p>
-            <p className="mt-1 text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 font-sans">EMS Center</p>
+            <p className="mt-1 text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 font-sans">CDRRMO Center</p>
           </div>
         </div>
 
@@ -113,7 +113,7 @@ function Shell({ activeSection, onNavigate, children }) {
             <div className="h-8 w-[1px] bg-slate-100 dark:bg-slate-800 hidden sm:block" />
             <div className="flex items-center gap-3">
               <div className="text-right hidden xl:block">
-                <p className="text-[10px] font-black text-slate-900 dark:text-white uppercase tracking-widest">EMS Lead</p>
+                <p className="text-[10px] font-black text-slate-900 dark:text-white uppercase tracking-widest">CDRRMO Lead</p>
                 <p className="mt-0.5 text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em]">Active Shift</p>
               </div>
               <div className="h-10 w-10 lg:h-12 lg:w-12 rounded-2xl bg-emerald-600 flex items-center justify-center text-[10px] font-black text-white shadow-xl shadow-emerald-600/10">

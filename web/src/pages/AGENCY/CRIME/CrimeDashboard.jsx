@@ -15,7 +15,7 @@ const navigation = [
   { id: "profile" },
 ];
 
-function EmergencyDashboard() {
+function CrimeDashboard() {
   const [activeSection, setActiveSection] = useState(() => {
     if (typeof window === "undefined") return "dashboard";
     const hash = window.location.hash.replace("#", "");
@@ -28,11 +28,11 @@ function EmergencyDashboard() {
   useEffect(() => {
     const fetchReports = async () => {
       try {
-        const res = await api.get("/emergency/agency/CDRRMO");
+        const res = await api.get("/emergency/agency/PNP");
         setReports(res.data);
         setIsOffline(false);
       } catch (error) {
-        console.error("Failed to fetch CDRRMO reports:", error);
+        console.error("Failed to fetch PNP reports:", error);
         setIsOffline(true);
       }
     };
@@ -61,4 +61,4 @@ function EmergencyDashboard() {
   );
 }
 
-export default EmergencyDashboard;
+export default CrimeDashboard;

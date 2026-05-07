@@ -56,9 +56,11 @@ export default function LiveTrackingScreen({
       case "fire":
         return "#EF4444";
       case "flood":
-        return "#3B82F6";
-      case "medical":
-        return "#22C55E";
+        return "#0EA5E9";
+      case "emergency":
+        return "#10B981";
+      case "crime":
+        return "#8B5CF6";
       default:
         return "#3B82F6";
     }
@@ -176,4 +178,4 @@ export default function LiveTrackingScreen({
       </View>
     </View>
   );
-}
+}
