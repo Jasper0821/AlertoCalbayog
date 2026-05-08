@@ -6,6 +6,7 @@ import { ProfileSection } from "./ProfileSection.jsx";
 import { QueueSection } from "./QueueSection.jsx";
 import { ReportsSection } from "./ReportsSection.jsx";
 import api from "../../../api/axios.js";
+import socket from "../../../api/socket.js";
 
 const navigation = [
   { id: "dashboard" },
@@ -45,7 +46,22 @@ function FireDashboard() {
 
     // Refresh every 15 seconds
     const interval = setInterval(fetchReports, 15000);
-    return () => clearInterval(interval);
+
+    // Real-time socket notifications
+    socket.connect();
+    socket.emit("joinRoom", "BFP");
+
+    socket.on("newEmergencyAlert", (newReport) => {
+      console.log("🔥 BFP received real-time alert:", newReport);
+      setReports((prev) => [newReport, ...prev]);
+    });
+
+    return () => {
+      clearInterval(interval);
+      socket.emit("leaveRoom", "BFP");
+      socket.off("newEmergencyAlert");
+      socket.disconnect();
+    };
   }, []);
 
   const handleNavClick = (event, id) => {

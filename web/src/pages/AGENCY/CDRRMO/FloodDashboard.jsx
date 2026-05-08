@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import Shell from "./Shell.jsx";
-import MapSection from "../FIRE/MapSection.jsx";
-import { OverviewSection } from "../FIRE/OverviewSection.jsx";
-import { ProfileSection } from "../FIRE/ProfileSection.jsx";
-import { QueueSection } from "../FIRE/QueueSection.jsx";
-import { ReportsSection } from "../FIRE/ReportsSection.jsx";
+import MapSection from "../BFP/MapSection.jsx";
+import { OverviewSection } from "../BFP/OverviewSection.jsx";
+import { ProfileSection } from "../BFP/ProfileSection.jsx";
+import { QueueSection } from "../BFP/QueueSection.jsx";
+import { ReportsSection } from "../BFP/ReportsSection.jsx";
 import api from "../../../api/axios.js";
+import socket from "../../../api/socket.js";
 
 const navigation = [
   { id: "dashboard" },
@@ -15,7 +16,7 @@ const navigation = [
   { id: "profile" },
 ];
 
-function CrimeDashboard() {
+function FloodDashboard() {
   const [activeSection, setActiveSection] = useState(() => {
     if (typeof window === "undefined") return "dashboard";
     const hash = window.location.hash.replace("#", "");
@@ -28,18 +29,33 @@ function CrimeDashboard() {
   useEffect(() => {
     const fetchReports = async () => {
       try {
-        const res = await api.get("/emergency/agency/PNP");
+        const res = await api.get("/emergency/agency/CDRRMO");
         setReports(res.data);
         setIsOffline(false);
       } catch (error) {
-        console.error("Failed to fetch PNP reports:", error);
+        console.error("Failed to fetch CDRRMO reports:", error);
         setIsOffline(true);
       }
     };
 
     fetchReports();
     const interval = setInterval(fetchReports, 15000);
-    return () => clearInterval(interval);
+
+    // Real-time socket notifications
+    socket.connect();
+    socket.emit("joinRoom", "CDRRMO");
+
+    socket.on("newEmergencyAlert", (newReport) => {
+      console.log("🌊 CDRRMO (Flood) received real-time alert:", newReport);
+      setReports((prev) => [newReport, ...prev]);
+    });
+
+    return () => {
+      clearInterval(interval);
+      socket.emit("leaveRoom", "CDRRMO");
+      socket.off("newEmergencyAlert");
+      socket.disconnect();
+    };
   }, []);
 
   const handleNavClick = (event, id) => {
@@ -61,4 +77,4 @@ function CrimeDashboard() {
   );
 }
 
-export default CrimeDashboard;
+export default FloodDashboard;

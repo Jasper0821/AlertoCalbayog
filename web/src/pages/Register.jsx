@@ -144,8 +144,8 @@ function Register() {
                 >
                   <option value="" disabled>Select an agency...</option>
                   <option value="BFP">Fire Department (BFP)</option>
-                  <option value="EMS">Ambulance / EMS</option>
-                  <option value="DRRMO">Flood / Disaster Response</option>
+                  <option value="PNP">PNP</option>
+                  <option value="CDRRMO">CDRRMO</option>
                 </select>
               </div>
 
