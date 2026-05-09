@@ -16,10 +16,11 @@ const markerStyle = {
 function MapResizeBridge({ refreshKey }) {
   const map = useMap();
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      map.invalidateSize();
-    }, 250);
-    return () => window.clearTimeout(timer);
+    // Leaflet needs multiple invalidateSize calls when inside dynamic layouts
+    const timers = [100, 300, 600, 1000].map((ms) =>
+      window.setTimeout(() => map.invalidateSize(), ms)
+    );
+    return () => timers.forEach((t) => window.clearTimeout(t));
   }, [map, refreshKey]);
   return null;
 }
@@ -30,7 +31,7 @@ function MapView({ interactive, mapKey, pins }) {
       key={mapKey}
       center={cityCenter}
       zoom={interactive ? 14 : 13}
-      className="h-full w-full"
+      style={{ height: "100%", width: "100%" }}
       zoomControl={false}
       scrollWheelZoom={interactive}
       dragging={interactive}
@@ -112,7 +113,7 @@ function MapSection({ reports: pins = [], isOffline }) {
           />
         </div>
 
-        <div className="flex-1 w-full relative z-0 min-h-[600px]">
+        <div className="w-full relative z-0" style={{ height: "600px" }}>
            <MapView interactive={true} mapKey="map-inline" pins={pins} />
            
            <button
