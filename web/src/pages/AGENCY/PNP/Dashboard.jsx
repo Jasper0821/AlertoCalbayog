@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
-import Shell from "./Shell.jsx";
-import MapSection from "../BFP/MapSection.jsx";
-import { OverviewSection } from "../BFP/OverviewSection.jsx";
-import { ProfileSection } from "../BFP/ProfileSection.jsx";
-import { QueueSection } from "../BFP/QueueSection.jsx";
-import { ReportsSection } from "../BFP/ReportsSection.jsx";
+import AgencyShell from "../AgencyShell.jsx";
+import MapSection from "../CDRRMO/MapSection.jsx";
+import { OverviewSection } from "../CDRRMO/OverviewSection.jsx";
+import { ProfileSection } from "../CDRRMO/ProfileSection.jsx";
+import { QueueSection } from "../CDRRMO/QueueSection.jsx";
+import { ReportsSection } from "../CDRRMO/ReportsSection.jsx";
 import api from "../../../api/axios.js";
 import socket from "../../../api/socket.js";
 
@@ -16,7 +16,9 @@ const navigation = [
   { id: "profile" },
 ];
 
-function CrimeDashboard() {
+function PnpDashboard() {
+  const agency = "PNP";
+
   const [activeSection, setActiveSection] = useState(() => {
     if (typeof window === "undefined") return "dashboard";
     const hash = window.location.hash.replace("#", "");
@@ -29,7 +31,7 @@ function CrimeDashboard() {
   useEffect(() => {
     const fetchReports = async () => {
       try {
-        const res = await api.get("/emergency/agency/PNP");
+        const res = await api.get(`/emergency/agency/${agency}`);
         setReports(res.data);
         setIsOffline(false);
       } catch (error) {
@@ -41,12 +43,12 @@ function CrimeDashboard() {
     fetchReports();
     const interval = setInterval(fetchReports, 15000);
 
-    // Real-time socket notifications
+    // PNP gets auto-notified for crime reports
     socket.connect();
     socket.emit("joinRoom", "PNP");
 
     socket.on("newEmergencyAlert", (newReport) => {
-      console.log("🚔 PNP received real-time alert:", newReport);
+      console.log("📡 PNP received real-time alert:", newReport);
       setReports((prev) => [newReport, ...prev]);
     });
 
@@ -67,14 +69,14 @@ function CrimeDashboard() {
   };
 
   return (
-    <Shell activeSection={activeSection} onNavigate={handleNavClick}>
+    <AgencyShell activeSection={activeSection} onNavigate={handleNavClick} agency={agency}>
       {activeSection === "dashboard" && <OverviewSection reports={reports} isOffline={isOffline} />}
       {activeSection === "map-report" && <MapSection reports={reports} isOffline={isOffline} />}
       {activeSection === "reported-incidents" && <ReportsSection reports={reports} />}
       {activeSection === "queuing" && <QueueSection reports={reports} />}
       {activeSection === "profile" && <ProfileSection />}
-    </Shell>
+    </AgencyShell>
   );
 }
 
-export default CrimeDashboard;
+export default PnpDashboard;

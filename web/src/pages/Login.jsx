@@ -12,15 +12,11 @@ function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  // Route user to correct dashboard based on their role and agency
+  // Route user to correct dashboard based on their role
   const getAgencyRoute = (user) => {
     if (user.role === "admin") return "/admindashboard";
-    switch (user.agency) {
-      case "BFP": return "/firedashboard";
-      case "CDRRMO": return "/flooddashboard";
-      case "PNP": return "/crimedashboard";
-      default: return "/dashboard";
-    }
+    if (user.agency === "PNP") return "/crimedashboard";
+    return "/dashboard";
   };
 
   const handleSubmit = async (event) => {

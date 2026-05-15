@@ -30,6 +30,8 @@ const STATUS_STYLES = {
 
 const TYPE_STYLES = {
   fire:      { bg: "bg-red-500/10", text: "text-red-500", label: "🔥 Fire" },
+  medical:   { bg: "bg-emerald-500/10", text: "text-emerald-500", label: "🏥 Medical" },
+  others:    { bg: "bg-amber-500/10", text: "text-amber-500", label: "⚠️ Others" },
   flood:     { bg: "bg-sky-500/10", text: "text-sky-500", label: "🌊 Flood" },
   emergency: { bg: "bg-emerald-500/10", text: "text-emerald-500", label: "🚨 Emergency" },
   crime:     { bg: "bg-violet-500/10", text: "text-violet-500", label: "🚔 Crime" },
@@ -176,7 +178,7 @@ function Dashboard() {
         {/* Filters */}
         <div className="flex items-center gap-4 px-6 lg:px-12 py-5 border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-950 overflow-x-auto shrink-0">
           <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 shrink-0">Type:</span>
-          {["all", "fire", "flood", "emergency", "crime"].map((t) => (
+          {["all", "fire", "medical", "others", "flood", "emergency", "crime"].map((t) => (
             <button
               key={t}
               onClick={() => setFilterType(t)}

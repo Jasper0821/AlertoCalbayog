@@ -9,7 +9,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import * as Location from "expo-location";
-import { FireIcon, FloodIcon, EmergencyIcon, CrimeIcon } from "./SvgIcons";
+import { FireIcon, MedicalIcon, CrimeIcon, FloodIcon } from "./SvgIcons";
 import api from "../api/axios";
 import { getToken } from "../utils/Storage";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -22,8 +22,9 @@ interface Props {
 }
 
 interface IncidentType {
-  key: "fire" | "flood" | "emergency" | "crime";
+  key: "fire" | "medical" | "crime" | "flood";
   label: string;
+  subtitle: string;
   icon: React.JSX.Element;
   color: string;
   bgColor: string;
@@ -33,30 +34,34 @@ const INCIDENT_TYPES: IncidentType[] = [
   {
     key: "fire",
     label: "Fire",
-    icon: <FireIcon size={40} />,
+    subtitle: "Report a fire incident",
+    icon: <FireIcon size={44} />,
     color: "#EF4444",
     bgColor: "rgba(239, 68, 68, 0.12)",
   },
   {
-    key: "flood",
-    label: "Flood",
-    icon: <FloodIcon size={40} />,
-    color: "#0EA5E9",
-    bgColor: "rgba(14, 165, 233, 0.12)",
-  },
-  {
-    key: "emergency",
-    label: "Emergency",
-    icon: <EmergencyIcon size={40} />,
+    key: "medical",
+    label: "Medical Emergency",
+    subtitle: "Medical help needed",
+    icon: <MedicalIcon size={44} />,
     color: "#10B981",
     bgColor: "rgba(16, 185, 129, 0.12)",
   },
   {
     key: "crime",
     label: "Crime",
-    icon: <CrimeIcon size={40} />,
+    subtitle: "Report a crime",
+    icon: <CrimeIcon size={44} />,
     color: "#8B5CF6",
     bgColor: "rgba(139, 92, 246, 0.12)",
+  },
+  {
+    key: "flood",
+    label: "Flood",
+    subtitle: "Report a flood",
+    icon: <FloodIcon size={44} />,
+    color: "#0EA5E9",
+    bgColor: "rgba(14, 165, 233, 0.12)",
   },
 ];
 
@@ -102,7 +107,7 @@ export default function IncidentPicker({
 
       const token = await getToken();
 
-      // Submit report
+      // Submit report — all types go to CDRRMO
       const res = await api.post(
         "/emergency",
         {
@@ -120,7 +125,7 @@ export default function IncidentPicker({
 
       Alert.alert(
         "Report Sent ✓",
-        `Your ${type.label.toLowerCase()} report has been sent. Agencies have been notified.`
+        `Your ${type.label.toLowerCase()} report has been sent to CDRRMO. Agencies have been notified.`
       );
 
       onClose();
@@ -166,12 +171,12 @@ export default function IncidentPicker({
               What's happening?
             </Text>
             <Text className="text-textGray text-sm font-medium mt-1">
-              Select the type of incident to report
+              Select the type of incident to report to CDRRMO
             </Text>
           </View>
 
-          {/* 2×2 Grid */}
-          <View className="flex-row flex-wrap justify-between gap-y-4">
+          {/* 2x2 Grid */}
+          <View className="flex-row flex-wrap justify-between gap-y-3">
             {INCIDENT_TYPES.map((type) => (
               <TouchableOpacity
                 key={type.key}
@@ -182,19 +187,20 @@ export default function IncidentPicker({
                 activeOpacity={0.7}
               >
                 {loading === type.key ? (
-                  <View className="w-[40px] h-[40px] items-center justify-center">
+                  <View className="w-[44px] h-[44px] items-center justify-center">
                     <ActivityIndicator color={type.color} size="large" />
                   </View>
                 ) : (
                   type.icon
                 )}
                 <Text
-                  className="text-base font-black mt-3 tracking-tight"
+                  className="text-sm font-black mt-3 tracking-tight text-center"
                   style={{ color: type.color }}
+                  numberOfLines={2}
                 >
                   {type.label}
                 </Text>
-                <Text className="text-textGray text-[10px] font-bold uppercase tracking-widest mt-1">
+                <Text className="text-textGray text-[9px] font-bold uppercase tracking-widest mt-1 text-center">
                   Tap to Report
                 </Text>
               </TouchableOpacity>

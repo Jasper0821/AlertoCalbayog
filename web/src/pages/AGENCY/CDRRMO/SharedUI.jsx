@@ -10,6 +10,11 @@ export const statusChip = {
 
 export const incidentChip = {
   fire: "border-red-100 dark:border-red-900/30 bg-red-50 dark:bg-red-950/20 text-red-600 dark:text-red-400",
+  medical: "border-emerald-100 dark:border-emerald-900/30 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400",
+  others: "border-amber-100 dark:border-amber-900/30 bg-amber-50 dark:bg-amber-950/20 text-amber-600 dark:text-amber-400",
+  flood: "border-sky-100 dark:border-sky-900/30 bg-sky-50 dark:bg-sky-950/20 text-sky-600 dark:text-sky-400",
+  emergency: "border-emerald-100 dark:border-emerald-900/30 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400",
+  crime: "border-violet-100 dark:border-violet-900/30 bg-violet-50 dark:bg-violet-950/20 text-violet-600 dark:text-violet-400",
 };
 
 export const iconTone = {

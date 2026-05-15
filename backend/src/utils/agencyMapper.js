@@ -1,22 +1,26 @@
 /**
  * Maps an emergency type to the agencies that should be notified.
- * Returns an array of agency codes.
+ * CDRRMO is the main hub — ALL reports go to CDRRMO.
+ * BFP and PNP are additionally notified for relevant types.
  *
  * - fire      → CDRRMO + BFP
+ * - medical   → CDRRMO
+ * - others    → CDRRMO
  * - flood     → CDRRMO
  * - emergency → CDRRMO
- * - crime     → PNP
+ * - crime     → CDRRMO + PNP
  */
 const mapAgencies = (emergencyType) => {
   switch (emergencyType) {
     case "fire":
       return ["CDRRMO", "BFP"];
+    case "crime":
+      return ["CDRRMO", "PNP"];
+    case "medical":
+    case "others":
     case "flood":
-      return ["CDRRMO"];
     case "emergency":
       return ["CDRRMO"];
-    case "crime":
-      return ["PNP"];
     default:
       return null;
   }

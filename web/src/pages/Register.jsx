@@ -22,23 +22,27 @@ function Register() {
     const email = formData.get("email");
     const password = formData.get("password");
     const phoneNumber = formData.get("phoneNumber");
-    const agency = formData.get("agency");
+
 
     try {
-      await api.post("/auth/register", {
+      const res = await api.post("/auth/register", {
         fullName,
         email,
         password,
         phoneNumber,
-        agency,
+        agency: "CDRRMO",
         role: "responder",
       });
 
-      setSuccessMessage("Account created successfully! Redirecting to login...");
+      // Auto-login: save token and user data
+      localStorage.setItem("token", res.data.token);
+      localStorage.setItem("user", JSON.stringify(res.data.user));
+
+      setSuccessMessage("Account created! Redirecting to dashboard...");
 
       setTimeout(() => {
-        navigate("/login");
-      }, 2000);
+        navigate("/dashboard");
+      }, 1500);
     } catch (err) {
       setError(err.response?.data?.message || "Registration failed. Please try again.");
       setIsSubmitting(false);
@@ -131,23 +135,7 @@ function Register() {
                 />
               </div>
 
-              <div className="grid gap-2">
-                <label className="text-xs font-black uppercase tracking-widest text-slate-400 ml-1" htmlFor="agency">
-                  Agency Category
-                </label>
-                <select
-                  className="h-12 w-full rounded-xl border border-slate-100 bg-white px-5 text-slate-900 outline-none transition shadow-sm focus:border-red-600 focus:ring-4 focus:ring-red-600/5 appearance-none cursor-pointer"
-                  id="agency"
-                  name="agency"
-                  defaultValue=""
-                  required
-                >
-                  <option value="" disabled>Select an agency...</option>
-                  <option value="BFP">Fire Department (BFP)</option>
-                  <option value="PNP">PNP</option>
-                  <option value="CDRRMO">CDRRMO</option>
-                </select>
-              </div>
+
 
               {error && (
                 <div className="sm:col-span-2">

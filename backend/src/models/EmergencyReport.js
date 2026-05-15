@@ -9,7 +9,7 @@ const emergencyReportSchema = new mongoose.Schema(
     },
     emergencyType: {
       type: String,
-      enum: ["fire", "flood", "emergency", "crime"],
+      enum: ["fire", "flood", "emergency", "crime", "medical", "others"],
       required: true
     },
     notifiedAgencies: {

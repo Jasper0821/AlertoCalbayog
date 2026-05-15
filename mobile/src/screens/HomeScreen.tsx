@@ -90,7 +90,7 @@ export default function HomeScreen({
 
         {/* Sub-label */}
         <Text className="text-textGray text-xs font-bold uppercase tracking-[3px] mt-8 opacity-60">
-          Fire · Flood · Emergency · Crime
+          Fire · Medical · Crime · Flood
         </Text>
       </View>
 

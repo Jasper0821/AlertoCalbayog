@@ -174,3 +174,105 @@ export function CrimeIcon({ size = 48, color = "#8B5CF6" }: IconProps): React.JS
     </Svg>
   );
 }
+
+/* ── 🏥 Medical Icon ──────────────────────────────────────── */
+export function MedicalIcon({ size = 48, color = "#10B981" }: IconProps): React.JSX.Element {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      {/* Cross background */}
+      <Rect
+        x="3"
+        y="3"
+        width="18"
+        height="18"
+        rx="4"
+        fill={color}
+        opacity={0.15}
+      />
+      <Rect
+        x="3"
+        y="3"
+        width="18"
+        height="18"
+        rx="4"
+        stroke={color}
+        strokeWidth={1.5}
+      />
+      {/* Medical cross */}
+      <Path
+        d="M12 7V17"
+        stroke={color}
+        strokeWidth={2.5}
+        strokeLinecap="round"
+      />
+      <Path
+        d="M7 12H17"
+        stroke={color}
+        strokeWidth={2.5}
+        strokeLinecap="round"
+      />
+      {/* Heartbeat pulse */}
+      <Path
+        d="M2 20L5 20L7 17L9 23L11 18L12 20L14 20"
+        stroke={color}
+        strokeWidth={1.2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        opacity={0.5}
+      />
+    </Svg>
+  );
+}
+
+/* ── ⚠️ Others Icon ──────────────────────────────────────── */
+export function OthersIcon({ size = 48, color = "#F59E0B" }: IconProps): React.JSX.Element {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      {/* Circle background */}
+      <Circle
+        cx="12"
+        cy="12"
+        r="10"
+        fill={color}
+        opacity={0.15}
+      />
+      <Circle
+        cx="12"
+        cy="12"
+        r="10"
+        stroke={color}
+        strokeWidth={1.5}
+      />
+      {/* Exclamation mark */}
+      <Path
+        d="M12 7V14"
+        stroke={color}
+        strokeWidth={2.5}
+        strokeLinecap="round"
+      />
+      <Circle cx="12" cy="17.5" r="1.2" fill={color} />
+      {/* Signal rays */}
+      <Path
+        d="M3 5L5.5 7"
+        stroke={color}
+        strokeWidth={1.2}
+        strokeLinecap="round"
+        opacity={0.4}
+      />
+      <Path
+        d="M21 5L18.5 7"
+        stroke={color}
+        strokeWidth={1.2}
+        strokeLinecap="round"
+        opacity={0.4}
+      />
+      <Path
+        d="M12 0V2"
+        stroke={color}
+        strokeWidth={1.2}
+        strokeLinecap="round"
+        opacity={0.4}
+      />
+    </Svg>
+  );
+}

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { toggleDarkMode } from "../theme";
-import { SunIcon, MoonIcon } from "../pages/AGENCY/BFP/icons";
+import { SunIcon, MoonIcon, BellIcon, DashboardIcon } from "../pages/AGENCY/CDRRMO/icons";
 
 export function Navbar() {
   const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains("dark"));

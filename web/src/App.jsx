@@ -4,10 +4,8 @@ import { initTheme } from "./theme";
 import LandingPage from "./pages/LandingPage.jsx";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
-import FireDashboard from "./pages/AGENCY/BFP/FireDashboard.jsx";
-import FloodDashboard from "./pages/AGENCY/CDRRMO/FloodDashboard.jsx";
-import EmergencyDashboard from "./pages/AGENCY/CDRRMO/EmergencyDashboard.jsx";
-import CrimeDashboard from "./pages/AGENCY/PNP/CrimeDashboard.jsx";
+import CdrrmoBfpDashboard from "./pages/AGENCY/CDRRMO/Dashboard.jsx";
+import PnpDashboard from "./pages/AGENCY/PNP/Dashboard.jsx";
 import AdminDashboard from "./pages/ADMIN/Dashboard.jsx";
 import Reports from "./pages/Reports";
 import Services from "./pages/Services";
@@ -27,12 +25,14 @@ function App() {
         <Route path="/register" element={<Register />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
 
-        {/* Agency Dashboards - each fetches only its own reports */}
-        <Route path="/dashboard" element={<FireDashboard />} />
-        <Route path="/firedashboard" element={<FireDashboard />} />
-        <Route path="/flooddashboard" element={<FloodDashboard />} />
-        <Route path="/emergencydashboard" element={<EmergencyDashboard />} />
-        <Route path="/crimedashboard" element={<CrimeDashboard />} />
+        {/* Agency Dashboards */}
+        <Route path="/dashboard" element={<CdrrmoBfpDashboard />} />
+        <Route path="/crimedashboard" element={<PnpDashboard />} />
+
+        {/* Legacy routes */}
+        <Route path="/firedashboard" element={<CdrrmoBfpDashboard />} />
+        <Route path="/flooddashboard" element={<CdrrmoBfpDashboard />} />
+        <Route path="/emergencydashboard" element={<CdrrmoBfpDashboard />} />
 
         {/* Admin Dashboard - sees ALL reports */}
         <Route path="/admindashboard" element={<AdminDashboard />} />

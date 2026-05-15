@@ -26,6 +26,8 @@ export default function EmergencyReportScreen({ route, navigation }: Props): Rea
   const getEmergencyStyles = () => {
     switch(emergencyType) {
       case 'fire': return { bg: 'bg-red/10', border: 'border-red', text: 'text-red', btn: 'bg-red' };
+      case 'medical': return { bg: 'bg-green/10', border: 'border-green', text: 'text-green', btn: 'bg-green' };
+      case 'others': return { bg: 'bg-yellow/10', border: 'border-yellow', text: 'text-yellow', btn: 'bg-yellow' };
       case 'flood': return { bg: 'bg-blue/10', border: 'border-blue', text: 'text-blue', btn: 'bg-blue' };
       case 'emergency': return { bg: 'bg-green/10', border: 'border-green', text: 'text-green', btn: 'bg-green' };
       case 'crime': return { bg: 'bg-purple/10', border: 'border-purple', text: 'text-purple', btn: 'bg-purple' };

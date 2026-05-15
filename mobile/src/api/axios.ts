@@ -1,9 +1,9 @@
 import { Platform } from "react-native";
 import axios from "axios";
 
-// Use 10.0.2.2 for Android Emulator, localhost for iOS Simulator/Web
-// (If testing on a physical device, replace with your PC's Wi-Fi IP address)
-const backendHost = Platform.OS === 'android' ? '10.0.2.2' : 'localhost';
+// ⚠️ Use your PC's actual Wi-Fi IP address so real devices can connect.
+// Run `ipconfig` on your PC and look for "IPv4 Address" under your Wi-Fi adapter.
+const backendHost = '192.168.254.130';
 
 const api = axios.create({
     baseURL: `http://${backendHost}:5000/api`
