@@ -40,8 +40,14 @@ function Register() {
 
       setSuccessMessage("Account created! Redirecting to dashboard...");
 
+      // Route to correct dashboard based on role
+      const user = res.data.user;
+      let route = "/dashboard";
+      if (user.role === "admin") route = "/admindashboard";
+      else if (user.agency === "PNP") route = "/crimedashboard";
+
       setTimeout(() => {
-        navigate("/dashboard");
+        navigate(route);
       }, 1500);
     } catch (err) {
       setError(err.response?.data?.message || "Registration failed. Please try again.");
