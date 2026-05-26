@@ -1,100 +1,138 @@
-import { Link } from "react-router-dom";
 import { Navbar } from "../components/Navbar";
 import { Footer } from "../components/Footer";
+import { Link } from "react-router-dom";
 
 const services = [
   {
-    title: "Emergency Fire Response",
-    description: "24/7 dedicated fire suppression and technical rescue operations with high-precision coordination.",
     icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="h-6 w-6">
-        <path d="M8 16c0 1.1.9 2 2 2s2-.9 2-2M18 8c0 1.1-.9 2-2 2s-2-.9-2-2M12 4v4m0 8v4M4 12h4m8 0h4" strokeLinecap="round" strokeLinejoin="round"/>
-        <path d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20Z" strokeLinecap="round" strokeLinejoin="round"/>
+      <svg className="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
       </svg>
     ),
-    color: "bg-red-600",
-    shadow: "shadow-red-600/20"
+    title: "CDRRMO",
+    subtitle: "City Disaster Risk Reduction",
+    description: "Coordinated disaster risk reduction and management for all natural and man-made hazards across Calbayog City.",
+    tag: "Disaster Response",
+    color: "text-blue-700",
+    tagColor: "bg-blue-50 text-blue-700 border-blue-200",
   },
   {
-    title: "Medical Assistance",
-    description: "Rapid medical response and ambulance dispatch for critical healthcare emergencies city-wide.",
     icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="h-6 w-6">
-        <path d="M19 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3H5C3.34 2 2 3.34 2 5v6c0 1.66 1.34 3 3 3" strokeLinecap="round" strokeLinejoin="round"/>
-        <path d="M12 2v20M2 12h20" strokeLinecap="round" strokeLinejoin="round"/>
+      <svg className="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+        <polyline points="9 22 9 12 15 12 15 22" />
       </svg>
     ),
-    color: "bg-emerald-600",
-    shadow: "shadow-emerald-600/20"
+    title: "BFP",
+    subtitle: "Bureau of Fire Protection",
+    description: "24/7 fire suppression, emergency rescue, and fire safety enforcement across all barangays.",
+    tag: "Fire Emergency",
+    color: "text-red-600",
+    tagColor: "bg-red-50 text-red-600 border-red-200",
   },
   {
-    title: "Incident Tracking",
-    description: "Real-time monitoring and reporting system to keep citizens informed and responders synchronized.",
     icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="h-6 w-6">
-        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0Z" strokeLinecap="round" strokeLinejoin="round"/>
-        <circle cx="12" cy="10" r="3" strokeLinecap="round" strokeLinejoin="round"/>
+      <svg className="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="10" />
+        <line x1="12" y1="8" x2="12" y2="12" />
+        <line x1="12" y1="16" x2="12.01" y2="16" />
       </svg>
     ),
-    color: "bg-blue-600",
-    shadow: "shadow-blue-600/20"
+    title: "PNP",
+    subtitle: "Philippine National Police",
+    description: "Law enforcement, crime prevention, and public safety operations for all citizens of Calbayog.",
+    tag: "Law Enforcement",
+    color: "text-indigo-700",
+    tagColor: "bg-indigo-50 text-indigo-700 border-indigo-200",
   },
   {
-    title: "Disaster Coordination",
-    description: "Centralized command for large-scale disaster management and city-wide evacuation alerts.",
     icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="h-6 w-6">
-        <path d="M12 2L2 7l10 5 10-5-10-5Z" strokeLinecap="round" strokeLinejoin="round"/>
-        <path d="M2 17l10 5 10-5M2 12l10 5 10-5" strokeLinecap="round" strokeLinejoin="round"/>
+      <svg className="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
       </svg>
     ),
-    color: "bg-orange-600",
-    shadow: "shadow-orange-600/20"
-  }
+    title: "Medical Response",
+    subtitle: "Emergency Medical Services",
+    description: "Rapid medical response, ambulance dispatch, and coordination with hospitals for life-saving care.",
+    tag: "Medical",
+    color: "text-emerald-700",
+    tagColor: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  },
+  {
+    icon: (
+      <svg className="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <polygon points="3 11 22 2 13 21 11 13 3 11" />
+      </svg>
+    ),
+    title: "Incident Reporting",
+    subtitle: "Real-Time Alert System",
+    description: "Citizens can report emergencies instantly using the platform, ensuring immediate dispatch and coordination.",
+    tag: "Citizen Alert",
+    color: "text-orange-600",
+    tagColor: "bg-orange-50 text-orange-600 border-orange-200",
+  },
+  {
+    icon: (
+      <svg className="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+        <circle cx="12" cy="10" r="3" />
+      </svg>
+    ),
+    title: "City Grid Map",
+    subtitle: "Live Incident Mapping",
+    description: "Real-time geospatial tracking of all active incidents, unit positions, and hazard zones across the city.",
+    tag: "Monitoring",
+    color: "text-purple-700",
+    tagColor: "bg-purple-50 text-purple-700 border-purple-200",
+  },
 ];
 
 function Services() {
   return (
-    <main className="min-h-screen bg-slate-50 font-sans text-slate-900 antialiased">
+    <main className="min-h-screen flex flex-col bg-white dark:bg-slate-950 font-sans text-slate-900 dark:text-slate-100 antialiased">
       <Navbar />
 
-      <div className="pt-24 pb-20 px-8 flex flex-col items-center">
-        <div className="max-w-[1400px] w-full">
-            <header className="mb-16 text-center sm:text-left">
-                <span className="inline-flex items-center gap-2 rounded-full border border-slate-100 bg-white px-5 py-2.5 text-[10px] font-black uppercase tracking-[0.1em] text-slate-400 mb-6 shadow-sm">
-                    <span className="h-2 w-2 rounded-full bg-red-600" />
-                    Our Capabilities
-                </span>
-                <h1 className="font-display text-4xl font-black leading-[0.95] tracking-[-0.06em] text-slate-900 sm:text-5xl lg:text-6xl mb-6">
-                    Emergency <span className="text-red-600 italic">Services</span>.
-                </h1>
-                <p className="max-w-xl text-lg leading-relaxed text-slate-500">
-                    A comprehensive suite of emergency response protocols and digital tracking systems designed for Calbayog's safety and resilience.
-                </p>
-            </header>
-
-            <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
-                {services.map((service, index) => (
-                    <div 
-                        key={index}
-                        className="group relative overflow-hidden rounded-3xl border border-slate-100 bg-white p-6 sm:p-8 shadow-[0_20px_50px_rgba(0,0,0,0.03)] transition-all hover:shadow-[0_40px_80px_rgba(0,0,0,0.06)] hover:-translate-y-1"
-                    >
-                        <div className={`mb-6 grid h-12 w-12 place-items-center rounded-xl ${service.color} text-white shadow-2xl ${service.shadow} transition-transform group-hover:scale-110`}>
-                            {service.icon}
-                        </div>
-                        <h3 className="text-xl font-black tracking-tight text-slate-900 mb-3">{service.title}</h3>
-                        <p className="text-base leading-relaxed text-slate-500 mb-6">{service.description}</p>
-                        <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-red-600 opacity-0 group-hover:opacity-100 transition-opacity">
-                            Learn more
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="h-3 w-3">
-                                <path d="M5 12h14M12 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round"/>
-                            </svg>
-                        </div>
-                    </div>
-                ))}
-            </div>
+      {/* Hero */}
+      <div className="relative pt-32 pb-16 px-6 sm:px-10">
+        <div className="absolute inset-0 bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] dark:bg-[radial-gradient(#1f2937_1px,transparent_1px)] [background-size:24px_24px] opacity-70 pointer-events-none" />
+        <div className="relative max-w-7xl mx-auto text-center">
+          <span className="inline-flex items-center gap-2 rounded-md bg-[#ffe8e8] dark:bg-red-900/30 px-3 py-1 text-[11px] font-black uppercase tracking-wider text-[#d93025] dark:text-red-400 mb-6">
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+            </svg>
+            Emergency Services
+          </span>
+          <h1 className="text-4xl sm:text-5xl font-bold text-[#0a1e3f] dark:text-white tracking-tight mb-4">
+            Our Response Services
+          </h1>
+          <p className="text-[17px] text-[#5f6368] dark:text-slate-400 max-w-2xl mx-auto">
+            Alerto Calbayog connects you to all city emergency services in one unified platform — faster, smarter, and always available.
+          </p>
         </div>
       </div>
+
+      {/* Services Grid */}
+      <div className="flex-1 pb-20 px-6 sm:px-10">
+        <div className="max-w-7xl mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {services.map((svc) => (
+            <div
+              key={svc.title}
+              className="group relative bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-7 hover:shadow-xl hover:shadow-slate-100 dark:hover:shadow-none hover:-translate-y-1 transition-all duration-300"
+            >
+              <div className={`mb-4 ${svc.color}`}>{svc.icon}</div>
+              <span className={`inline-block rounded-full border px-3 py-0.5 text-[10px] font-black uppercase tracking-widest mb-4 ${svc.tagColor}`}>
+                {svc.tag}
+              </span>
+              <h2 className="text-xl font-bold text-[#0a1e3f] dark:text-white mb-1">{svc.title}</h2>
+              <p className="text-[13px] font-semibold text-slate-500 dark:text-slate-400 mb-3">{svc.subtitle}</p>
+              <p className="text-[15px] text-[#5f6368] dark:text-slate-400 leading-relaxed">{svc.description}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+
+
       <Footer />
     </main>
   );
