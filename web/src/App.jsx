@@ -9,8 +9,11 @@ import PnpDashboard from "./pages/AGENCY/PNP/Dashboard.jsx";
 import AdminDashboard from "./pages/ADMIN/Dashboard.jsx";
 import Reports from "./pages/Reports";
 import Services from "./pages/Services";
+import About from "./pages/About";
+import Contact from "./pages/Contact";
 import ForgotPassword from "./pages/ForgotPassword";
 import IncidentMap from "./pages/IncidentMap";
+import VerifyOTP from "./pages/VerifyOTP";
 
 function App() {
   useEffect(() => {
@@ -39,7 +42,10 @@ function App() {
 
         <Route path="/reports" element={<Reports />} />
         <Route path="/services" element={<Services />} />
+        <Route path="/about" element={<About />} />
+        <Route path="/contact" element={<Contact />} />
         <Route path="/map" element={<IncidentMap />} />
+        <Route path="/verify-otp" element={<VerifyOTP />} />
         <Route path="*" element={<LandingPage />} />
       </Routes>
     </Router>

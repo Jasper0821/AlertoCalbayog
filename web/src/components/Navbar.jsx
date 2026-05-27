@@ -1,11 +1,28 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { toggleDarkMode } from "../theme";
-import { SunIcon, MoonIcon, BellIcon, DashboardIcon } from "../pages/AGENCY/CDRRMO/icons";
+import { SunIcon, MoonIcon } from "../pages/AGENCY/CDRRMO/icons";
 
 export function Navbar() {
   const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains("dark"));
   const [isOpen, setIsOpen] = useState(false);
+  const location = useLocation();
+
+  const navLink = (to, label) => {
+    const isActive = location.pathname === to;
+    return (
+      <Link
+        to={to}
+        className={`text-[15px] font-medium pb-1 transition-all duration-150 active:scale-95 active:opacity-80 transform inline-block ${
+          isActive
+            ? "text-white font-semibold border-b-2 border-white"
+            : "text-slate-400 hover:text-white border-b-2 border-transparent hover:border-slate-500"
+        }`}
+      >
+        {label}
+      </Link>
+    );
+  };
 
   const handleToggleTheme = () => {
     const newState = toggleDarkMode();
@@ -13,22 +30,26 @@ export function Navbar() {
   };
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-[100] bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl border-b border-slate-100 dark:border-slate-800 transition-all duration-300">
-      <div className="mx-auto flex h-16 items-center justify-between px-6 sm:px-8 max-w-7xl">
-        <Link to="/" className="flex items-center gap-3" onClick={() => setIsOpen(false)}>
-          <div className="grid h-8 w-8 place-items-center rounded-lg bg-red-600 text-white shadow-lg shadow-red-600/20">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="h-5 w-5">
-              <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </div>
-          <p className="text-xl font-black tracking-tighter uppercase whitespace-nowrap"><span className="text-red-600 italic">Alerto</span> Calbayog</p>
+    <nav className="fixed top-0 left-0 right-0 z-[100] bg-[#0f172a] backdrop-blur-xl border-b border-slate-800 transition-all duration-300">
+      <div className="mx-auto flex h-20 items-center justify-between px-6 sm:px-10 max-w-7xl">
+
+        {/* Logo */}
+        <Link to="/" className="flex items-center gap-2 transition-transform duration-150 active:scale-[0.97] transform" onClick={() => setIsOpen(false)}>
+          <span className="text-xl font-bold tracking-tight text-white">Alerto Calbayog</span>
         </Link>
 
-        {/* Desktop Navigation */}
-        <div className="hidden md:flex items-center gap-6">
+        {/* Center Links (Desktop) */}
+        <div className="hidden md:flex items-center gap-8">
+          {navLink("/services", "Services")}
+          {navLink("/about", "About")}
+          {navLink("/contact", "Contact")}
+        </div>
+
+        {/* Right Actions */}
+        <div className="hidden md:flex items-center gap-4">
           <button
             onClick={handleToggleTheme}
-            className="grid h-8 w-8 place-items-center rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
+            className="grid h-10 w-10 place-items-center rounded-lg text-slate-400 hover:text-white transition-all duration-150 active:scale-90 transform"
             aria-label="Toggle theme"
           >
             {isDark ? <SunIcon className="h-5 w-5" /> : <MoonIcon className="h-5 w-5" />}
@@ -36,57 +57,60 @@ export function Navbar() {
 
           <Link
             to="/login"
-            className="h-10 px-4 rounded-xl border-2 border-slate-100 dark:border-slate-800 text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:border-slate-400 dark:hover:border-slate-600 transition-all flex items-center justify-center"
+            className="flex h-9 items-center justify-center px-6 rounded-md border-[1.5px] border-dashed border-slate-400 text-[13px] font-bold text-slate-200 hover:border-white hover:text-white transition-all duration-150 active:scale-95 transform"
           >
             Login
           </Link>
           <Link
             to="/register"
-            className="h-10 px-5 rounded-xl bg-slate-900 dark:bg-slate-100 text-xs font-black uppercase tracking-[0.2em] text-white dark:text-slate-900 hover:bg-black dark:hover:bg-white transition-all shadow-xl shadow-slate-900/10 flex items-center justify-center whitespace-nowrap"
+            className="flex h-9 items-center justify-center px-6 rounded-md bg-white text-[13px] font-bold text-[#0a1e3f] hover:bg-slate-100 transition-all duration-150 active:scale-95 transform"
           >
             Register
           </Link>
         </div>
 
-        {/* Mobile Controls */}
+      {/* Mobile Menu Toggle */}
         <div className="flex md:hidden items-center gap-3">
           <button
             onClick={handleToggleTheme}
-            className="grid h-8 w-8 place-items-center rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 text-slate-500 dark:text-slate-400"
+            className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:text-white transition-all duration-150 active:scale-90 transform"
           >
-            {isDark ? <SunIcon className="h-4 w-4" /> : <MoonIcon className="h-4 w-4" />}
+            {isDark ? <SunIcon className="h-5 w-5" /> : <MoonIcon className="h-5 w-5" />}
           </button>
-
           <button
             onClick={() => setIsOpen(!isOpen)}
-            className="grid h-8 w-8 place-items-center rounded-lg bg-slate-900 dark:bg-white text-white dark:text-slate-900"
+            className="grid h-8 w-8 place-items-center text-white transition-all duration-150 active:scale-90 transform"
             aria-label="Toggle menu"
           >
             <div className="relative h-4 w-4">
-              <span className={`absolute block h-0.5 w-4 bg-current transition-all duration-300 ${isOpen ? 'rotate-45 translate-y-1.5' : 'translate-y-0'}`} />
-              <span className={`absolute block h-0.5 w-4 bg-current transition-all duration-300 top-1.5 ${isOpen ? 'opacity-0' : 'opacity-100'}`} />
-              <span className={`absolute block h-0.5 w-4 bg-current transition-all duration-300 top-3 ${isOpen ? '-rotate-45 -translate-y-1.5' : 'translate-y-0'}`} />
+              <span className={`absolute block h-[2px] w-4 bg-current transition-all duration-300 ${isOpen ? 'rotate-45 translate-y-1.5' : 'translate-y-0'}`} />
+              <span className={`absolute block h-[2px] w-4 bg-current transition-all duration-300 top-1.5 ${isOpen ? 'opacity-0' : 'opacity-100'}`} />
+              <span className={`absolute block h-[2px] w-4 bg-current transition-all duration-300 top-3 ${isOpen ? '-rotate-45 -translate-y-1.5' : 'translate-y-0'}`} />
             </div>
           </button>
         </div>
       </div>
 
-      {/* Mobile Menu Overlay */}
-      <div className={`md:hidden absolute top-full left-0 right-0 bg-white dark:bg-slate-950 border-b border-slate-100 dark:border-slate-800 transition-all duration-300 overflow-hidden ${isOpen ? 'max-h-64 opacity-100 visible' : 'max-h-0 opacity-0 invisible'}`}>
-        <div className="flex flex-col p-6 gap-4">
+      {/* Mobile Menu Content */}
+      <div className={`md:hidden absolute top-full left-0 right-0 bg-[#0f172a] border-b border-slate-800 transition-all duration-300 overflow-hidden ${isOpen ? 'max-h-96 opacity-100 visible' : 'max-h-0 opacity-0 invisible'}`}>
+        <div className="flex flex-col p-6 gap-4 text-center">
+          <Link to="/services" onClick={() => setIsOpen(false)} className="text-[15px] font-semibold text-slate-200 hover:text-white py-2 transition-all duration-150 active:scale-95 transform">Services</Link>
+          <Link to="/about" onClick={() => setIsOpen(false)} className="text-[15px] font-medium text-slate-400 hover:text-white py-2 transition-all duration-150 active:scale-95 transform">About</Link>
+          <Link to="/contact" onClick={() => setIsOpen(false)} className="text-[15px] font-medium text-slate-400 hover:text-white py-2 transition-all duration-150 active:scale-95 transform">Contact</Link>
+          <div className="h-px bg-slate-800 my-2"></div>
           <Link
             to="/login"
             onClick={() => setIsOpen(false)}
-            className="flex h-10 items-center justify-center rounded-xl border-2 border-slate-100 dark:border-slate-800 text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400"
+            className="flex h-10 items-center justify-center rounded-md border-[1.5px] border-dashed border-slate-400 text-[14px] font-bold text-slate-200 hover:border-white hover:text-white transition-all duration-150 active:scale-95 transform"
           >
             Login
           </Link>
           <Link
             to="/register"
             onClick={() => setIsOpen(false)}
-            className="flex h-10 items-center justify-center rounded-xl bg-slate-900 dark:bg-white text-xs font-black uppercase tracking-[0.2em] text-white dark:text-slate-900"
+            className="flex h-10 items-center justify-center rounded-md bg-white text-[14px] font-bold text-[#0a1e3f] hover:bg-slate-100 transition-all duration-150 active:scale-95 transform"
           >
-            Register Now
+            Register
           </Link>
         </div>
       </div>
