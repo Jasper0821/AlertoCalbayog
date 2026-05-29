@@ -1,10 +1,144 @@
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Navbar } from "../components/Navbar";
 import { Footer } from "../components/Footer";
 
+/* ──────────────────────────────────────────────
+   Splash / Loading Screen
+   Shows for ~3.2 s then fades out.
+────────────────────────────────────────────── */
+function SplashScreen({ onDone }) {
+  const [statusIdx, setStatusIdx] = useState(0);
+
+  const statusSteps = [
+    "Initializing secure connection…",
+    "Loading agency modules…",
+    "Synchronizing dispatch network…",
+    "System ready.",
+  ];
+
+  // Cycle through status messages
+  useEffect(() => {
+    const intervals = [0, 800, 1600, 2200];
+    const timers = intervals.map((delay, i) =>
+      setTimeout(() => setStatusIdx(i), delay)
+    );
+    // After animation completes, notify parent
+    const doneTimer = setTimeout(onDone, 3300);
+    return () => {
+      timers.forEach(clearTimeout);
+      clearTimeout(doneTimer);
+    };
+  }, [onDone]);
+
+  return (
+    <div
+      className="splash-screen fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-[#04112b] select-none"
+      aria-label="Loading Alerto Calbayog"
+      role="status"
+    >
+      {/* Ambient glow rings */}
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+        <div className="splash-ring w-[520px] h-[520px] rounded-full border border-blue-900/30 absolute" />
+        <div
+          className="splash-ring w-[360px] h-[360px] rounded-full border border-blue-800/25 absolute"
+          style={{ animationDelay: "0.3s" }}
+        />
+        <div
+          className="splash-ring w-[220px] h-[220px] rounded-full border border-blue-700/20 absolute"
+          style={{ animationDelay: "0.6s" }}
+        />
+      </div>
+
+      {/* Center content */}
+      <div className="splash-content relative z-10 flex flex-col items-center gap-6 px-8 text-center">
+
+        {/* Logo mark */}
+        <div className="relative">
+          <img
+            src="/logo.png"
+            alt="Alerto Calbayog Logo"
+            className="w-24 h-24 object-contain drop-shadow-[0_2px_16px_rgba(255,255,255,0.25)]"
+          />
+          {/* Spinning accent ring around logo */}
+          <svg
+            className="absolute -inset-2 w-[calc(100%+16px)] h-[calc(100%+16px)] animate-spin"
+            style={{ animationDuration: "8s" }}
+            viewBox="0 0 96 96"
+            fill="none"
+          >
+            <circle
+              cx="48" cy="48" r="44"
+              stroke="url(#ringGrad)"
+              strokeWidth="1"
+              strokeDasharray="60 220"
+              strokeLinecap="round"
+            />
+            <defs>
+              <linearGradient id="ringGrad" x1="0" y1="0" x2="96" y2="96" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.8" />
+                <stop offset="100%" stopColor="#3b82f6" stopOpacity="0" />
+              </linearGradient>
+            </defs>
+          </svg>
+        </div>
+
+        {/* Title block */}
+        <div className="space-y-1">
+          <p className="text-[10px] font-black uppercase tracking-[0.3em] text-blue-500">
+            Republic of the Philippines
+          </p>
+          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-white">
+            Alerto Calbayog
+          </h1>
+          <p className="text-[13px] font-semibold text-slate-400 tracking-wide">
+            City Emergency Response &amp; Command System
+          </p>
+        </div>
+
+        {/* Divider */}
+        <div className="w-16 h-px bg-gradient-to-r from-transparent via-blue-700 to-transparent" />
+
+        {/* Status text */}
+        <p className="text-[12px] font-semibold text-slate-400 tracking-widest uppercase h-4 transition-all duration-300">
+          {statusSteps[statusIdx]}
+        </p>
+
+        {/* Progress bar */}
+        <div className="w-64 sm:w-80 h-[3px] rounded-full bg-white/5 overflow-hidden">
+          <div className="splash-progress h-full rounded-full bg-gradient-to-r from-blue-700 via-blue-500 to-blue-400 w-0" />
+        </div>
+
+        {/* Official seal line */}
+        <div className="flex items-center gap-2 mt-2">
+          <div className="w-5 h-px bg-blue-900" />
+          <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-blue-900">
+            Calbayog City Government — Official Portal
+          </p>
+          <div className="w-5 h-px bg-blue-900" />
+        </div>
+      </div>
+
+      {/* Bottom classification bar */}
+      <div className="absolute bottom-0 inset-x-0 h-1 bg-gradient-to-r from-blue-900 via-blue-600 to-blue-900" />
+    </div>
+  );
+}
+
+/* ──────────────────────────────────────────────
+   Landing Page
+────────────────────────────────────────────── */
 function LandingPage() {
+  const [splashDone, setSplashDone] = useState(false);
+
   return (
     <main className="relative min-h-screen flex flex-col bg-white dark:bg-slate-950 font-sans text-slate-900 dark:text-slate-100 antialiased transition-colors duration-300">
+
+      {/* Splash screen — unmounts after done */}
+      {!splashDone && (
+        <SplashScreen onDone={() => setSplashDone(true)} />
+      )}
+
       <Navbar />
 
       {/* Hero Section with dotted pattern */}
@@ -18,7 +152,7 @@ function LandingPage() {
           <div className="flex-1 text-center lg:text-left pt-10">
             <span className="inline-flex items-center gap-2 rounded-md bg-[#ffe8e8] dark:bg-red-900/30 px-3 py-1 text-[11px] font-black uppercase tracking-wider text-[#d93025] dark:text-red-400 mb-6">
               <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"></path>
                 <path d="M9 12l2 2 4-4"></path>
               </svg>
               OFFICIAL GOVERNMENT PORTAL
@@ -71,8 +205,6 @@ function LandingPage() {
 
         </div>
       </div>
-
-
 
       <Footer />
     </main>

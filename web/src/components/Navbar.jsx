@@ -34,7 +34,12 @@ export function Navbar() {
       <div className="mx-auto flex h-20 items-center justify-between px-6 sm:px-10 max-w-7xl">
 
         {/* Logo */}
-        <Link to="/" className="flex items-center gap-2 transition-transform duration-150 active:scale-[0.97] transform" onClick={() => setIsOpen(false)}>
+        <Link to="/" className="flex items-center gap-2.5 transition-transform duration-150 active:scale-[0.97] transform" onClick={() => setIsOpen(false)}>
+          <img
+            src="/logo.png"
+            alt="Alerto Calbayog Logo"
+            className="h-11 w-11 object-contain"
+          />
           <span className="text-xl font-bold tracking-tight text-white">Alerto Calbayog</span>
         </Link>
 

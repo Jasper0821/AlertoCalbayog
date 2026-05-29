@@ -80,8 +80,18 @@ function Register() {
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.03),transparent_60%)]" />
             
             <div className="relative z-10">
-              {/* Top accent line */}
-              <div className="w-10 h-1 bg-red-600 mb-6"></div>
+              {/* Logo */}
+              <div className="mb-6 flex items-center gap-3">
+                <img
+                  src="/logo.png"
+                  alt="Alerto Calbayog Logo"
+                  className="w-14 h-14 object-contain shrink-0"
+                />
+                <div>
+                  <p className="text-[9px] font-black uppercase tracking-[0.2em] text-blue-400">Official Portal</p>
+                  <p className="text-sm font-bold text-white leading-tight">Alerto Calbayog</p>
+                </div>
+              </div>
               
               <h2 className="text-2xl font-bold tracking-tight text-white mb-4">
                 Responder Network
@@ -186,9 +196,8 @@ function Register() {
                   required
                 >
                   <option value="">Select Agency</option>
-                  <option value="CDRRMO">CDRRMO (Disaster Response)</option>
-                  <option value="BFP">BFP (Fire Emergency)</option>
-                  <option value="PNP">PNP (Law Enforcement)</option>
+                  <option value="CDRRMO">CDRRMO (Disaster Risk Reduction)</option>
+                  <option value="PNP">PNP (Police)</option>
                 </select>
               </div>
 

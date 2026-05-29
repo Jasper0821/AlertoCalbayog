@@ -30,3 +30,50 @@
     @apply h-10 px-5 rounded-2xl bg-red-600 text-white font-black uppercase tracking-widest text-xs hover:bg-red-700 transition-all shadow-lg active:scale-95 flex items-center justify-center dark:shadow-red-900/20;
   }
 }
+
+/* ── Loading Screen Animations ───────────────────────── */
+@keyframes splash-progress {
+  0%   { width: 0%; }
+  60%  { width: 75%; }
+  100% { width: 100%; }
+}
+
+@keyframes splash-fadeout {
+  0%   { opacity: 1; visibility: visible; transform: scale(1); }
+  80%  { opacity: 1; }
+  100% { opacity: 0; visibility: hidden; transform: scale(1.02); }
+}
+
+@keyframes splash-content-in {
+  0%   { opacity: 0; transform: translateY(16px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes splash-ring {
+  0%   { transform: scale(0.9); opacity: 0.6; }
+  50%  { transform: scale(1.1); opacity: 1; }
+  100% { transform: scale(0.9); opacity: 0.6; }
+}
+
+@keyframes loading-bar {
+  0%   { transform: translateX(-100%); }
+  50%  { transform: translateX(0%); }
+  100% { transform: translateX(100%); }
+}
+
+.splash-screen {
+  animation: splash-fadeout 0.6s ease-in-out 2.6s forwards;
+}
+
+.splash-content {
+  animation: splash-content-in 0.7s cubic-bezier(0.22, 1, 0.36, 1) 0.3s both;
+}
+
+.splash-progress {
+  animation: splash-progress 2.4s cubic-bezier(0.4, 0, 0.2, 1) 0.5s forwards;
+}
+
+.splash-ring {
+  animation: splash-ring 1.8s ease-in-out infinite;
+}
+
