@@ -57,6 +57,41 @@ exports.getAllReports = async (req, res) => {
   }
 };
 
+exports.getMyReports = async (req, res) => {
+  try {
+    const reports = await EmergencyReport.find({ userId: req.user.id })
+      .populate("userId", "fullName email role")
+      .sort({ createdAt: -1 });
+
+    res.json(reports);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.deleteMyReport = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const report = await EmergencyReport.findById(id);
+
+    if (!report) {
+      return res.status(404).json({ message: "Report not found" });
+    }
+
+    // Ensure the report belongs to the currently logged-in user
+    if (report.userId.toString() !== req.user.id) {
+      return res.status(403).json({ message: "You can only delete your own reports" });
+    }
+
+    await EmergencyReport.findByIdAndDelete(id);
+
+    res.json({ message: "Report deleted successfully" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 exports.getReportsByAgency = async (req, res) => {
   try {
     const { agency } = req.params;
