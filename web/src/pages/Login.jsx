@@ -11,7 +11,7 @@ function Login() {
   const [error, setError] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [selectedUnit, setSelectedUnit] = useState("Police");
+  const [selectedUnit, setSelectedUnit] = useState("PNP Police");
   const [showPassword, setShowPassword] = useState(false);
 
   // Route user to correct dashboard based on their role
@@ -57,14 +57,12 @@ function Login() {
 
         {/* Portal Logo & Header */}
         <div className="flex flex-col items-center mb-6 z-10 text-center">
-          <div className="bg-[#0a1e3f] w-14 h-14 rounded-xl flex items-center justify-center shadow-lg transition-transform duration-300 hover:rotate-12">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" className="w-8 h-8 text-blue-400" strokeLinecap="round">
-              <line x1="12" y1="3" x2="12" y2="21" />
-              <line x1="4.22" y1="7.5" x2="19.78" y2="16.5" />
-              <line x1="4.22" y1="16.5" x2="19.78" y2="7.5" />
-            </svg>
-          </div>
-          <h2 className="text-[17px] font-bold text-[#0a1e3f] dark:text-blue-300 tracking-tight mt-3">
+          <img
+            src="/logo.png"
+            alt="Alerto Calbayog Logo"
+            className="w-20 h-20 object-contain mb-1 transition-transform duration-300 hover:scale-105"
+          />
+          <h2 className="text-[17px] font-bold text-[#0a1e3f] dark:text-blue-300 tracking-tight mt-1">
             Alerto Calbayog
           </h2>
           <p className="text-[13px] text-slate-500 dark:text-slate-400 font-medium">
@@ -84,8 +82,8 @@ function Login() {
               <div className="grid grid-cols-2 gap-2.5">
                 {[
                   {
-                    id: "Police",
-                    label: "Police",
+                    id: "PNP Police",
+                    label: "PNP Police",
                     icon: (
                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
@@ -93,27 +91,8 @@ function Login() {
                     ),
                   },
                   {
-                    id: "Ambulance",
-                    label: "Ambulance",
-                    icon: (
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 5H5a2 2 0 00-2 2v10a2 2 0 002-2V7a2 2 0 00-2-2z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v6M9 12h6M16 5V3a2 2 0 00-2-2h-4a2 2 0 00-2 2v2" />
-                      </svg>
-                    ),
-                  },
-                  {
-                    id: "Fire Dept",
-                    label: "Fire Dept",
-                    icon: (
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M8.5 14.5A2.5 2.5 0 0011 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 11-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 002.5 2.5z" />
-                      </svg>
-                    ),
-                  },
-                  {
-                    id: "Disaster",
-                    label: "Disaster",
+                    id: "CDRRMO",
+                    label: "CDRRMO",
                     icon: (
                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
