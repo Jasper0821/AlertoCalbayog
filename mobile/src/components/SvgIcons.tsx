@@ -6,6 +6,27 @@ interface IconProps {
   color?: string;
 }
 
+export function ArrowLeftIcon({ size = 22, color = "#0A1E3F" }: IconProps): React.JSX.Element {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M19 12H5"
+        stroke={color}
+        strokeWidth={2.2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M12 5L5 12L12 19"
+        stroke={color}
+        strokeWidth={2.2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
 /* ── 🔥 Fire Icon ─────────────────────────────────────────── */
 export function FireIcon({ size = 48, color = "#EF4444" }: IconProps): React.JSX.Element {
   return (
@@ -272,6 +293,61 @@ export function OthersIcon({ size = 48, color = "#F59E0B" }: IconProps): React.J
         strokeWidth={1.2}
         strokeLinecap="round"
         opacity={0.4}
+      />
+    </Svg>
+  );
+}
+
+export function EyeIcon({ size = 24, color = "#9CA3AF" }: IconProps): React.JSX.Element {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M2.25 12C3.8 7.95 7.45 5.25 12 5.25C16.55 5.25 20.2 7.95 21.75 12C20.2 16.05 16.55 18.75 12 18.75C7.45 18.75 3.8 16.05 2.25 12Z"
+        stroke={color}
+        strokeWidth={1.8}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Circle
+        cx="12"
+        cy="12"
+        r="3"
+        stroke={color}
+        strokeWidth={1.8}
+      />
+    </Svg>
+  );
+}
+
+export function EyeOffIcon({ size = 24, color = "#9CA3AF" }: IconProps): React.JSX.Element {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M3 3L21 21"
+        stroke={color}
+        strokeWidth={1.8}
+        strokeLinecap="round"
+      />
+      <Path
+        d="M10.58 5.42C11.04 5.31 11.51 5.25 12 5.25C16.55 5.25 20.2 7.95 21.75 12C21.26 13.28 20.56 14.42 19.69 15.38"
+        stroke={color}
+        strokeWidth={1.8}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M16.9 17.46C15.47 18.29 13.81 18.75 12 18.75C7.45 18.75 3.8 16.05 2.25 12C3.01 10.02 4.26 8.37 5.85 7.2"
+        stroke={color}
+        strokeWidth={1.8}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M9.88 9.88C9.34 10.42 9 11.17 9 12C9 13.66 10.34 15 12 15C12.83 15 13.58 14.66 14.12 14.12"
+        stroke={color}
+        strokeWidth={1.8}
+        strokeLinecap="round"
+        strokeLinejoin="round"
       />
     </Svg>
   );

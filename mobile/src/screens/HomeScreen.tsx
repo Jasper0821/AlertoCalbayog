@@ -51,12 +51,12 @@ export default function HomeScreen({
 
   return (
     <View className="flex-1 bg-darkBlue">
-      <Header title="Dashboard" showBack />
+      <Header title="Alert Calbayog" showBack />
 
       <View className="flex-1 items-center justify-center px-8">
         {/* Top messaging */}
         <View className="items-center mb-12">
-          <Text className="text-white text-3xl font-black tracking-tight text-center mb-2">
+          <Text className="text-primary text-3xl font-black tracking-tight text-center mb-2">
             Stay Safe, Calbayog
           </Text>
           <Text className="text-textGray text-sm font-medium text-center leading-5">
@@ -67,21 +67,21 @@ export default function HomeScreen({
         {/* Pulsing Send Report Button */}
         <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
           <TouchableOpacity
-            className="w-52 h-52 rounded-full items-center justify-center border-4 border-primary shadow-2xl shadow-primary/40"
+            className="w-52 h-52 rounded-full items-center justify-center border-4 border-red shadow-2xl shadow-red/30"
             style={{
-              backgroundColor: "rgba(255, 92, 0, 0.15)",
+              backgroundColor: "rgba(185, 28, 28, 0.10)",
             }}
             onPress={() => setShowPicker(true)}
             activeOpacity={0.8}
           >
             {/* Inner glow */}
             <View
-              className="w-40 h-40 rounded-full items-center justify-center border-2 border-primary/40"
+              className="w-40 h-40 rounded-full items-center justify-center border-2 border-red/40"
               style={{
-                backgroundColor: "rgba(255, 92, 0, 0.25)",
+                backgroundColor: "rgba(185, 28, 28, 0.16)",
               }}
             >
-              <Text className="text-white text-lg font-black uppercase tracking-widest text-center">
+              <Text className="text-red text-lg font-black uppercase tracking-widest text-center">
                 Send{"\n"}Report
               </Text>
             </View>
@@ -97,14 +97,14 @@ export default function HomeScreen({
       {/* Bottom section */}
       <View className="px-5 pb-6 gap-3">
         <TouchableOpacity
-          className="bg-surface flex-row items-center p-4 rounded-2xl border border-border"
+          className="bg-surface flex-row items-center p-4 rounded-2xl border border-border shadow-sm shadow-slate-900/10"
           onPress={() => navigation.navigate("ReportHistory")}
         >
-          <View className="w-9 h-9 rounded-xl bg-darkBlue items-center justify-center mr-3 border border-border">
+          <View className="w-9 h-9 rounded-xl bg-background items-center justify-center mr-3 border border-border">
             <Text className="text-sm">📜</Text>
           </View>
-          <Text className="flex-1 text-white font-bold text-sm">Report History</Text>
-          <Text className="text-white/20 text-lg font-bold">→</Text>
+          <Text className="flex-1 text-primary font-bold text-sm">Report History</Text>
+          <Text className="text-primary/30 text-lg font-bold">→</Text>
         </TouchableOpacity>
 
         <TouchableOpacity

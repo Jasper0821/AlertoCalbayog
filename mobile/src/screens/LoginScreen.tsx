@@ -64,10 +64,10 @@ export default function LoginScreen({
         contentContainerClassName="flex-grow justify-center p-5"
         showsVerticalScrollIndicator={false}
       >
-        <Header title="AlertoCalbayog" />
+        <Header title="AlertoCalbayog" showActions={false} />
 
-        <View className="mt-5 rounded-3xl border border-border bg-surface p-6 shadow-2xl shadow-black">
-          <Text className="mb-2 text-3xl font-black text-white tracking-tight">Sign In</Text>
+        <View className="mt-5 rounded-3xl border border-border bg-surface p-6 shadow-2xl shadow-slate-900/10">
+          <Text className="mb-2 text-3xl font-black text-primary tracking-tight">Sign In</Text>
           <Text className="mb-6 text-textGray text-sm">Welcome back, secure your area.</Text>
 
           <CustomInput
@@ -89,7 +89,7 @@ export default function LoginScreen({
             <TouchableOpacity
               onPress={() => setAgreed(!agreed)}
               className={`mr-3 mt-1 h-5 w-5 items-center justify-center rounded-lg border ${
-                agreed ? "border-primary bg-primary" : "border-border bg-darkBlue"
+                agreed ? "border-primary bg-primary" : "border-border bg-background"
               }`}
               activeOpacity={0.8}
             >

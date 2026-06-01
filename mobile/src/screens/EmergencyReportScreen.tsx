@@ -103,7 +103,7 @@ export default function EmergencyReportScreen({ route, navigation }: Props): Rea
       <Header title="Report Emergency" showBack />
 
       <View className="flex-1 p-5">
-        <View className="bg-surface rounded-3xl p-6 border border-border shadow-2xl shadow-black">
+        <View className="bg-surface rounded-3xl p-6 border border-border shadow-2xl shadow-slate-900/10">
           <Text className="text-textGray mb-4 font-black text-[10px] uppercase tracking-widest">Emergency Type</Text>
           <View className={`py-2 px-4 rounded-xl border self-start mb-8 ${bg} ${border}`}>
              <Text className={`text-base font-black tracking-widest ${text}`}>
@@ -111,7 +111,7 @@ export default function EmergencyReportScreen({ route, navigation }: Props): Rea
              </Text>
           </View>
 
-          <Text className="text-white mb-2 font-light text-[10px] uppercase tracking-widest">Additional Details</Text>
+          <Text className="text-textGray mb-2 font-black text-[10px] uppercase tracking-widest">Additional Details</Text>
           <CustomInput
             placeholder="Describe the situation briefly..."
             value={description}
@@ -123,7 +123,7 @@ export default function EmergencyReportScreen({ route, navigation }: Props): Rea
           />
 
           <TouchableOpacity 
-            className={`py-4 rounded-2xl items-center mt-6 shadow-lg ${btn} shadow-black/20`}
+            className={`py-4 rounded-2xl items-center mt-6 shadow-lg ${btn} shadow-slate-900/10`}
             onPress={handleSubmit}
             disabled={loading}
           >

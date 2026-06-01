@@ -96,7 +96,7 @@ export default function ReportHistoryScreen(): React.JSX.Element {
         contentContainerClassName="p-5 pt-0 pb-10"
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#fff" />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#0A1E3F" />
         }
       >
         {reports.length === 0 ? (
@@ -112,9 +112,9 @@ export default function ReportHistoryScreen(): React.JSX.Element {
                 delayLongPress={600}
                 activeOpacity={0.85}
               >
-                <View className="bg-surface rounded-3xl p-5 mb-4 border border-border shadow-2xl shadow-black">
+                <View className="bg-surface rounded-3xl p-5 mb-4 border border-border shadow-2xl shadow-slate-900/10">
                   <View className="flex-row justify-between items-center mb-3">
-                    <Text className="text-white text-lg font-black tracking-tight">{report.emergencyType.toUpperCase()}</Text>
+                    <Text className="text-primary text-lg font-black tracking-tight">{report.emergencyType.toUpperCase()}</Text>
                     <View className={`px-3 py-1 rounded-xl border ${border} ${bg}`}>
                       <Text className={`text-[10px] font-black uppercase ${text}`}>
                         {report.status || 'Pending'}
@@ -125,12 +125,12 @@ export default function ReportHistoryScreen(): React.JSX.Element {
                   <View className="h-[1px] bg-border mb-4" />
                   
                   <View className="flex-row items-center">
-                    <View className="w-10 h-10 rounded-2xl bg-darkBlue items-center justify-center mr-3 border border-border">
+                    <View className="w-10 h-10 rounded-2xl bg-background items-center justify-center mr-3 border border-border">
                       <Text className="text-base">🏢</Text>
                     </View>
                     <View>
                       <Text className="text-textGray text-[10px] font-black uppercase tracking-widest mb-0.5">Assigned Agency</Text>
-                      <Text className="text-white text-sm font-bold">
+                      <Text className="text-text text-sm font-bold">
                         {report.assignedAgency || "Awaiting Assignment"}
                       </Text>
                     </View>

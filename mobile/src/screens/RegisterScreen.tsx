@@ -46,8 +46,8 @@ export default function RegisterScreen({ navigation }: Props): React.JSX.Element
       >
         <Header title="Join Us" showBack />
         
-        <View className="bg-surface rounded-3xl p-6 mt-5 border border-border shadow-2xl shadow-black">
-          <Text className="text-white text-3xl font-black mb-2 tracking-tight">Create Account</Text>
+        <View className="bg-surface rounded-3xl p-6 mt-5 border border-border shadow-2xl shadow-slate-900/10">
+          <Text className="text-primary text-3xl font-black mb-2 tracking-tight">Create Account</Text>
           <Text className="text-textGray text-sm mb-6">Start securing your community</Text>
 
           <CustomInput

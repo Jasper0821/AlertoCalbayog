@@ -167,7 +167,7 @@ export default function IncidentPicker({
 
           {/* Title */}
           <View className="mb-6">
-            <Text className="text-white text-2xl font-black tracking-tight">
+            <Text className="text-primary text-2xl font-black tracking-tight">
               What's happening?
             </Text>
             <Text className="text-textGray text-sm font-medium mt-1">
@@ -209,7 +209,7 @@ export default function IncidentPicker({
 
           {/* Cancel */}
           <TouchableOpacity
-            className="mt-6 py-4 rounded-2xl items-center bg-darkBlue border border-border"
+            className="mt-6 py-4 rounded-2xl items-center bg-background border border-border"
             onPress={onClose}
           >
             <Text className="text-textGray font-black uppercase tracking-widest text-sm">
