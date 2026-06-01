@@ -78,9 +78,11 @@ export default function LiveTrackingScreen({
   const getEmergencyColor = (): string => {
     switch (emergencyType) {
       case "fire":
-        return "#EF4444";
+        return "#B91C1C";
       case "flood":
-        return "#0EA5E9";
+        return "#3B82F6";
+      case "medical":
+        return "#10B981";
       case "emergency":
         return "#10B981";
       case "crime":
@@ -143,14 +145,14 @@ export default function LiveTrackingScreen({
 
       <View className="flex-1 px-5 pb-5">
         {/* Header Status Bar */}
-        <View className="mb-5 flex-row items-center justify-between rounded-3xl border border-border bg-surface p-5 shadow-lg shadow-black/20">
+        <View className="mb-5 flex-row items-center justify-between rounded-3xl border border-border bg-surface p-5 shadow-lg shadow-slate-900/10">
           <View className="flex-1">
             <Text className="text-[10px] font-black uppercase tracking-widest text-textGray mb-0.5">Response Status</Text>
             <View className="flex-row items-center">
               <View 
                 className={`w-2 h-2 rounded-full mr-2 ${reportStatus === 'responding' ? 'bg-green-500' : 'bg-primary'}`} 
               />
-              <Text className="text-base font-bold text-white tracking-tight">
+              <Text className="text-base font-bold text-text tracking-tight">
                 {reportStatus === "responding" ? "Responder on the Way" : "Waiting for Dispatch"}
               </Text>
             </View>
@@ -179,7 +181,7 @@ export default function LiveTrackingScreen({
               height: 300,
               borderRadius: 150,
               borderWidth: 2,
-              borderColor: reportStatus === 'responding' ? '#10B98120' : '#FF5C0020',
+              borderColor: reportStatus === 'responding' ? '#10B98120' : '#B91C1C20',
               transform: [{ scale: signalAnim.interpolate({ inputRange: [0, 1], outputRange: [0.5, 2] }) }],
               opacity: signalAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0, 1, 0] }),
             }}
@@ -191,7 +193,7 @@ export default function LiveTrackingScreen({
               height: 300,
               borderRadius: 150,
               borderWidth: 2,
-              borderColor: reportStatus === 'responding' ? '#10B98120' : '#FF5C0020',
+              borderColor: reportStatus === 'responding' ? '#10B98120' : '#B91C1C20',
               transform: [{ scale: signalAnim.interpolate({ inputRange: [0, 1], outputRange: [0.2, 1.5] }) }],
               opacity: signalAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0, 0.5, 0] }),
             }}
@@ -199,14 +201,14 @@ export default function LiveTrackingScreen({
 
           <Animated.View style={{ transform: [{ scale: pulseAnim }] }} className="mb-8">
             <View 
-              className={`w-28 h-28 rounded-full items-center justify-center border-4 ${reportStatus === 'responding' ? 'border-green-500 bg-green-500/10' : 'border-primary bg-primary/10'}`}
+              className={`w-28 h-28 rounded-full items-center justify-center border-4 ${reportStatus === 'responding' ? 'border-green-500 bg-green-500/10' : 'border-red bg-red/10'}`}
             >
-              <EmergencyIcon size={60} color={reportStatus === 'responding' ? '#10B981' : '#FF5C00'} />
+              <EmergencyIcon size={60} color={reportStatus === 'responding' ? '#10B981' : '#B91C1C'} />
             </View>
           </Animated.View>
 
           <View className="items-center">
-            <Text className={`text-3xl font-black text-center mb-4 tracking-tighter ${reportStatus === 'responding' ? 'text-green-500' : 'text-white'}`}>
+            <Text className={`text-3xl font-black text-center mb-4 tracking-tighter ${reportStatus === 'responding' ? 'text-green-500' : 'text-primary'}`}>
               {reportStatus === "responding" ? "RESPONDER\nON THE WAY" : "REPORT\nPENDING"}
             </Text>
             
@@ -221,7 +223,7 @@ export default function LiveTrackingScreen({
 
           {/* Bottom Badge */}
           <View 
-            className={`absolute bottom-10 px-6 py-2 rounded-full border ${reportStatus === 'responding' ? 'border-green-500/30 bg-green-500/5' : 'border-border bg-darkBlue/50'}`}
+            className={`absolute bottom-10 px-6 py-2 rounded-full border ${reportStatus === 'responding' ? 'border-green-500/30 bg-green-500/5' : 'border-border bg-background'}`}
           >
             <Text className={`text-[10px] font-black uppercase tracking-[2px] ${reportStatus === 'responding' ? 'text-green-500' : 'text-textGray'}`}>
               {reportStatus === "responding" ? "● Priority Dispatch Active" : "Waiting for verification..."}

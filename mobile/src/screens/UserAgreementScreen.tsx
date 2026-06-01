@@ -14,10 +14,10 @@ export default function UserAgreementScreen({ navigation }: Props) {
       <Header title="User Agreement" showBack />
       
       <ScrollView contentContainerClassName="p-5 pb-10">
-        <View className="bg-surface rounded-3xl p-6 border border-border shadow-2xl shadow-black">
+        <View className="bg-surface rounded-3xl p-6 border border-border shadow-2xl shadow-slate-900/10">
           <Text className="mb-4 text-textGray text-[10px] font-black uppercase tracking-widest">Legal Terms</Text>
 
-          <Text className="mb-6 text-sm leading-6 text-white opacity-90">
+          <Text className="mb-6 text-sm leading-6 text-text">
             Welcome to AlertoCalbayog. By using this application, you agree to the
             following terms and conditions.
           </Text>
@@ -30,7 +30,7 @@ export default function UserAgreementScreen({ navigation }: Props) {
           ].map((term, index) => (
             <View key={index} className="flex-row mb-4">
               <Text className="text-primary font-bold mr-3">{index + 1}.</Text>
-              <Text className="flex-1 text-sm leading-6 text-white opacity-80">{term}</Text>
+              <Text className="flex-1 text-sm leading-6 text-text">{term}</Text>
             </View>
           ))}
 
@@ -48,4 +48,4 @@ export default function UserAgreementScreen({ navigation }: Props) {
       </ScrollView>
     </View>
   );
-}
+}
