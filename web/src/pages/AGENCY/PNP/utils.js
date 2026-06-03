@@ -4,6 +4,7 @@ export const STATUS_STYLES = {
   pending:     { dot: "bg-amber-400",  text: "text-amber-600",   label: "Pending" },
   responding:  { dot: "bg-blue-500",   text: "text-blue-600",    label: "Responding" },
   resolved:    { dot: "bg-emerald-500",text: "text-emerald-600", label: "Resolved" },
+  responded:   { dot: "bg-emerald-500",text: "text-emerald-600", label: "Responded" },
   closed:      { dot: "bg-slate-400",  text: "text-slate-500",   label: "Closed" },
   ongoing:     { dot: "bg-orange-500", text: "text-orange-600",  label: "Ongoing" },
   cancelled:   { dot: "bg-red-400",    text: "text-slate-500",   label: "Cancelled" },
@@ -134,10 +135,17 @@ export function getIncidentId(report, index) {
   return `INC-${yr}-0${String(90 - (index % 9)).padStart(2, "0")}`;
 }
 
-export const MOCK_REPORTS = [
-  { _id: "m1", incidentId: "INC-2024-089", emergencyType: "fire",     userId: { fullName: "Juan Dela Cruz",  phoneNumber: "0917-123-4567" }, location: { name: "Brgy. Hamorawon, District 1" }, status: "dispatching", createdAt: new Date(Date.now() - 600000).toISOString() },
-  { _id: "m2", incidentId: "INC-2024-088", emergencyType: "medical",   userId: { fullName: "Maria Santos",    phoneNumber: "0920-987-6543" }, location: { name: "Calbayog City Plaza" },          status: "active",      createdAt: new Date(Date.now() - 3600000).toISOString() },
-  { _id: "m3", incidentId: "INC-2024-087", emergencyType: "accident",  userId: { fullName: "Robert Wilson",   phoneNumber: "0998-555-0199" }, location: { name: "Maharlika Highway" },            status: "en_route",    createdAt: new Date(Date.now() - 7200000).toISOString() },
-  { _id: "m4", incidentId: "INC-2024-086", emergencyType: "flood",     userId: { fullName: "Elena Gilbert",   phoneNumber: "0912-333-4444" }, location: { name: "Riverside Subd." },              status: "resolved",    createdAt: new Date(Date.now() - 9000000).toISOString() },
-  { _id: "m5", incidentId: "INC-2024-085", emergencyType: "police",    userId: { fullName: "Barangay Hall",   phoneNumber: "055-123-1234" },  location: { name: "Brgy. Nijaga, Waterfront" },     status: "ongoing",     createdAt: new Date(Date.now() - 12000000).toISOString() },
-];
+export const MOCK_REPORTS = [];
+
+// Mock queue data for demo purposes – pending and active incidents
+export const MOCK_QUEUE_REPORTS = {
+  pending: [
+    { _id: "q1", incidentId: "INC-2024-091", emergencyType: "crime", userId: { fullName: "Pedro Reyes", phoneNumber: "0918-777-8899" }, location: { name: "Brgy. Poblacion, Main Street", barangay: "Poblacion", street: "Main St.", purok: "Purok 2" }, status: "pending", createdAt: new Date(Date.now() - 300000).toISOString() },
+    { _id: "q2", incidentId: "INC-2024-092", emergencyType: "crime", userId: { fullName: "Ariel Cabral", phoneNumber: "0921-888-7766" }, location: { name: "Brgy. Hamorawon, San Jose St.", barangay: "Hamorawon", street: "San Jose St.", purok: "Purok 4" }, status: "pending", createdAt: new Date(Date.now() - 600000).toISOString() },
+    { _id: "q5", incidentId: "INC-2024-095", emergencyType: "crime", userId: { fullName: "Lito Lapid", phoneNumber: "0945-222-3344" }, location: { name: "Brgy. Dagum, Maharlika Hwy", barangay: "Dagum", street: "Maharlika Hwy", purok: "Purok 1" }, status: "pending", createdAt: new Date(Date.now() - 900000).toISOString() },
+  ],
+  active: [
+    { _id: "q3", incidentId: "INC-2024-093", emergencyType: "crime", userId: { fullName: "Mike Cruz", phoneNumber: "0919-111-2222" }, location: { name: "Brgy. Nijaga, Coastal Rd", barangay: "Nijaga", street: "Coastal Rd.", purok: "" }, status: "active", createdAt: new Date(Date.now() - 800000).toISOString() },
+    { _id: "q4", incidentId: "INC-2024-094", emergencyType: "crime", userId: { fullName: "Sonia Santos", phoneNumber: "0932-444-5555" }, location: { name: "Brgy. Balud, Riverside St", barangay: "Balud", street: "Riverside St.", purok: "Purok 5" }, status: "active", createdAt: new Date(Date.now() - 1500000).toISOString() },
+  ],
+};

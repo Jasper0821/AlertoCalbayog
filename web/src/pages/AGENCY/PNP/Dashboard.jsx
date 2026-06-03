@@ -1,16 +1,18 @@
-import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useState, useRef } from "react";
 import api from "../../../api/axios.js";
+import socket from "../../../api/socket.js";
+import Swal from "sweetalert2";
 
 // Components
 import DashboardOverview from "./DashboardOverview.jsx";
+import QueuingSystem from "./QueuingSystem.jsx";
 import ActiveIncidents from "./ActiveIncidents.jsx";
-import DispatchCenter from "./DispatchCenter.jsx";
 import LiveMap from "./LiveMap.jsx";
 import IncidentHistory from "./IncidentHistory.jsx";
 import Analytics from "./Analytics.jsx";
 import Settings from "./Settings.jsx";
-import { MOCK_REPORTS } from "./utils.js";
+
+import { MOCK_REPORTS, MOCK_QUEUE_REPORTS } from "./utils.js";
 
 const NAV = [
   {
@@ -26,21 +28,21 @@ const NAV = [
     ),
   },
   {
-    id: "active-incidents",
-    label: "Active Incidents",
+    id: "incident-reports",
+    label: "Incident Reports",
     icon: (
       <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
       </svg>
     ),
-    badge: true,
   },
   {
-    id: "dispatch",
-    label: "Dispatch Center",
+    id: "queuing",
+    label: "Queuing System",
+    badge: true,
     icon: (
       <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
       </svg>
     ),
   },
@@ -76,23 +78,55 @@ const NAV = [
 
 function AdminDashboard() {
   const [reports, setReports] = useState([]);
+  const [statusOverrides, setStatusOverrides] = useState({});
   const [isOffline, setIsOffline] = useState(false);
   const [activeNav, setActiveNav] = useState("dashboard");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [showNotifDropdown, setShowNotifDropdown] = useState(false);
 
-  const storedUser = (() => {
+  // Real-time dispatch modal states
+  const [activeAlert, setActiveAlert] = useState(null);
+  const [selectedUnit, setSelectedUnit] = useState("Mobile Patrol 1");
+  const [dispatchNote, setDispatchNote] = useState("");
+  
+  // Real-time dynamic clock state
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  const alarmSirenRef = useRef(null);
+
+  const [user, setUser] = useState(() => {
     try { return JSON.parse(localStorage.getItem("user") || "{}"); }
     catch { return {}; }
-  })();
-  const userName = storedUser.fullName || storedUser.name || "Officer J. Dela Cruz";
-  const agency = storedUser.agency || "PNP";
+  });
+  const userName = user.fullName || "Officer J. Dela Cruz";
+  const agency = user.agency || "PNP";
 
-  const safeReports = Array.isArray(reports) ? reports : [];
+  // Dynamic ticking clock timer
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const handleStatusChange = async (id, newStatus) => {
+    setStatusOverrides(prev => ({ ...prev, [id]: newStatus }));
+    try {
+      await api.put(`/emergency/${id}`, { status: newStatus });
+    } catch (err) {
+      console.warn("Backend update failed, using local status override:", err);
+    }
+  };
+
+  const safeReports = (Array.isArray(reports) ? reports : []).map(r => ({
+    ...r,
+    status: statusOverrides[r._id] || r.status
+  })).filter(r => 
+    (r.emergencyType || "").toLowerCase() === "crime"
+  );
   const pendingCount = safeReports.filter(r => r.status === "pending").length;
   const activeCount = safeReports.filter(r => ["responding", "ongoing", "dispatching", "en_route", "active"].includes(r.status)).length;
 
+  // Poll for safety + initial load
   useEffect(() => {
     const fetchReports = async () => {
       try {
@@ -101,23 +135,208 @@ function AdminDashboard() {
         setIsOffline(false);
       } catch {
         setIsOffline(true);
-        setReports(MOCK_REPORTS);
+        setReports([...MOCK_REPORTS, ...MOCK_QUEUE_REPORTS.pending, ...MOCK_QUEUE_REPORTS.active]);
       }
     };
     fetchReports();
-    const iv = setInterval(fetchReports, 10000);
+    const iv = setInterval(fetchReports, 15000);
     return () => clearInterval(iv);
   }, []);
+
+  // Web Audio siren generator
+  const playSiren = () => {
+    try {
+      stopSiren(); // ensure no overlapping sound
+
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      const lfo = audioCtx.createOscillator();
+      const lfoGain = audioCtx.createGain();
+      
+      lfo.frequency.value = 0.5; // wails slowly (once every 2 seconds) for realism
+      lfoGain.gain.value = 250; // modulates pitch by +/- 250Hz
+      
+      osc.type = "triangle"; // smooth triangle wave (realistic siren, not buzzy like sawtooth)
+      osc.frequency.value = 750; // sweeps between 500Hz and 1000Hz
+      
+      lfo.connect(lfoGain);
+      lfoGain.connect(osc.frequency);
+      
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      
+      gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+      
+      osc.start();
+      lfo.start();
+
+      alarmSirenRef.current = {
+        audioCtx,
+        osc,
+        lfo,
+        gain
+      };
+    } catch (err) {
+      console.warn("Failed to play siren:", err);
+    }
+  };
+
+  const stopSiren = () => {
+    if (alarmSirenRef.current) {
+      try {
+        alarmSirenRef.current.osc.stop();
+        alarmSirenRef.current.lfo.stop();
+        alarmSirenRef.current.audioCtx.close();
+      } catch (e) {
+        // ignore
+      }
+      alarmSirenRef.current = null;
+    }
+  };
+
+  const closeAlert = () => {
+    setActiveAlert(null);
+    stopSiren();
+  };
+
+  useEffect(() => {
+    return () => {
+      stopSiren();
+    };
+  }, []);
+
+  // Web Audio chime generator
+  const playSystemChime = () => {
+    try {
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      
+      // Chime 1
+      const osc1 = audioCtx.createOscillator();
+      const gain1 = audioCtx.createGain();
+      osc1.connect(gain1);
+      gain1.connect(audioCtx.destination);
+      osc1.type = "sine";
+      osc1.frequency.setValueAtTime(880, audioCtx.currentTime); // A5
+      gain1.gain.setValueAtTime(0.08, audioCtx.currentTime);
+      osc1.start(audioCtx.currentTime);
+      osc1.stop(audioCtx.currentTime + 0.15);
+
+      // Chime 2
+      setTimeout(() => {
+        const audioCtx2 = new (window.AudioContext || window.webkitAudioContext)();
+        const osc2 = audioCtx2.createOscillator();
+        const gain2 = audioCtx2.createGain();
+        osc2.connect(gain2);
+        gain2.connect(audioCtx2.destination);
+        osc2.type = "sine";
+        osc2.frequency.setValueAtTime(1100, audioCtx2.currentTime); // C6
+        gain2.gain.setValueAtTime(0.08, audioCtx2.currentTime);
+        osc2.start(audioCtx2.currentTime);
+        osc2.stop(audioCtx2.currentTime + 0.25);
+      }, 150);
+    } catch (err) {
+      console.warn("Chime play error:", err);
+    }
+  };
+
+  // Socket Connection for Real-time Crime Alerts
+  useEffect(() => {
+    socket.connect();
+    const room = user.agency || "PNP";
+    socket.emit("joinRoom", room);
+    socket.emit("joinRoom", "admin");
+
+    socket.on("newEmergencyAlert", (newReport) => {
+      console.log("📡 PNP Command Center received live alert:", newReport);
+
+      // Ensure it is a crime type
+      if ((newReport.emergencyType || "").toLowerCase() === "crime") {
+        setReports(prev => {
+          if (prev.some(r => r._id === newReport._id)) return prev;
+          return [newReport, ...prev];
+        });
+
+        // Play sound if enabled in settings
+        const soundEnabled = user.soundAlerts !== false;
+        const loopEnabled = user.loopAlarm !== false;
+        if (soundEnabled) {
+          if (loopEnabled) {
+            playSiren();
+          } else {
+            playSystemChime();
+          }
+        }
+
+        // Open the custom dispatch popup screen!
+        setActiveAlert(newReport);
+      }
+    });
+
+    return () => {
+      socket.emit("leaveRoom", room);
+      socket.emit("leaveRoom", "admin");
+      socket.off("newEmergencyAlert");
+      socket.disconnect();
+    };
+  }, [user.agency, user.soundAlerts, user.loopAlarm]);
+
+  // Listen for simulated test alerts from Settings
+  useEffect(() => {
+    const handleSimulatedAlert = (e) => {
+      console.log("📡 Simulated alert triggered:", e.detail);
+      const soundEnabled = user.soundAlerts !== false;
+      const loopEnabled = user.loopAlarm !== false;
+      if (soundEnabled) {
+        if (loopEnabled) {
+          playSiren();
+        } else {
+          playSystemChime();
+        }
+      }
+      setActiveAlert(e.detail);
+    };
+    window.addEventListener("simulate-crime-alert", handleSimulatedAlert);
+    return () => {
+      window.removeEventListener("simulate-crime-alert", handleSimulatedAlert);
+    };
+  }, [user.soundAlerts, user.loopAlarm]);
+
+  // Handle active dispatch submission
+  const handleDispatchSubmit = () => {
+    if (!activeAlert) return;
+
+    // Update local and backend status
+    handleStatusChange(activeAlert._id, "active");
+
+    // Close modal silently — no secondary popup
+    setActiveAlert(null);
+    stopSiren();
+    setSelectedUnit("Mobile Patrol 1");
+    setDispatchNote("");
+    setActiveNav("queuing");
+  };
+
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+
+  const handleLogout = () => {
+    setShowLogoutModal(true);
+  };
+
+  const confirmLogout = () => {
+    localStorage.removeItem("user");
+    window.location.href = "/";
+  };
 
   const renderContent = () => {
     switch (activeNav) {
       case "dashboard":        return <DashboardOverview reports={safeReports} setActiveNav={setActiveNav} />;
-      case "active-incidents": return <ActiveIncidents reports={safeReports} />;
-      case "dispatch":         return <DispatchCenter reports={safeReports} />;
+      case "incident-reports": return <ActiveIncidents reports={safeReports} onStatusChange={handleStatusChange} />;
+      case "queuing":          return <QueuingSystem reports={safeReports} onStatusChange={handleStatusChange} />;
       case "live-map":         return <LiveMap reports={safeReports} />;
       case "incident-history": return <IncidentHistory reports={safeReports} />;
       case "analytics":        return <Analytics reports={safeReports} />;
-      case "settings":         return <Settings user={storedUser} agency={agency} />;
+      case "settings":         return <Settings user={user} onUserUpdate={setUser} />;
       default:                 return <DashboardOverview reports={safeReports} setActiveNav={setActiveNav} />;
     }
   };
@@ -136,28 +355,74 @@ function AdminDashboard() {
         />
       )}
 
+      {/* ══════════════ CUSTOM LOGOUT MODAL ══════════════ */}
+      {showLogoutModal && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-[#030d1e]/75 backdrop-blur-sm" onClick={() => setShowLogoutModal(false)} />
+          <div className="relative z-10 w-full max-w-[420px] rounded-2xl overflow-hidden shadow-[0_32px_80px_-8px_rgba(0,0,0,0.7)] border border-[#1a3a6b]/60 flex flex-col bg-white animate-zoom-in">
+            <div className="h-1 w-full bg-gradient-to-r from-red-700 via-red-500 to-orange-400" />
+            
+            <div className="bg-[#0a1e3f] px-6 py-4 flex items-center gap-4 shrink-0">
+              <div className="w-10 h-10 rounded-xl bg-white/10 border border-white/15 flex items-center justify-center shrink-0">
+                <svg className="w-5 h-5 text-red-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-white font-black text-sm tracking-wide uppercase">Logout Command Center?</h3>
+                <p className="text-white/50 text-[10px] uppercase tracking-wider mt-0.5">End Active Shift</p>
+              </div>
+            </div>
+
+            <div className="p-6 bg-[#f8fafc]">
+              <p className="text-slate-600 text-sm font-medium leading-relaxed">
+                Are you sure you want to end your active shift session and logout from the command center?
+              </p>
+            </div>
+
+            <div className="bg-white border-t border-slate-100 px-6 py-4 flex items-center justify-end gap-3 shrink-0">
+              <button
+                onClick={() => setShowLogoutModal(false)}
+                className="px-4 py-2 text-[13px] font-semibold text-slate-500 hover:text-slate-700 transition-colors"
+              >
+                Keep Active
+              </button>
+              <button
+                onClick={confirmLogout}
+                className="px-5 py-2 rounded-lg text-[13px] font-black text-white bg-red-600 hover:bg-red-700 active:scale-95 transition-all uppercase tracking-wide shadow-lg shadow-red-600/20"
+              >
+                Logout Shift
+              </button>
+            </div>
+            
+            <div className="h-1 w-full bg-gradient-to-r from-red-700 via-red-500 to-orange-400" />
+          </div>
+        </div>
+      )}
+
       {/* ══════════════ SIDEBAR ══════════════ */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex flex-col w-64 bg-white border-r border-slate-200 shadow-lg shadow-slate-200/60 transition-transform duration-300 ease-in-out lg:static lg:translate-x-0 lg:shadow-none ${
+        className={`fixed inset-y-0 left-0 z-50 flex flex-col w-64 transition-transform duration-300 ease-in-out lg:static lg:translate-x-0 lg:shadow-none ${
           isSidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
+        style={{ background: "#0a1e3f" }}
       >
         {/* Logo / Brand */}
-        <div className="flex items-center gap-3 px-5 h-16 border-b border-slate-100 shrink-0">
+        <div className="flex items-center gap-3 px-5 h-16 shrink-0" style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
           <img src="/logo.png" alt="Alerto Calbayog Logo" className="w-9 h-9 object-contain transition-transform duration-300 hover:scale-105 shrink-0" />
           <div className="min-w-0">
-            <p className="text-sm font-bold text-[#0a1e3f] leading-none truncate">Alerto Calbayog</p>
-            <p className="text-[10px] text-blue-500 font-semibold mt-0.5 tracking-wide">Dispatch Command</p>
+            <p className="text-sm font-bold text-white leading-none truncate">Alerto Calbayog</p>
+            <p className="text-[10px] text-blue-300 font-semibold mt-0.5 tracking-wide">Dispatch Command</p>
           </div>
         </div>
 
         {/* Agency badge */}
-        <div className="px-4 py-3 border-b border-slate-100">
-          <div className="flex items-center gap-2 bg-blue-50/70 rounded-lg px-3 py-2">
-            <div className="w-2 h-2 rounded-full bg-emerald-400 ring-2 ring-emerald-100 shrink-0"></div>
+        <div className="px-4 py-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+          <div className="flex items-center gap-2 rounded-lg px-3 py-2" style={{ background: "rgba(255,255,255,0.08)" }}>
+            <div className="w-2 h-2 rounded-full bg-emerald-400 ring-2 ring-emerald-400/30 shrink-0"></div>
             <div>
-              <p className="text-[11px] font-bold text-[#0a1e3f]">{agency} — Shift Active</p>
-              <p className="text-[10px] text-blue-500 font-semibold">{activeCount} units responding</p>
+              <p className="text-[11px] font-bold text-white">{agency} — Shift Active</p>
+              <p className="text-[10px] text-blue-300 font-semibold">{activeCount} units responding</p>
             </div>
           </div>
         </div>
@@ -172,29 +437,29 @@ function AdminDashboard() {
                 onClick={() => { setActiveNav(item.id); setIsSidebarOpen(false); }}
                 className={`group w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 text-left relative ${
                   isActive
-                    ? "bg-[#0a1e3f] text-white shadow-md shadow-[#0a1e3f]/25"
-                    : "text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+                    ? "bg-white/15 text-white shadow-md"
+                    : "text-blue-200 hover:bg-white/10 hover:text-white"
                 }`}
               >
                 {/* Active bar indicator */}
                 {isActive && (
-                  <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-white/50 rounded-r-full" />
+                  <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-white rounded-r-full" />
                 )}
 
                 {/* Icon */}
-                <span className={`shrink-0 transition-transform duration-200 ${isActive ? "text-white" : "text-slate-400 group-hover:text-[#0a1e3f] group-hover:scale-110"}`}>
+                <span className={`shrink-0 transition-transform duration-200 ${isActive ? "text-white" : "text-blue-300 group-hover:text-white group-hover:scale-110"}`}>
                   {item.icon}
                 </span>
 
                 {/* Label */}
                 <span className="truncate">{item.label}</span>
 
-                {/* Badge for active incidents */}
-                {item.badge && activeCount > 0 && (
+                {/* Badge for pending incidents */}
+                {item.badge && pendingCount > 0 && (
                   <span className={`ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${
-                    isActive ? "bg-white/20 text-white" : "bg-orange-100 text-orange-600"
+                    isActive ? "bg-white/20 text-white" : "bg-amber-400/90 text-amber-900"
                   }`}>
-                    {activeCount}
+                    {pendingCount}
                   </span>
                 )}
               </button>
@@ -202,37 +467,19 @@ function AdminDashboard() {
           })}
         </nav>
 
-        {/* Settings & Logout */}
-        <div className="px-3 pb-4 space-y-0.5 border-t border-slate-100 pt-3">
+        {/* Bottom logout */}
+        <div className="p-3 shrink-0" style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}>
           <button
-            onClick={() => { setActiveNav("settings"); setIsSidebarOpen(false); }}
-            className={`group w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 text-left ${
-              activeNav === "settings"
-                ? "bg-[#0a1e3f] text-white shadow-md shadow-[#0a1e3f]/25"
-                : "text-slate-500 hover:bg-slate-100 hover:text-slate-800"
-            }`}
+            onClick={() => handleLogout()}
+            className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium text-blue-200 hover:bg-red-500/20 hover:text-red-300 transition-all text-left"
           >
-            <span className={`shrink-0 transition-transform duration-200 ${activeNav === "settings" ? "text-white" : "text-slate-400 group-hover:text-[#0a1e3f] group-hover:scale-110"}`}>
-              <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-            </span>
-            <span>Settings</span>
+            <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            </svg>
+            <span>Logout Terminal</span>
           </button>
-
-          <Link
-            to="/"
-            className="group w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-500 hover:bg-red-50 hover:text-red-600 transition-all duration-200"
-          >
-            <span className="shrink-0 text-slate-400 group-hover:text-red-500 transition-colors">
-              <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-              </svg>
-            </span>
-            <span>Log Out</span>
-          </Link>
         </div>
+
       </aside>
 
       {/* ══════════════ MAIN AREA ══════════════ */}
@@ -260,6 +507,15 @@ function AdminDashboard() {
             {/* Separator */}
             <div className="h-5 w-px bg-slate-200 hidden lg:block"></div>
 
+            {/* Real-time Dynamic Clock */}
+            <div className="hidden lg:flex items-center gap-2 text-xs font-bold text-slate-600 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 shrink-0">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span>{currentTime.toLocaleDateString()} — {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+            </div>
+
+            {/* Separator */}
+            <div className="h-5 w-px bg-slate-200 hidden lg:block"></div>
+
             {/* Search */}
             <div className="relative flex-1 max-w-sm hidden sm:block">
               <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -279,37 +535,10 @@ function AdminDashboard() {
           {/* Right: action icons + user profile */}
           <div className="flex items-center gap-1 shrink-0">
 
-            {/* Settings button */}
-            <button
-              onClick={() => setActiveNav("settings")}
-              className={`p-2.5 rounded-xl transition-all ${
-                activeNav === "settings" ? "bg-slate-100 text-[#0a1e3f]" : "text-slate-400 hover:bg-slate-100 hover:text-[#0a1e3f]"
-              }`}
-              title="Settings"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-            </button>
-
-            {/* Profile icon */}
-            <button
-              onClick={() => setActiveNav("settings")}
-              className={`p-2.5 rounded-xl transition-all ${
-                activeNav === "settings" ? "bg-slate-100 text-[#0a1e3f]" : "text-slate-400 hover:bg-slate-100 hover:text-[#0a1e3f]"
-              }`}
-              title="Profile"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-              </svg>
-            </button>
-
             {/* Notifications Bell */}
             <div className="relative">
               <button
-                onClick={() => setShowNotifDropdown(p => !p)}
+                onClick={() => { setShowNotifDropdown(p => !p); stopSiren(); }}
                 className="p-2.5 rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-all relative"
                 title="Notifications"
               >
@@ -334,7 +563,7 @@ function AdminDashboard() {
                   </div>
                   <div className="max-h-64 overflow-y-auto divide-y divide-slate-50">
                     {safeReports.filter(r => r.status === "pending").slice(0, 4).map((r, i) => (
-                      <div key={i} className="flex items-start gap-3 px-4 py-3 hover:bg-slate-50 transition-colors cursor-pointer">
+                      <div key={i} className="flex items-start gap-3 px-4 py-3 hover:bg-slate-50 transition-colors cursor-pointer" onClick={() => { setActiveAlert(r); setShowNotifDropdown(false); stopSiren(); }}>
                         <div className="w-2 h-2 rounded-full bg-amber-400 mt-1.5 shrink-0"></div>
                         <div className="min-w-0">
                           <p className="text-xs font-semibold text-slate-800 truncate">{r.userId?.fullName || "Anonymous"}</p>
@@ -347,44 +576,270 @@ function AdminDashboard() {
                     )}
                   </div>
                   <div className="px-4 py-2.5 border-t border-slate-100 text-center">
-                    <button className="text-xs font-semibold text-blue-600 hover:text-blue-700">View all notifications</button>
+                    <button className="text-xs font-semibold text-blue-600 hover:text-blue-700" onClick={() => { setActiveNav("queuing"); setShowNotifDropdown(false); stopSiren(); }}>
+                      View all notifications
+                    </button>
                   </div>
                 </div>
               )}
             </div>
 
+            {/* Settings Button */}
+            <button
+              onClick={() => { setActiveNav("settings"); setShowNotifDropdown(false); }}
+              className={`p-2.5 rounded-xl transition-all ${
+                activeNav === "settings"
+                  ? "bg-[#0a1e3f] text-white"
+                  : "text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+              }`}
+              title="Settings"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.43l-1.003.828c-.293.241-.438.613-.43.992a7.723 7.723 0 010 .255c-.008.378.137.75.43.99l1.005.831a1.125 1.125 0 01.26 1.43l-1.297 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.43l1.004-.83c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.831a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.645-.869l.214-1.28z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </button>
+
             <div className="w-px h-6 bg-slate-200 mx-1"></div>
 
-            {/* User Profile */}
-            <div className="flex items-center gap-2.5 pl-1 cursor-pointer group">
-              <div className="text-right hidden sm:block">
-                <p className="text-xs font-bold text-slate-800 leading-none">{userName}</p>
-                <p className="text-[10px] text-slate-400 mt-0.5 font-medium">Shift Commander</p>
-              </div>
-              <div className="w-9 h-9 rounded-full overflow-hidden ring-2 ring-slate-200 group-hover:ring-blue-300 transition-all">
+            {/* User Profile Info */}
+            <div className="flex items-center gap-3 pl-2">
+              <div className="w-8 h-8 rounded-full overflow-hidden bg-[#0a1e3f] flex items-center justify-center text-white text-xs font-bold ring-2 ring-slate-100 shrink-0">
                 <img
-                  src={`https://ui-avatars.com/api/?name=${encodeURIComponent(userName)}&background=3B82F6&color=fff&bold=true&size=64`}
-                  alt="User Avatar"
+                  src={user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(userName)}&background=0a1e3f&color=fff&bold=true&size=64`}
+                  alt="Avatar"
                   className="w-full h-full object-cover"
                 />
               </div>
+              <div className="hidden md:block text-left leading-none">
+                <p className="text-xs font-semibold text-slate-800">{userName}</p>
+                <p className="text-[9px] text-slate-400 mt-0.5">{user.rank || "Shift Commander"}</p>
+              </div>
             </div>
+
           </div>
         </header>
 
         {/* ── PAGE CONTENT ── */}
         <section className="flex-1 overflow-y-auto p-5 lg:p-7">
-          {isOffline && (
-            <div className="mb-4 flex items-center gap-2.5 rounded-xl bg-amber-50 border border-amber-200 px-4 py-2.5">
-              <svg className="w-4 h-4 text-amber-500 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
-              </svg>
-              <p className="text-xs font-semibold text-amber-700">API offline — showing demo data</p>
-            </div>
-          )}
-          {renderContent()}
+          <div className="max-w-screen-2xl mx-auto">
+            {renderContent()}
+          </div>
         </section>
       </main>
+
+      {/* ═══════════════════════════════════════════════════════
+           🚨  PROFESSIONAL EMERGENCY ALERT DISPATCH MODAL 🚨
+          ═══════════════════════════════════════════════════════ */}
+      {activeAlert && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+
+          {/* ── Deep navy-smoke backdrop ── */}
+          <div
+            className="absolute inset-0 bg-[#030d1e]/75 backdrop-blur-sm"
+            onClick={closeAlert}
+          />
+
+          {/* ── Pulsing deep-red ambient vignette ── */}
+          <div
+            className="absolute inset-0 pointer-events-none alert-vignette"
+            style={{
+              background:
+                "radial-gradient(ellipse at center, transparent 35%, rgba(185,28,28,0.55) 100%)",
+            }}
+          />
+
+          {/* ── Animated scan-line sweep ── */}
+          <div
+            className="absolute left-0 right-0 h-[2px] pointer-events-none alert-scan-line"
+            style={{ background: "linear-gradient(90deg, transparent, rgba(239,68,68,0.7), transparent)" }}
+          />
+
+          {/* ════════════ MODAL CARD ════════════ */}
+          <div className="alert-modal-card relative z-10 w-full max-w-[520px] rounded-2xl overflow-hidden shadow-[0_32px_80px_-8px_rgba(0,0,0,0.7)] border border-[#1a3a6b]/60 flex flex-col">
+
+            {/* ── TOP COLOR STRIP (incident severity indicator) ── */}
+            <div className="h-1 w-full bg-gradient-to-r from-red-700 via-red-500 to-orange-400" />
+
+            {/* ── HEADER ── */}
+            <div className="bg-[#0a1e3f] px-6 pt-5 pb-4 flex items-start justify-between shrink-0">
+              <div className="flex items-center gap-4">
+                {/* Agency emblem placeholder */}
+                <div className="w-11 h-11 rounded-xl bg-white/10 border border-white/15 flex items-center justify-center shrink-0">
+                  <svg className="w-6 h-6 text-white/80" fill="none" stroke="currentColor" strokeWidth="1.6" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+                  </svg>
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 mb-0.5">
+                    {/* LIVE badge */}
+                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-red-600/90 text-white text-[10px] font-black uppercase tracking-widest">
+                      <span className="w-1.5 h-1.5 rounded-full bg-white alert-live-dot inline-block" />
+                      LIVE
+                    </span>
+                    <span className="text-white/40 text-[10px] font-semibold uppercase tracking-widest">
+                      Incoming Report
+                    </span>
+                  </div>
+                  <h3 className="text-white font-black text-base tracking-wide uppercase leading-tight">
+                    Emergency Incident Alert
+                  </h3>
+                  <p className="text-white/50 text-[11px] mt-0.5 font-medium">
+                    Philippine National Police — Calbayog City Station
+                  </p>
+                </div>
+              </div>
+              {/* Close */}
+              <button
+                onClick={closeAlert}
+                className="mt-0.5 w-8 h-8 flex items-center justify-center rounded-lg bg-white/10 hover:bg-white/20 text-white/60 hover:text-white transition-all shrink-0"
+                title="Dismiss"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* ── INCIDENT TYPE BANNER ── */}
+            <div className="bg-[#0d2550] px-6 py-2.5 flex items-center justify-between border-t border-white/5">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-red-500 alert-live-dot" />
+                <span className="text-red-400 font-black text-xs uppercase tracking-widest">
+                  {activeAlert.emergencyType || "Crime / Incident"}
+                </span>
+              </div>
+              <span className="text-white/40 text-[11px] font-semibold tabular-nums">
+                {new Date(activeAlert.createdAt || Date.now()).toLocaleString("en-PH", {
+                  month: "short", day: "numeric", year: "numeric",
+                  hour: "2-digit", minute: "2-digit", second: "2-digit"
+                })}
+              </span>
+            </div>
+
+            {/* ── BODY ── */}
+            <div className="bg-[#f8fafc] overflow-y-auto max-h-[52vh]">
+
+              {/* Incident datasheet */}
+              <div className="px-6 py-5 space-y-0">
+                <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-3">
+                  Incident Information
+                </p>
+
+                {[
+                  {
+                    label: "Complainant",
+                    value: activeAlert.userId?.fullName || activeAlert.name || "Anonymous",
+                    bold: true,
+                  },
+                  {
+                    label: "Contact No.",
+                    value: activeAlert.userId?.phoneNumber || activeAlert.phoneNumber || "N/A",
+                    mono: true,
+                  },
+                  {
+                    label: "Location",
+                    value: `${activeAlert.location?.barangay || activeAlert.barangay || "Unknown Barangay"}, ${activeAlert.location?.street || activeAlert.street || "N/A"}`,
+                  },
+                ].map(({ label, value, bold, mono }) => (
+                  <div
+                    key={label}
+                    className="flex items-baseline gap-3 py-2.5 border-b border-slate-100 last:border-0"
+                  >
+                    <span className="w-28 shrink-0 text-[11px] font-semibold text-slate-400 uppercase tracking-wide">
+                      {label}
+                    </span>
+                    <span
+                      className={`flex-1 text-sm text-slate-800 ${bold ? "font-bold" : "font-medium"} ${mono ? "font-mono text-[#0a1e3f]" : ""}`}
+                    >
+                      {value}
+                    </span>
+                  </div>
+                ))}
+
+                {/* Description block */}
+                <div className="mt-3 rounded-xl bg-amber-50 border border-amber-100 p-4">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-amber-600 mb-2">
+                    Incident Narrative
+                  </p>
+                  <p className="text-slate-700 text-[13px] leading-relaxed italic">
+                    "{activeAlert.description || "No description provided by the complainant."}"
+                  </p>
+                </div>
+              </div>
+
+              {/* Dispatch panel */}
+              <div className="mx-5 mb-5 rounded-xl border border-[#0a1e3f]/15 overflow-hidden">
+                <div className="bg-[#0a1e3f] px-4 py-2.5 flex items-center gap-2">
+                  <svg className="w-3.5 h-3.5 text-white/70" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
+                  </svg>
+                  <p className="text-[10px] font-black uppercase tracking-[0.15em] text-white/80">
+                    Dispatch Assignment
+                  </p>
+                </div>
+                <div className="bg-white px-4 py-4 space-y-3">
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                      Responding Unit
+                    </label>
+                    <select
+                      value={selectedUnit}
+                      onChange={e => setSelectedUnit(e.target.value)}
+                      className="w-full px-3 py-2.5 text-sm text-slate-800 border border-slate-200 rounded-lg bg-white focus:border-[#0a1e3f] focus:ring-2 focus:ring-[#0a1e3f]/10 outline-none transition-all cursor-pointer font-semibold"
+                    >
+                      <option value="Mobile Patrol 1">Mobile Patrol 1 — PNP Alpha</option>
+                      <option value="Mobile Patrol 2">Mobile Patrol 2 — PNP Bravo</option>
+                      <option value="K9 Search Unit">K9 Search Unit — PNP Delta</option>
+                      <option value="Special Operations Team">Special Operations Team — PNP SOT</option>
+                      <option value="Traffic Investigation Division">Traffic Investigation Div. — PNP TID</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                      Field Orders / Notes
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={dispatchNote}
+                      onChange={e => setDispatchNote(e.target.value)}
+                      placeholder="Enter special instructions for the assigned unit (optional)..."
+                      className="w-full px-3 py-2 text-[13px] text-slate-800 border border-slate-200 rounded-lg bg-slate-50 focus:bg-white focus:border-[#0a1e3f] focus:ring-2 focus:ring-[#0a1e3f]/10 outline-none transition-all resize-none placeholder:text-slate-400"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* ── FOOTER ── */}
+            <div className="bg-white border-t border-slate-100 px-6 py-4 flex items-center justify-between shrink-0">
+              <button
+                onClick={closeAlert}
+                className="text-[13px] font-semibold text-slate-400 hover:text-slate-600 transition-colors tracking-wide"
+              >
+                Dismiss
+              </button>
+              <div className="flex items-center gap-3">
+                <span className="hidden sm:block text-[10px] text-slate-400 italic">
+                  Action will be logged
+                </span>
+                <button
+                  onClick={handleDispatchSubmit}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-black text-white bg-[#0a1e3f] hover:bg-[#0d2650] active:scale-95 shadow-lg shadow-[#0a1e3f]/30 transition-all tracking-wide uppercase"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
+                  </svg>
+                  Dispatch Now
+                </button>
+              </div>
+            </div>
+
+            {/* ── BOTTOM SEVERITY STRIP ── */}
+            <div className="h-1 w-full bg-gradient-to-r from-red-700 via-red-500 to-orange-400" />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

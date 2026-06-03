@@ -77,3 +77,52 @@
   animation: splash-ring 1.8s ease-in-out infinite;
 }
 
+
+
+/* ── Emergency Alert Modal Animations ────────────────── */
+@keyframes alert-modal-in {
+  0%   { opacity: 0; transform: scale(0.93) translateY(14px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes alert-vignette-pulse {
+  0%   { opacity: 0.25; }
+  50%  { opacity: 0.65; }
+  100% { opacity: 0.25; }
+}
+
+@keyframes alert-scan-line {
+  0%   { top: 0%; opacity: 0.35; }
+  50%  { opacity: 0.7; }
+  100% { top: 100%; opacity: 0; }
+}
+
+@keyframes alert-dot-blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.25; }
+}
+
+@keyframes alert-badge-slide {
+  0%   { opacity: 0; transform: translateX(-8px); }
+  100% { opacity: 1; transform: translateX(0); }
+}
+
+.alert-modal-card {
+  animation: alert-modal-in 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.alert-vignette {
+  animation: alert-vignette-pulse 1.6s ease-in-out infinite;
+}
+
+.alert-scan-line {
+  animation: alert-scan-line 2.2s linear infinite;
+}
+
+.alert-live-dot {
+  animation: alert-dot-blink 1s ease-in-out infinite;
+}
+
+.alert-badge-slide {
+  animation: alert-badge-slide 0.4s ease both;
+}

@@ -1,34 +1,15 @@
-import { useEffect, useState, useRef } from "react";
-import Swal from "sweetalert2";
-import AgencyShell from "../AgencyShell.jsx";
-import MapSection from "./MapSection.jsx";
-import { OverviewSection } from "./OverviewSection.jsx";
-import { ProfileSection } from "./ProfileSection.jsx";
-import { QueueSection } from "./QueueSection.jsx";
-import { ReportsSection } from "./ReportsSection.jsx";
-import api from "../../../api/axios.js";
-import socket from "../../../api/socket.js";
+const fs = require('fs');
+const path = 'c:/Users/jcome/AlertoCalbayog/web/src/pages/AGENCY/CDRRMO/Dashboard.jsx';
+let content = fs.readFileSync(path, 'utf8');
 
-const navigation = [
-  { id: "dashboard" },
-  { id: "map-report" },
-  { id: "reported-incidents" },
-  { id: "queuing" },
-  { id: "profile" },
-];
+// 1. Add useRef and Swal
+content = content.replace(
+  'import { useEffect, useState } from "react";',
+  'import { useEffect, useState, useRef } from "react";\nimport Swal from "sweetalert2";'
+);
 
-function CdrrmoDashboard() {
-  const agency = "CDRRMO";
-
-  const [activeSection, setActiveSection] = useState(() => {
-    if (typeof window === "undefined") return "dashboard";
-    const hash = window.location.hash.replace("#", "");
-    return navigation.some((item) => item.id === hash) ? hash : "dashboard";
-  });
-
-  const [reports, setReports] = useState([]);
-  const [isOffline, setIsOffline] = useState(false);
-
+// 2. Add state and audio refs
+const stateVars = `
   const [activeAlert, setActiveAlert] = useState(null);
   const [selectedUnit, setSelectedUnit] = useState("Ambulance 1");
   const [dispatchNote, setDispatchNote] = useState("");
@@ -87,7 +68,7 @@ function CdrrmoDashboard() {
   const handleDispatchSubmit = async () => {
     if (!activeAlert) return;
     try {
-      await api.put(`/emergency/${activeAlert._id}`, { status: "active" });
+      await api.put(\`/emergency/\${activeAlert._id}\`, { status: "active" });
       setReports(prev => prev.map(r => r._id === activeAlert._id ? { ...r, status: "active" } : r));
     } catch (err) {
       console.warn(err);
@@ -101,27 +82,15 @@ function CdrrmoDashboard() {
       window.history.replaceState(null, "", "#queuing");
     }
   };
+`;
 
+content = content.replace(
+  'const [isOffline, setIsOffline] = useState(false);',
+  'const [isOffline, setIsOffline] = useState(false);\n' + stateVars
+);
 
-  useEffect(() => {
-    const fetchReports = async () => {
-      try {
-        const res = await api.get(`/emergency/agency/${agency}`);
-        setReports(res.data);
-        setIsOffline(false);
-      } catch (error) {
-        console.error("Failed to fetch CDRRMO reports:", error);
-        setIsOffline(true);
-      }
-    };
-
-    fetchReports();
-    const interval = setInterval(fetchReports, 15000);
-
-    // Real-time socket — CDRRMO is the main hub, also listen to BFP room
-    socket.connect();
-    socket.emit("joinRoom", "CDRRMO");
-
+// 3. Update Socket listener
+const socketListener = `
     socket.on("newEmergencyAlert", (newReport) => {
       console.log("📡 CDRRMO received real-time alert:", newReport);
       setReports((prev) => {
@@ -131,24 +100,16 @@ function CdrrmoDashboard() {
       playSiren();
       setActiveAlert(newReport);
     });
+`;
 
-    return () => {
-      clearInterval(interval);
-      socket.emit("leaveRoom", "CDRRMO");
-      socket.off("newEmergencyAlert");
-      socket.disconnect();
-    };
-  }, []);
+content = content.replace(
+  /socket\.on\("newEmergencyAlert", \(newReport\) => \{[\s\S]*?\}\);/,
+  socketListener.trim()
+);
 
-  const handleNavClick = (event, id) => {
-    event.preventDefault();
-    setActiveSection(id);
-    if (typeof window !== "undefined") {
-      window.history.replaceState(null, "", `#${id}`);
-    }
-  };
 
-  return (
+// 4. Update Render
+const modalJsx = `
     <>
       <AgencyShell activeSection={activeSection} onNavigate={handleNavClick} agency={agency}>
         {activeSection === "dashboard" && <OverviewSection reports={reports} isOffline={isOffline} />}
@@ -206,16 +167,16 @@ function CdrrmoDashboard() {
                 {[
                   { label: "Complainant", value: activeAlert.userId?.fullName || activeAlert.name || "Anonymous", bold: true },
                   { label: "Contact No.", value: activeAlert.userId?.phoneNumber || activeAlert.phoneNumber || "N/A", mono: true },
-                  { label: "Location", value: `${activeAlert.location?.barangay || activeAlert.barangay || "Unknown Barangay"}, ${activeAlert.location?.street || activeAlert.street || "N/A"}` }
+                  { label: "Location", value: \`\${activeAlert.location?.barangay || activeAlert.barangay || "Unknown Barangay"}, \${activeAlert.location?.street || activeAlert.street || "N/A"}\` }
                 ].map(({ label, value, bold, mono }) => (
                   <div key={label} className="flex items-baseline gap-3 py-2.5 border-b border-slate-100 last:border-0">
                     <span className="w-28 shrink-0 text-[11px] font-semibold text-slate-400 uppercase tracking-wide">{label}</span>
-                    <span className={`flex-1 text-sm text-slate-800 ${bold ? "font-bold" : "font-medium"} ${mono ? "font-mono text-[#0a1e3f]" : ""}`}>{value}</span>
+                    <span className={\`flex-1 text-sm text-slate-800 \${bold ? "font-bold" : "font-medium"} \${mono ? "font-mono text-[#0a1e3f]" : ""}\`}>{value}</span>
                   </div>
                 ))}
                 <div className="mt-3 rounded-xl bg-amber-50 border border-amber-100 p-4">
                   <p className="text-[10px] font-black uppercase tracking-widest text-amber-600 mb-2">Incident Narrative</p>
-                  <p className="text-slate-700 text-[13px] leading-relaxed italic">"${activeAlert.description || "No description provided."}"</p>
+                  <p className="text-slate-700 text-[13px] leading-relaxed italic">"\${activeAlert.description || "No description provided."}"</p>
                 </div>
               </div>
 
@@ -258,7 +219,11 @@ function CdrrmoDashboard() {
         </div>
       )}
     </>
-  );
-}
+`;
 
-export default CdrrmoDashboard;
+content = content.replace(
+  /<AgencyShell[\s\S]*?<\/AgencyShell>/,
+  modalJsx.trim()
+);
+
+fs.writeFileSync(path, content);
