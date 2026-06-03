@@ -1,10 +1,7 @@
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { toggleDarkMode } from "../theme";
-import { SunIcon, MoonIcon } from "../pages/AGENCY/CDRRMO/icons";
 
 export function Navbar() {
-  const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains("dark"));
   const [isOpen, setIsOpen] = useState(false);
   const location = useLocation();
 
@@ -13,20 +10,14 @@ export function Navbar() {
     return (
       <Link
         to={to}
-        className={`text-[15px] font-medium pb-1 transition-all duration-150 active:scale-95 active:opacity-80 transform inline-block ${
-          isActive
+        className={`text-[15px] font-medium pb-1 transition-all duration-150 active:scale-95 active:opacity-80 transform inline-block ${isActive
             ? "text-white font-semibold border-b-2 border-white"
             : "text-slate-400 hover:text-white border-b-2 border-transparent hover:border-slate-500"
-        }`}
+          }`}
       >
         {label}
       </Link>
     );
-  };
-
-  const handleToggleTheme = () => {
-    const newState = toggleDarkMode();
-    setIsDark(newState);
   };
 
   return (
@@ -52,13 +43,6 @@ export function Navbar() {
 
         {/* Right Actions */}
         <div className="hidden md:flex items-center gap-4">
-          <button
-            onClick={handleToggleTheme}
-            className="grid h-10 w-10 place-items-center rounded-lg text-slate-400 hover:text-white transition-all duration-150 active:scale-90 transform"
-            aria-label="Toggle theme"
-          >
-            {isDark ? <SunIcon className="h-5 w-5" /> : <MoonIcon className="h-5 w-5" />}
-          </button>
 
           <Link
             to="/login"
@@ -74,14 +58,9 @@ export function Navbar() {
           </Link>
         </div>
 
-      {/* Mobile Menu Toggle */}
+        {/* Mobile Menu Toggle */}
         <div className="flex md:hidden items-center gap-3">
-          <button
-            onClick={handleToggleTheme}
-            className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:text-white transition-all duration-150 active:scale-90 transform"
-          >
-            {isDark ? <SunIcon className="h-5 w-5" /> : <MoonIcon className="h-5 w-5" />}
-          </button>
+
           <button
             onClick={() => setIsOpen(!isOpen)}
             className="grid h-8 w-8 place-items-center text-white transition-all duration-150 active:scale-90 transform"
