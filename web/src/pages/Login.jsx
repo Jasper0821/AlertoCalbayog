@@ -11,7 +11,6 @@ function Login() {
   const [error, setError] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [selectedUnit, setSelectedUnit] = useState("PNP Police");
   const [showPassword, setShowPassword] = useState(false);
 
   // Route user to correct dashboard based on their role
@@ -47,90 +46,49 @@ function Login() {
   };
 
   return (
-    <main className="relative flex flex-col min-h-screen bg-[#f4f7fc] dark:bg-slate-950 font-sans antialiased transition-colors duration-300">
+    <main className="relative flex flex-col min-h-screen bg-[#f4f7fc] font-sans antialiased transition-colors duration-300">
       <Navbar />
 
-      <div className="flex-1 flex flex-col items-center justify-center px-4 pt-32 pb-20 relative">
+      <div className="flex-1 flex flex-col items-center justify-center px-4 relative mt-16 sm:mt-20">
         {/* Background Decorative Elements */}
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(12,49,102,0.03),transparent_40%)]" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgba(239,68,68,0.02),transparent_40%)]" />
 
-        {/* Portal Logo & Header */}
-        <div className="flex flex-col items-center mb-6 z-10 text-center">
-          <img
-            src="/logo.png"
-            alt="Alerto Calbayog Logo"
-            className="w-20 h-20 object-contain mb-1 transition-transform duration-300 hover:scale-105"
-          />
-          <h2 className="text-[17px] font-bold text-[#0a1e3f] dark:text-blue-300 tracking-tight mt-1">
-            Alerto Calbayog
-          </h2>
-          <p className="text-[13px] text-slate-500 dark:text-slate-400 font-medium">
-            Emergency Responder Portal
-          </p>
-        </div>
-
         {/* Main Login Card */}
-        <section className="relative w-full max-w-[420px] overflow-hidden rounded-2xl border border-slate-200/60 dark:border-slate-800 bg-white dark:bg-slate-900 p-7 sm:p-8 shadow-[0_20px_50px_-20px_rgba(0,0,0,0.08)] z-10">
-          <form className="space-y-5" onSubmit={handleSubmit}>
+        <section className="relative w-full max-w-[420px] overflow-hidden rounded-2xl border border-slate-200/60 bg-white p-7 sm:p-8 shadow-[0_20px_50px_-20px_rgba(0,0,0,0.08)] z-10">
+          
+          {/* Portal Logo & Header inside the box */}
+          <div className="flex flex-col items-center mb-6 z-10 text-center">
+            <img
+              src="/logo.png"
+              alt="Alerto Calbayog Logo"
+              className="w-20 h-20 object-contain mb-1 transition-transform duration-300 hover:scale-105"
+            />
+            <h2 className="text-[17px] font-bold text-[#0a1e3f] tracking-tight mt-1">
+              Alerto Calbayog
+            </h2>
+            <p className="text-[13px] text-slate-500 font-medium">
+              Emergency Responder Portal
+            </p>
+          </div>
 
-            {/* Unit Designation Selection */}
-            <div>
-              <h3 className="text-[11px] font-bold tracking-wider text-[#0a1e3f] dark:text-slate-400 uppercase mb-3 text-left">
-                Unit Designation
-              </h3>
-              <div className="grid grid-cols-2 gap-2.5">
-                {[
-                  {
-                    id: "PNP Police",
-                    label: "PNP Police",
-                    icon: (
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                      </svg>
-                    ),
-                  },
-                  {
-                    id: "CDRRMO",
-                    label: "CDRRMO",
-                    icon: (
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                      </svg>
-                    ),
-                  },
-                ].map((unit) => (
-                  <button
-                    key={unit.id}
-                    type="button"
-                    onClick={() => setSelectedUnit(unit.id)}
-                    className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-semibold transition-all duration-150 active:scale-95 transform ${selectedUnit === unit.id
-                      ? "border-blue-600 bg-blue-50/40 text-blue-700 dark:border-blue-400 dark:bg-blue-950/20 dark:text-blue-300"
-                      : "border-slate-200 bg-white text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-700"
-                      }`}
-                  >
-                    {unit.icon}
-                    {unit.label}
-                  </button>
-                ))}
-              </div>
-            </div>
+          <form className="space-y-5" onSubmit={handleSubmit}>
 
             {/* Credentials / ID Email Input */}
             <div className="grid gap-1.5 text-left">
-              <label className="text-[12px] font-bold text-slate-600 dark:text-slate-300 ml-0.5" htmlFor="email">
+              <label className="text-[12px] font-bold text-slate-600 ml-0.5" htmlFor="email">
                 Responder ID / Email
               </label>
               <div className="relative flex items-center">
                 <span className="absolute left-3.5 text-slate-400">
-                  <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                     <rect x="3" y="4" width="18" height="16" rx="2" />
                     <circle cx="9" cy="10" r="2" />
                     <path d="M15 8h2m-2 4h2M6 16c0-2 4-2 4-2s4 0 4 2" strokeLinecap="round" />
                   </svg>
                 </span>
                 <input
-                  className="h-11 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 pl-11 pr-5 text-[14px] text-slate-900 dark:text-white outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 placeholder:text-slate-300 dark:placeholder:text-slate-700 shadow-sm"
+                  className="h-11 w-full rounded-lg border border-slate-200 bg-white pl-11 pr-5 text-[14px] text-slate-900 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 placeholder:text-slate-300 shadow-sm"
                   id="email"
                   name="email"
                   type="email"
@@ -146,25 +104,25 @@ function Login() {
             {/* Security Key Input */}
             <div className="grid gap-1.5 text-left">
               <div className="flex items-center justify-between ml-0.5">
-                <label className="text-[12px] font-bold text-slate-600 dark:text-slate-300" htmlFor="password">
+                <label className="text-[12px] font-bold text-slate-600 " htmlFor="password">
                   Security Key
                 </label>
                 <Link
                   to="/forgot-password"
-                  className="text-[11px] font-bold text-blue-600 hover:text-blue-700 dark:text-blue-400 hover:underline transition-all"
+                  className="text-[11px] font-bold text-blue-600 hover:text-blue-700 hover:underline transition-all"
                 >
                   Forgot Password?
                 </Link>
               </div>
               <div className="relative flex items-center">
                 <span className="absolute left-3.5 text-slate-400">
-                  <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                     <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
                     <path d="M7 11V7a5 5 0 0110 0v4" />
                   </svg>
                 </span>
                 <input
-                  className="h-11 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 pl-11 pr-11 text-[14px] text-slate-900 dark:text-white outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 placeholder:text-slate-300 dark:placeholder:text-slate-700 shadow-sm"
+                  className="h-11 w-full rounded-lg border border-slate-200 bg-white pl-11 pr-11 text-[14px] text-slate-900 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 placeholder:text-slate-300 shadow-sm"
                   id="password"
                   name="password"
                   type={showPassword ? "text" : "password"}
@@ -177,14 +135,14 @@ function Login() {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                  className="absolute right-3.5 text-slate-400 hover:text-slate-600 transition-colors"
                 >
                   {showPassword ? (
-                    <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
                     </svg>
                   ) : (
-                    <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                       <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                     </svg>
@@ -194,7 +152,7 @@ function Login() {
             </div>
 
             {error && (
-              <p className="text-xs font-bold text-red-600 bg-red-50 dark:bg-red-950/20 p-3.5 rounded-xl border border-red-100 dark:border-red-900/30">
+              <p className="text-xs font-bold text-red-600 bg-red-50 p-3.5 rounded-xl border border-red-100">
                 {error}
               </p>
             )}
@@ -202,12 +160,12 @@ function Login() {
             {/* Remember Terminal Checkbox */}
             <div className="flex items-center gap-3 text-left py-1">
               <input
-                className="h-4.5 w-4.5 rounded border-slate-200 bg-white accent-blue-600 cursor-pointer"
+                className="h-4 w-4 rounded border-slate-200 bg-white accent-blue-600 cursor-pointer"
                 id="remember"
                 name="remember"
                 type="checkbox"
               />
-              <label className="text-[12px] font-semibold text-slate-500 dark:text-slate-400 cursor-pointer" htmlFor="remember">
+              <label className="text-[12px] font-semibold text-slate-500 cursor-pointer" htmlFor="remember">
                 Remember me
               </label>
             </div>
@@ -239,49 +197,49 @@ function Login() {
             </div>
 
             {/* Horizontal Divider & Encrypted Monitor warning */}
-            <div className="h-px bg-slate-100 dark:bg-slate-800 my-6"></div>
+            <div className="h-px bg-slate-100 my-6"></div>
 
             <div className="flex items-start gap-3 text-left">
-              <span className="text-red-600 dark:text-red-500 mt-0.5 shrink-0">
-                <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
+              <span className="text-red-600 mt-0.5 shrink-0">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                 </svg>
               </span>
-              <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 leading-relaxed">
+              <p className="text-[11px] font-semibold text-slate-500 leading-relaxed">
                 Encrypted endpoint monitoring active. Unauthorized access is recorded.
               </p>
             </div>
 
+            {/* Back Link to Home/Register moved inside the box */}
+            <p className="mt-5 text-center text-[12px] font-semibold text-slate-500">
+              New responder?{" "}
+              <Link className="text-blue-600 hover:text-blue-700 hover:underline transition-all duration-150 active:scale-95 transform inline-block" to="/register">
+                Register
+              </Link>
+            </p>
+
           </form>
         </section>
-
-        {/* Back Link to Home/Register */}
-        <p className="mt-6 text-center text-sm font-semibold text-slate-500 z-10">
-          New responder?{" "}
-          <Link className="text-blue-600 dark:text-blue-400 hover:text-blue-700 hover:underline transition-all duration-150 active:scale-95 transform inline-block" to="/register">
-            Register
-          </Link>
-        </p>
 
         {/* SUCCESS MESSAGE OVERLAY */}
         {loginSuccess && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/60 backdrop-blur-xl p-4 transition-all duration-1000 animate-in fade-in fill-mode-both">
-            <div className="max-w-md w-full rounded-[56px] bg-white dark:bg-slate-900 p-12 text-center shadow-[0_40px_120px_rgba(0,0,0,0.3)] border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 slide-in-from-bottom-12 duration-700">
+            <div className="max-w-md w-full rounded-[56px] bg-white p-12 text-center shadow-[0_40px_120px_rgba(0,0,0,0.3)] border border-slate-100 animate-in zoom-in-95 slide-in-from-bottom-12 duration-700">
               <div className="mx-auto mb-8 grid h-24 w-24 place-items-center rounded-[32px] bg-emerald-500 text-white shadow-2xl shadow-emerald-500/30">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" className="h-10 w-10">
                   <path d="M20 6L9 17L4 12" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               </div>
               <p className="text-xs font-black uppercase tracking-[0.2em] text-emerald-600 mb-4">Authentication Secure</p>
-              <h3 className="text-3xl font-black tracking-tighter text-slate-900 dark:text-white uppercase leading-[0.9]">Login Successful</h3>
-              <p className="mt-6 text-lg font-bold text-slate-500 dark:text-slate-400 leading-relaxed">
+              <h3 className="text-3xl font-black tracking-tighter text-slate-900 uppercase leading-[0.9]">Login Successful</h3>
+              <p className="mt-6 text-lg font-bold text-slate-500 leading-relaxed">
                 Welcome back, Responders. Routing to your agency terminal...
               </p>
               <div className="mt-10 flex flex-col items-center gap-3">
-                <div className="h-1.5 w-32 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                <div className="h-1.5 w-32 rounded-full bg-slate-100 overflow-hidden">
                   <div className="h-full bg-emerald-500 animate-[loading_1.5s_ease-in-out_infinite]" style={{ width: '60%' }} />
                 </div>
-                <p className="text-xs font-black uppercase tracking-widest text-slate-300 dark:text-slate-600">Initializing Terminal</p>
+                <p className="text-xs font-black uppercase tracking-widest text-slate-300 ">Initializing Terminal</p>
               </div>
             </div>
           </div>

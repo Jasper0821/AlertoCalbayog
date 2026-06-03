@@ -1,6 +1,5 @@
 import { useEffect } from "react";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
-import { initTheme } from "./theme";
 import LandingPage from "./pages/LandingPage.jsx";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
@@ -16,10 +15,6 @@ import IncidentMap from "./pages/IncidentMap";
 import VerifyOTP from "./pages/VerifyOTP";
 
 function App() {
-  useEffect(() => {
-    initTheme();
-  }, []);
-
   return (
     <Router>
       <Routes>
