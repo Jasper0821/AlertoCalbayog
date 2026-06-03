@@ -42,20 +42,10 @@ function Register() {
         role: "responder",
       });
 
-      // Auto-login: save token and user data
-      localStorage.setItem("token", res.data.token);
-      localStorage.setItem("user", JSON.stringify(res.data.user));
-
-      setSuccessMessage("Account created! Redirecting to dashboard...");
-
-      // Route to correct dashboard based on role
-      const user = res.data.user;
-      let route = "/dashboard";
-      if (user.role === "admin") route = "/admindashboard";
-      else if (user.agency === "PNP") route = "/crimedashboard";
+      setSuccessMessage("Account created successfully! Redirecting to login...");
 
       setTimeout(() => {
-        navigate(route);
+        navigate("/login");
       }, 1500);
     } catch (err) {
       setError(err.response?.data?.message || "Registration failed. Please try again.");

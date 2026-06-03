@@ -85,14 +85,11 @@ function SplashScreen({ onDone }) {
 
         {/* Title block */}
         <div className="space-y-1">
-          <p className="text-[10px] font-black uppercase tracking-[0.3em] text-blue-500">
-            Republic of the Philippines
-          </p>
           <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-white">
             Alerto Calbayog
           </h1>
           <p className="text-[13px] font-semibold text-slate-400 tracking-wide">
-            City Emergency Response &amp; Command System
+            Emergency Response System in Calbayog City
           </p>
         </div>
 
@@ -108,19 +105,7 @@ function SplashScreen({ onDone }) {
         <div className="w-64 sm:w-80 h-[3px] rounded-full bg-white/5 overflow-hidden">
           <div className="splash-progress h-full rounded-full bg-gradient-to-r from-blue-700 via-blue-500 to-blue-400 w-0" />
         </div>
-
-        {/* Official seal line */}
-        <div className="flex items-center gap-2 mt-2">
-          <div className="w-5 h-px bg-blue-900" />
-          <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-blue-900">
-            Calbayog City Government — Official Portal
-          </p>
-          <div className="w-5 h-px bg-blue-900" />
-        </div>
       </div>
-
-      {/* Bottom classification bar */}
-      <div className="absolute bottom-0 inset-x-0 h-1 bg-gradient-to-r from-blue-900 via-blue-600 to-blue-900" />
     </div>
   );
 }
