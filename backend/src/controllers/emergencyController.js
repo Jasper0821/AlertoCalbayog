@@ -11,6 +11,58 @@ exports.createEmergencyReport = async (req, res) => {
       return res.status(400).json({ message: "Invalid emergency type" });
     }
 
+    let name = "";
+    let barangay = "";
+    let street = "";
+    let purok = "";
+
+    try {
+      if (typeof fetch === "function") {
+        const response = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&accept-language=en`,
+          {
+            headers: {
+              "User-Agent": "AlertoCalbayog/1.0"
+            }
+          }
+        );
+        if (response.ok) {
+          const data = await response.json();
+          if (data && data.address) {
+            const addr = data.address;
+            barangay = addr.suburb || addr.neighbourhood || addr.village || addr.quarter || addr.city_district || "";
+            street = addr.road || addr.street || addr.footway || addr.path || "";
+            
+            // Extract Purok if mentioned
+            if (addr.neighbourhood && addr.neighbourhood.toLowerCase().includes("purok")) {
+              purok = addr.neighbourhood;
+            } else if (addr.suburb && addr.suburb.toLowerCase().includes("purok")) {
+              purok = addr.suburb;
+            } else if (addr.subdivision && addr.subdivision.toLowerCase().includes("purok")) {
+              purok = addr.subdivision;
+            }
+
+            // Build clean location name
+            const parts = [];
+            if (purok) parts.push(purok);
+            if (street && street !== purok) parts.push(street);
+            if (barangay && barangay !== purok && barangay !== street) {
+              parts.push(barangay.toLowerCase().startsWith("brgy") ? barangay : `Brgy. ${barangay}`);
+            }
+            if (addr.city) parts.push(addr.city);
+            
+            name = parts.join(", ") || data.display_name || "";
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Reverse geocoding failed:", err.message);
+    }
+
+    if (!name) {
+      name = `Coordinates: ${Number(latitude).toFixed(5)}, ${Number(longitude).toFixed(5)}`;
+    }
+
     const report = await EmergencyReport.create({
       userId: req.user.id,
       emergencyType,
@@ -18,7 +70,11 @@ exports.createEmergencyReport = async (req, res) => {
       description,
       location: {
         latitude,
-        longitude
+        longitude,
+        name,
+        barangay,
+        street,
+        purok
       }
     });
 

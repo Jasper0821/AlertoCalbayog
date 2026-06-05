@@ -34,6 +34,22 @@ const emergencyReportSchema = new mongoose.Schema(
       longitude: {
         type: Number,
         required: true
+      },
+      name: {
+        type: String,
+        default: ""
+      },
+      barangay: {
+        type: String,
+        default: ""
+      },
+      street: {
+        type: String,
+        default: ""
+      },
+      purok: {
+        type: String,
+        default: ""
       }
     }
   },

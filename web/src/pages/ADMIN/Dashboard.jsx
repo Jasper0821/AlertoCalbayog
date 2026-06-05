@@ -1,5 +1,5 @@
 import { useEffect, useState } from"react";
-import { Link } from"react-router-dom";
+import { Link, useNavigate } from"react-router-dom";
 import api from"../../api/axios.js";
 
 /* ── Status helpers ──────────────────────────────────────── */
@@ -68,6 +68,7 @@ const MOCK_REPORTS = [
 ];
 
 function AdminDashboard() {
+ const navigate = useNavigate();
  const [reports, setReports] = useState([]);
  const [isOffline, setIsOffline] = useState(false);
  const [activeNav, setActiveNav] = useState("emergency-reports");
@@ -157,10 +158,10 @@ function AdminDashboard() {
  <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
  <span>Profile</span>
  </button>
- <Link to="/" className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium text-slate-400 hover:bg-red-500/20 hover:text-red-400 transition-all">
+ <button onClick={() => { localStorage.removeItem("token"); localStorage.removeItem("user"); navigate("/login"); }} className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium text-slate-400 hover:bg-red-500/20 hover:text-red-400 transition-all">
  <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
  <span>Logout</span>
- </Link>
+ </button>
  </div>
  </aside>
 

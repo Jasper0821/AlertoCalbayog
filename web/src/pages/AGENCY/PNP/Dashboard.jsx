@@ -739,7 +739,7 @@ function AdminDashboard() {
                   },
                   {
                     label: "Location",
-                    value: `${activeAlert.location?.barangay || activeAlert.barangay || "Unknown Barangay"}, ${activeAlert.location?.street || activeAlert.street || "N/A"}`,
+                    value: activeAlert.location?.name || `${activeAlert.location?.barangay || activeAlert.barangay || "Unknown Barangay"}, ${activeAlert.location?.street || activeAlert.street || "N/A"}`.replace(/^,\s*/, ""),
                   },
                 ].map(({ label, value, bold, mono }) => (
                   <div
