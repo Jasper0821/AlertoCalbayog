@@ -3,7 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-d
 import LandingPage from "./pages/LandingPage.jsx";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
-import CdrrmoBfpDashboard from "./pages/AGENCY/CDRRMO/Dashboard.jsx";
+import CdrrmoDashboard from "./pages/AGENCY/CDRRMO/Dashboard.jsx";
 import PnpDashboard from "./pages/AGENCY/PNP/Dashboard.jsx";
 import AdminDashboard from "./pages/ADMIN/Dashboard.jsx";
 import Reports from "./pages/Reports";
@@ -26,7 +26,7 @@ function PrivateRoute({ children, allowedRoles, allowedAgency }) {
   const token = localStorage.getItem("token");
   const userJson = localStorage.getItem("user");
   let user = null;
-  
+
   try {
     user = userJson ? JSON.parse(userJson) : null;
   } catch (e) {
@@ -96,11 +96,12 @@ function App() {
         <Route
           path="/dashboard"
           element={
-            <PrivateRoute>
-              <CdrrmoBfpDashboard />
+            <PrivateRoute allowedAgency="CDRRMO">
+              <CdrrmoDashboard />
             </PrivateRoute>
           }
         />
+        
         <Route
           path="/crimedashboard"
           element={
@@ -111,10 +112,17 @@ function App() {
         />
 
         {/* Super-Admin Dashboard */}
-        <Route path="/admindashboard" element={<AdminDashboard />} />
+        <Route 
+          path="/admindashboard" 
+          element={
+            <PrivateRoute allowedRoles={["admin"]}>
+              <AdminDashboard />
+            </PrivateRoute>
+          } 
+        />
 
-        <Route path="*" element={<LandingPage />} />
-      </Routes>
+          <Route path="*" element={<LandingPage />} />
+        </Routes>
     </Router>
   );
 }
