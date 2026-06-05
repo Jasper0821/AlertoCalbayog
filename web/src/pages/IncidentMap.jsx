@@ -80,6 +80,7 @@ function IncidentMap() {
  <Popup autoPan closeButton={true}>
  <div className="grid min-w-[200px] gap-2 text-slate-900">
  <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">{pin.emergencyType}</p>
+ <p className="text-[11px] font-semibold text-slate-600">📍 {typeof pin.location === 'string' ? pin.location : (pin.location?.name || `Coordinates: ${pin.location?.latitude?.toFixed(4)}, ${pin.location?.longitude?.toFixed(4)}`)}</p>
  <p className="text-sm font-semibold text-slate-900">{pin.description ||"No description"}</p>
  <div className="flex flex-wrap gap-2 pt-1">
  <span className={`${pillBase} ${pin.status ==="pending" || pin.status ==="responding" ? statusChip.danger : statusChip.success}`}>

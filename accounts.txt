@@ -1,0 +1,14 @@
+accounts
+
+mobile;
+resident@alerto.com
+Testtest123
+
+
+cdrrmo
+cdrrmo@gmail.com
+Testtest123
+
+admin
+admin@alertocalbayog.com
+admin123

@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import api from "../api/axios.js";
 import { Navbar } from "../components/Navbar";
 import { Footer } from "../components/Footer";
@@ -12,6 +12,12 @@ function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+
+  // Clear any existing session so users can always switch accounts
+  useEffect(() => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+  }, []);
 
   // Route user to correct dashboard based on their role
   const getAgencyRoute = (user) => {
