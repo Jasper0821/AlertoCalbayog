@@ -5,7 +5,7 @@ export default function IncidentHistory({ reports = [] }) {
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
 
-  const resolved = reports.filter(r => ["resolved", "closed", "cancelled"].includes((r.status || "").toLowerCase()));
+  const resolved = reports.filter(r => ["resolved", "closed", "cancelled", "responded"].includes((r.status || "").toLowerCase()));
   
   const filtered = resolved.filter(r => {
     const type = (r.emergencyType || "").toLowerCase();
@@ -15,6 +15,169 @@ export default function IncidentHistory({ reports = [] }) {
     if (search && !loc.toLowerCase().includes(search) && !name.toLowerCase().includes(search)) return false;
     return true;
   });
+
+  const handleDownloadPDF = () => {
+    const printWindow = window.open("", "_blank");
+    
+    // Build incident rows
+    const rowsHtml = filtered.map((r, i) => {
+      const type = (r.emergencyType || "others").toUpperCase();
+      const status = (r.status || "pending").toUpperCase();
+      const incId = getIncidentId(r, i);
+      const loc = typeof r.location === "string" ? r.location : (r.location?.name || "Unknown");
+      const date = r.createdAt ? new Date(r.createdAt) : new Date();
+      const dateStr = `${date.toLocaleDateString()} ${date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+      const priority = getPriority(r).toUpperCase();
+      const reporter = r.userId?.fullName || "Unknown";
+      
+      return `
+        <tr>
+          <td>${incId}</td>
+          <td>${type}</td>
+          <td>${loc}</td>
+          <td>${reporter}</td>
+          <td>${dateStr}</td>
+          <td>${priority}</td>
+          <td>${status}</td>
+        </tr>
+      `;
+    }).join("");
+
+    const htmlContent = `
+      <html>
+      <head>
+        <title>Alerto Calbayog - Incident History Report</title>
+        <style>
+          body {
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            color: #334155;
+            padding: 30px;
+            margin: 0;
+          }
+          .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 2px solid #0a1e3f;
+            padding-bottom: 15px;
+            margin-bottom: 30px;
+          }
+          .header-title h1 {
+            font-size: 24px;
+            font-weight: bold;
+            color: #0a1e3f;
+            margin: 0;
+          }
+          .header-title p {
+            font-size: 12px;
+            color: #64748b;
+            margin: 5px 0 0 0;
+          }
+          .logo {
+            height: 60px;
+          }
+          .report-info {
+            font-size: 11px;
+            color: #64748b;
+            text-align: right;
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 30px;
+          }
+          th {
+            background-color: #f1f5f9;
+            color: #475569;
+            font-size: 11px;
+            font-weight: bold;
+            text-transform: uppercase;
+            padding: 10px 12px;
+            border: 1px solid #cbd5e1;
+            text-align: left;
+          }
+          td {
+            padding: 10px 12px;
+            font-size: 11px;
+            border: 1px solid #cbd5e1;
+            color: #334155;
+          }
+          tr:nth-child(even) {
+            background-color: #f8fafc;
+          }
+          .summary {
+            font-size: 12px;
+            font-weight: bold;
+            color: #0a1e3f;
+            margin-bottom: 40px;
+          }
+          .footer {
+            margin-top: 50px;
+            border-top: 1px dashed #cbd5e1;
+            padding-top: 15px;
+            font-size: 10px;
+            color: #94a3b8;
+            text-align: center;
+          }
+          @media print {
+            body {
+              padding: 0;
+            }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div class="header-title">
+            <h1>ALERTO CALBAYOG</h1>
+            <p>Incident Command Center History Report</p>
+          </div>
+          <div class="report-info">
+            <p><strong>Generated:</strong> ${new Date().toLocaleString()}</p>
+            <p><strong>Total Incidents:</strong> ${filtered.length}</p>
+          </div>
+        </div>
+        
+        <table>
+          <thead>
+            <tr>
+              <th>Incident ID</th>
+              <th>Type</th>
+              <th>Location</th>
+              <th>Reporter</th>
+              <th>Date & Time</th>
+              <th>Priority</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml || '<tr><td colspan="7" style="text-align:center">No incident records found.</td></tr>'}
+          </tbody>
+        </table>
+
+        <div class="summary">
+          Report summary: Compiled ${filtered.length} resolved records.
+        </div>
+
+        <div class="footer">
+          Alerto Calbayog © ${new Date().getFullYear()} — Confidential Command Center Report. All rights reserved.
+        </div>
+
+        <script>
+          window.onload = function() {
+            window.print();
+            window.onafterprint = function() {
+              window.close();
+            };
+          }
+        </script>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+  };
 
   return (
     <div className="space-y-5">
@@ -47,9 +210,20 @@ export default function IncidentHistory({ reports = [] }) {
           <option value="flood">Flood</option>
           <option value="accident">Accident</option>
         </select>
-        <span className="ml-auto text-xs text-slate-400">
-          <span className="font-bold text-slate-700">{filtered.length}</span> records
-        </span>
+        <div className="flex items-center gap-3 ml-auto shrink-0">
+          <span className="text-xs text-slate-400">
+            <span className="font-bold text-slate-700">{filtered.length}</span> records
+          </span>
+          <button
+            onClick={handleDownloadPDF}
+            className="flex items-center gap-2 px-4 py-2 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition-all shadow-sm shadow-emerald-600/10 active:scale-[0.98] transform"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+            </svg>
+            Export PDF
+          </button>
+        </div>
       </div>
 
       {/* Table */}

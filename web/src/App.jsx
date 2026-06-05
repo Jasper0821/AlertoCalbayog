@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import LandingPage from "./pages/LandingPage.jsx";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
@@ -14,33 +14,105 @@ import ForgotPassword from "./pages/ForgotPassword";
 import IncidentMap from "./pages/IncidentMap";
 import VerifyOTP from "./pages/VerifyOTP";
 
+// Helper to determine the dashboard route based on user roles and agency
+const getAgencyRoute = (user) => {
+  if (user?.role === "admin") return "/admindashboard";
+  if (user?.agency === "PNP") return "/crimedashboard";
+  return "/dashboard";
+};
+
+// Route wrapper to allow only authenticated users
+function PrivateRoute({ children, allowedRoles, allowedAgency }) {
+  const token = localStorage.getItem("token");
+  const userJson = localStorage.getItem("user");
+  let user = null;
+  
+  try {
+    user = userJson ? JSON.parse(userJson) : null;
+  } catch (e) {
+    user = null;
+  }
+
+  if (!token || !user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  // Admins bypass normal routing limits
+  if (user.role === "admin") {
+    return children;
+  }
+
+  // Role authorization checks
+  if (allowedRoles && !allowedRoles.includes(user.role)) {
+    return <Navigate to={getAgencyRoute(user)} replace />;
+  }
+
+  // Agency authorization checks
+  if (allowedAgency && user.agency !== allowedAgency) {
+    return <Navigate to={getAgencyRoute(user)} replace />;
+  }
+
+  return children;
+}
+
+// Route wrapper for guests (unauthenticated users only)
+function PublicRoute({ children }) {
+  const token = localStorage.getItem("token");
+  const userJson = localStorage.getItem("user");
+  let user = null;
+
+  try {
+    user = userJson ? JSON.parse(userJson) : null;
+  } catch (e) {
+    user = null;
+  }
+
+  if (token && user) {
+    return <Navigate to={getAgencyRoute(user)} replace />;
+  }
+
+  return children;
+}
+
 function App() {
   return (
     <Router>
       <Routes>
+        {/* Public Pages */}
         <Route path="/" element={<LandingPage />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
-        <Route path="/forgot-password" element={<ForgotPassword />} />
-
-        {/* Agency Dashboards */}
-        <Route path="/dashboard" element={<CdrrmoBfpDashboard />} />
-        <Route path="/crimedashboard" element={<PnpDashboard />} />
-
-        {/* Legacy routes */}
-        <Route path="/firedashboard" element={<CdrrmoBfpDashboard />} />
-        <Route path="/flooddashboard" element={<CdrrmoBfpDashboard />} />
-        <Route path="/emergencydashboard" element={<CdrrmoBfpDashboard />} />
-
-        {/* Admin Dashboard - sees ALL reports */}
-        <Route path="/admindashboard" element={<AdminDashboard />} />
-
         <Route path="/reports" element={<Reports />} />
         <Route path="/services" element={<Services />} />
         <Route path="/about" element={<About />} />
         <Route path="/contact" element={<Contact />} />
         <Route path="/map" element={<IncidentMap />} />
-        <Route path="/verify-otp" element={<VerifyOTP />} />
+
+        {/* Guest-only auth pages */}
+        <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
+        <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
+        <Route path="/forgot-password" element={<PublicRoute><ForgotPassword /></PublicRoute>} />
+        <Route path="/verify-otp" element={<PublicRoute><VerifyOTP /></PublicRoute>} />
+
+        {/* Secured Agency Dashboards */}
+        <Route
+          path="/dashboard"
+          element={
+            <PrivateRoute>
+              <CdrrmoBfpDashboard />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/crimedashboard"
+          element={
+            <PrivateRoute allowedAgency="PNP">
+              <PnpDashboard />
+            </PrivateRoute>
+          }
+        />
+
+        {/* Super-Admin Dashboard */}
+        <Route path="/admindashboard" element={<AdminDashboard />} />
+
         <Route path="*" element={<LandingPage />} />
       </Routes>
     </Router>

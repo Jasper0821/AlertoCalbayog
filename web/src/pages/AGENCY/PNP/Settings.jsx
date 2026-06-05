@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 const TABS = [
   {
@@ -11,15 +11,6 @@ const TABS = [
     ),
   },
   {
-    id: "account",
-    label: "Account",
-    icon: (
-      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
-      </svg>
-    ),
-  },
-  {
     id: "security",
     label: "Security",
     icon: (
@@ -28,34 +19,299 @@ const TABS = [
       </svg>
     ),
   },
-  {
-    id: "preferences",
-    label: "Preferences",
-    icon: (
-      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.43l-1.003.828c-.293.241-.438.613-.43.992a7.723 7.723 0 010 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.43l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 010-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28z" />
-        <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-      </svg>
-    ),
-  },
-  {
-    id: "agency",
-    label: "Agency Config",
-    icon: (
-      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M12 21v-8.25M15.75 21v-8.25M8.25 21v-8.25M3 9l9-6 9 6m-1.5 12V10.33l-7.5-5-7.5 5V21M3 21h18M12 9h.008v.008H12V9z" />
-      </svg>
-    ),
-  },
 ];
 
-export default function Settings({ user = {}, agency = "PNP" }) {
+export default function Settings({ user = {}, onUserUpdate }) {
   const [activeTab, setActiveTab] = useState("profile");
-  const [saved, setSaved] = useState(false);
+  const [modalConfig, setModalConfig] = useState(null);
+  const closeModal = () => setModalConfig(null);
+
+  // Profile States
+  const [fullName, setFullName] = useState("");
+  const [employeeId, setEmployeeId] = useState("");
+  const [email, setEmail] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [rank, setRank] = useState("");
+  const [department, setDepartment] = useState("");
+  const [bio, setBio] = useState("");
+  const [avatar, setAvatar] = useState("");
+
+  // Account States
+  const [username, setUsername] = useState("");
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmNewPassword, setConfirmNewPassword] = useState("");
+
+  // Security States
+  const [twoFactor, setTwoFactor] = useState(false);
+  const [loginAlerts, setLoginAlerts] = useState(true);
+  const [sessionTimeout, setSessionTimeout] = useState(true);
+  const [ipRestriction, setIpRestriction] = useState(false);
+  const [sessions, setSessions] = useState([]);
+
+  // Preferences States
+  const [language, setLanguage] = useState("English (US)");
+  const [timezone, setTimezone] = useState("Asia/Manila (UTC+8)");
+  const [dateFormat, setDateFormat] = useState("MM/DD/YYYY");
+  const [timeFormat, setTimeFormat] = useState("12-Hour (AM/PM)");
+  const [soundAlerts, setSoundAlerts] = useState(true);
+  const [loopAlarm, setLoopAlarm] = useState(true);
+  const [desktopPush, setDesktopPush] = useState(true);
+  const [emailDigest, setEmailDigest] = useState(false);
+  const [smsAlerts, setSmsAlerts] = useState(false);
+
+  // Agency Config States
+  const [agencyName, setAgencyName] = useState("");
+  const [agencyCode, setAgencyCode] = useState("");
+  const [stationUnit, setStationUnit] = useState("");
+  const [jurisdictionArea, setJurisdictionArea] = useState("");
+  const [emergencyHotline, setEmergencyHotline] = useState("");
+  const [dispatchFrequency, setDispatchFrequency] = useState("");
+  const [autoAssign, setAutoAssign] = useState(true);
+  const [requireSupervisorApproval, setRequireSupervisorApproval] = useState(false);
+  const [enableGpsTracking, setEnableGpsTracking] = useState(true);
+
+  // Load from props and localStorage on mount/change
+  useEffect(() => {
+    if (user) {
+      setFullName(user.fullName || "Officer J. Dela Cruz");
+      setEmployeeId(user.employeeId || "PNP-2024-001");
+      setEmail(user.email || "officer@calbayog.gov.ph");
+      setPhoneNumber(user.phoneNumber || "0917-123-4567");
+      setRank(user.rank || "Shift Commander");
+      setDepartment(user.department || user.agency || "PNP");
+      setBio(user.bio || "");
+      setAvatar(user.avatar || "");
+      setUsername(user.username || user.email || "officer.delacruz@pnp.gov.ph");
+
+      setTwoFactor(user.twoFactor || false);
+      setLoginAlerts(user.loginAlerts !== false);
+      setSessionTimeout(user.sessionTimeout !== false);
+      setIpRestriction(user.ipRestriction || false);
+
+      setLanguage(user.language || "English (US)");
+      setTimezone(user.timezone || "Asia/Manila (UTC+8)");
+      setDateFormat(user.dateFormat || "MM/DD/YYYY");
+      setTimeFormat(user.timeFormat || "12-Hour (AM/PM)");
+      setSoundAlerts(user.soundAlerts !== false);
+      setLoopAlarm(user.loopAlarm !== false);
+      setDesktopPush(user.desktopPush !== false);
+      setEmailDigest(user.emailDigest || false);
+      setSmsAlerts(user.smsAlerts || false);
+    }
+
+    try {
+      const sess = localStorage.getItem("activeSessions");
+      setSessions(sess ? JSON.parse(sess) : [
+        { id: 1, browser: "Chrome on Windows", loc: "Calbayog City, PH", time: "Now — Current session", active: true },
+        { id: 2, browser: "Firefox on Android", loc: "Samar, PH", time: "2 hours ago", active: false }
+      ]);
+    } catch {
+      setSessions([
+        { id: 1, browser: "Chrome on Windows", loc: "Calbayog City, PH", time: "Now — Current session", active: true },
+        { id: 2, browser: "Firefox on Android", loc: "Samar, PH", time: "2 hours ago", active: false }
+      ]);
+    }
+
+    try {
+      const cfg = JSON.parse(localStorage.getItem("agencyConfig") || "{}");
+      setAgencyName(cfg.agencyName || "Philippine National Police");
+      setAgencyCode(cfg.agencyCode || user.agency || "PNP");
+      setStationUnit(cfg.stationUnit || "Calbayog City Police Station");
+      setJurisdictionArea(cfg.jurisdictionArea || "Calbayog City, Samar");
+      setEmergencyHotline(cfg.emergencyHotline || "117 / (055) 209-1234");
+      setDispatchFrequency(cfg.dispatchFrequency || "10 seconds");
+      setAutoAssign(cfg.autoAssign !== false);
+      setRequireSupervisorApproval(cfg.requireSupervisorApproval || false);
+      setEnableGpsTracking(cfg.enableGpsTracking !== false);
+    } catch {
+      setAgencyName("Philippine National Police");
+      setAgencyCode(user.agency || "PNP");
+      setStationUnit("Calbayog City Police Station");
+      setJurisdictionArea("Calbayog City, Samar");
+      setEmergencyHotline("117 / (055) 209-1234");
+      setDispatchFrequency("10 seconds");
+      setAutoAssign(true);
+      setRequireSupervisorApproval(false);
+      setEnableGpsTracking(true);
+    }
+  }, []);
+
+  const handleAvatarChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) {
+        setModalConfig({ type: "error", title: "File Too Large", message: "Please select an image smaller than 2MB." });
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setAvatar(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const handleSave = () => {
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
+    if (newPassword && newPassword !== confirmNewPassword) {
+      setModalConfig({ type: "error", title: "Password Mismatch", message: "The new password and password confirmation do not match." });
+      return;
+    }
+
+    const updatedUser = {
+      ...user,
+      fullName,
+      employeeId,
+      email,
+      phoneNumber,
+      rank,
+      department,
+      bio,
+      username,
+      avatar,
+      twoFactor,
+      loginAlerts,
+      sessionTimeout,
+      ipRestriction,
+      language,
+      timezone,
+      dateFormat,
+      timeFormat,
+      soundAlerts,
+      loopAlarm,
+      desktopPush,
+      emailDigest,
+      smsAlerts,
+      agency: department // keep synchronized
+    };
+
+    const updatedAgencyConfig = {
+      agencyName,
+      agencyCode,
+      stationUnit,
+      jurisdictionArea,
+      emergencyHotline,
+      dispatchFrequency,
+      autoAssign,
+      requireSupervisorApproval,
+      enableGpsTracking
+    };
+
+    // Save to localStorage
+    localStorage.setItem("user", JSON.stringify(updatedUser));
+    localStorage.setItem("agencyConfig", JSON.stringify(updatedAgencyConfig));
+
+    // Propagate updates to parent component
+    if (onUserUpdate) {
+      onUserUpdate(updatedUser);
+    }
+
+    setModalConfig({ type: "success", title: "Settings Saved!", message: "All your configurations and preferences have been successfully updated." });
+  };
+
+  const handleTestAlert = () => {
+    const event = new CustomEvent("simulate-crime-alert", {
+      detail: {
+        _id: "sim-" + Date.now(),
+        incidentId: "INC-2026-999",
+        emergencyType: "crime",
+        userId: { fullName: "Test Reporter (Simulation)", phoneNumber: "0917-000-0000" },
+        location: { name: "Brgy. Obrero, Calbayog City", barangay: "Obrero", street: "San Roque St." },
+        description: "This is a simulated test incident to verify the incoming emergency pop-up screen and audio chime alerts.",
+        createdAt: new Date().toISOString()
+      }
+    });
+    window.dispatchEvent(event);
+  };
+
+  const executeDiscard = () => {
+    setFullName(user.fullName || "Officer J. Dela Cruz");
+    setEmployeeId(user.employeeId || "PNP-2024-001");
+    setEmail(user.email || "officer@calbayog.gov.ph");
+    setPhoneNumber(user.phoneNumber || "0917-123-4567");
+    setRank(user.rank || "Shift Commander");
+    setDepartment(user.department || user.agency || "PNP");
+    setBio(user.bio || "");
+    setAvatar(user.avatar || "");
+    setUsername(user.username || user.email || "officer.delacruz@pnp.gov.ph");
+    setCurrentPassword("");
+    setNewPassword("");
+    setConfirmNewPassword("");
+
+    setTwoFactor(user.twoFactor || false);
+    setLoginAlerts(user.loginAlerts !== false);
+    setSessionTimeout(user.sessionTimeout !== false);
+    setIpRestriction(user.ipRestriction || false);
+
+    setLanguage(user.language || "English (US)");
+    setTimezone(user.timezone || "Asia/Manila (UTC+8)");
+    setDateFormat(user.dateFormat || "MM/DD/YYYY");
+    setTimeFormat(user.timeFormat || "12-Hour (AM/PM)");
+    setSoundAlerts(user.soundAlerts !== false);
+    setLoopAlarm(user.loopAlarm !== false);
+    setDesktopPush(user.desktopPush !== false);
+    setEmailDigest(user.emailDigest || false);
+    setSmsAlerts(user.smsAlerts || false);
+
+    try {
+      const cfg = JSON.parse(localStorage.getItem("agencyConfig") || "{}");
+      setAgencyName(cfg.agencyName || "Philippine National Police");
+      setAgencyCode(cfg.agencyCode || user.agency || "PNP");
+      setStationUnit(cfg.stationUnit || "Calbayog City Police Station");
+      setJurisdictionArea(cfg.jurisdictionArea || "Calbayog City, Samar");
+      setEmergencyHotline(cfg.emergencyHotline || "117 / (055) 209-1234");
+      setDispatchFrequency(cfg.dispatchFrequency || "10 seconds");
+      setAutoAssign(cfg.autoAssign !== false);
+      setRequireSupervisorApproval(cfg.requireSupervisorApproval || false);
+      setEnableGpsTracking(cfg.enableGpsTracking !== false);
+    } catch {
+      // ignore
+    }
+    setModalConfig({ type: "success", title: "Reverted", message: "All values have been restored to your previous save." });
+  };
+
+  const handleDiscard = () => {
+    setModalConfig({
+      type: "confirm",
+      title: "Discard Changes?",
+      message: "Are you sure you want to revert all unsaved adjustments?",
+      confirmText: "Yes, revert",
+      onConfirm: () => {
+        closeModal();
+        executeDiscard();
+      }
+    });
+  };
+
+  const handleDeactivate = () => {
+    setModalConfig({
+      type: "confirm_danger",
+      title: "Deactivate Account?",
+      message: "Warning: This will lock your active shift and log you out. Re-activation requires administrator clearance.",
+      confirmText: "Yes, deactivate",
+      onConfirm: () => {
+        setModalConfig({ type: "loading", title: "Deactivating...", message: "Please wait while we deactivate your account..." });
+        setTimeout(() => {
+          localStorage.removeItem("user");
+          window.location.reload();
+        }, 1500);
+      }
+    });
+  };
+
+  const handleRevokeSession = (id) => {
+    setModalConfig({
+      type: "confirm_danger",
+      title: "Revoke Session?",
+      message: "This device will be immediately logged out of Alerto Calbayog.",
+      confirmText: "Revoke",
+      onConfirm: () => {
+        const updated = sessions.filter(s => s.id !== id);
+        setSessions(updated);
+        localStorage.setItem("activeSessions", JSON.stringify(updated));
+        setModalConfig({ type: "success", title: "Session Terminated", message: "The device session was successfully revoked." });
+      }
+    });
   };
 
   return (
@@ -66,22 +322,22 @@ export default function Settings({ user = {}, agency = "PNP" }) {
         <p className="text-sm text-slate-500 mt-0.5">Manage your profile, account, and system preferences.</p>
       </div>
 
-      <div className="flex gap-6">
+      <div className="flex flex-col md:flex-row gap-6">
         {/* Sidebar Tabs */}
-        <div className="w-52 shrink-0">
-          <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+        <div className="w-full md:w-52 shrink-0">
+          <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex md:flex-col">
             {TABS.map(tab => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-medium transition-all text-left border-b border-slate-100 last:border-0 ${
+                className={`flex-1 md:flex-none w-full flex items-center justify-center md:justify-start gap-3 px-4 py-3.5 text-xs md:text-sm font-medium transition-all text-left border-r md:border-r-0 md:border-b border-slate-100 last:border-0 ${
                   activeTab === tab.id
                     ? "bg-blue-50/70 text-[#0a1e3f]"
                     : "text-slate-600 hover:bg-slate-50 hover:text-slate-800"
                 }`}
               >
-                <span className="shrink-0 text-slate-400 group-hover:text-[#0a1e3f]">{tab.icon}</span>
-                {tab.label}
+                <span className={`shrink-0 ${activeTab === tab.id ? "text-[#0a1e3f]" : "text-slate-400"}`}>{tab.icon}</span>
+                <span className="hidden md:inline">{tab.label}</span>
               </button>
             ))}
           </div>
@@ -101,15 +357,25 @@ export default function Settings({ user = {}, agency = "PNP" }) {
                 <div className="p-6 space-y-6">
                   {/* Avatar */}
                   <div className="flex items-center gap-5">
-                    <div className="w-20 h-20 rounded-full overflow-hidden ring-4 ring-slate-100">
+                    <div className="w-20 h-20 rounded-full overflow-hidden ring-4 ring-slate-100 shrink-0">
                       <img
-                        src={`https://ui-avatars.com/api/?name=${encodeURIComponent(user.fullName || "Officer")}&background=0a1e3f&color=fff&bold=true&size=128`}
+                        src={avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(fullName || "Officer")}&background=0a1e3f&color=fff&bold=true&size=128`}
                         alt="Avatar"
                         className="w-full h-full object-cover"
                       />
                     </div>
                     <div>
-                      <button className="px-4 py-2 text-xs font-semibold bg-[#0a1e3f] hover:bg-[#07152c] text-white rounded-lg transition-colors shadow-sm">
+                      <input
+                        type="file"
+                        id="avatar-upload"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleAvatarChange}
+                      />
+                      <button
+                        onClick={() => document.getElementById("avatar-upload").click()}
+                        className="px-4 py-2 text-xs font-semibold bg-[#0a1e3f] hover:bg-[#07152c] text-white rounded-lg transition-colors shadow-sm"
+                      >
                         Change Photo
                       </button>
                       <p className="text-[11px] text-slate-400 mt-1.5">JPG, PNG or GIF. Max 2MB.</p>
@@ -118,67 +384,71 @@ export default function Settings({ user = {}, agency = "PNP" }) {
 
                   {/* Form Fields */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {[
-                      { label: "Full Name", defaultVal: user.fullName || "Officer J. Dela Cruz" },
-                      { label: "Employee ID", defaultVal: "PNP-2024-001" },
-                      { label: "Email Address", defaultVal: user.email || "officer@calbayog.gov.ph" },
-                      { label: "Phone Number", defaultVal: user.phoneNumber || "09XX-XXX-XXXX" },
-                      { label: "Rank / Designation", defaultVal: "Shift Commander" },
-                      { label: "Department", defaultVal: agency },
-                    ].map(f => (
-                      <div key={f.label}>
-                        <label className="block text-xs font-semibold text-slate-600 mb-1.5">{f.label}</label>
-                        <input
-                          type="text"
-                          defaultValue={f.defaultVal}
-                          className="w-full px-3 py-2.5 text-sm text-slate-800 border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:border-[#0a1e3f] focus:ring-2 focus:ring-blue-100 outline-none transition-all"
-                        />
-                      </div>
-                    ))}
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1.5">Full Name</label>
+                      <input
+                        type="text"
+                        value={fullName}
+                        onChange={e => setFullName(e.target.value)}
+                        className="w-full px-3 py-2.5 text-sm text-slate-800 border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:border-[#0a1e3f] focus:ring-2 focus:ring-blue-100 outline-none transition-all"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1.5">Employee ID</label>
+                      <input
+                        type="text"
+                        value={employeeId}
+                        onChange={e => setEmployeeId(e.target.value)}
+                        className="w-full px-3 py-2.5 text-sm text-slate-800 border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:border-[#0a1e3f] focus:ring-2 focus:ring-blue-100 outline-none transition-all"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1.5">Email Address</label>
+                      <input
+                        type="email"
+                        value={email}
+                        onChange={e => setEmail(e.target.value)}
+                        className="w-full px-3 py-2.5 text-sm text-slate-800 border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:border-[#0a1e3f] focus:ring-2 focus:ring-blue-100 outline-none transition-all"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1.5">Phone Number</label>
+                      <input
+                        type="text"
+                        value={phoneNumber}
+                        onChange={e => setPhoneNumber(e.target.value)}
+                        className="w-full px-3 py-2.5 text-sm text-slate-800 border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:border-[#0a1e3f] focus:ring-2 focus:ring-blue-100 outline-none transition-all"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1.5">Rank / Designation</label>
+                      <input
+                        type="text"
+                        value={rank}
+                        onChange={e => setRank(e.target.value)}
+                        className="w-full px-3 py-2.5 text-sm text-slate-800 border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:border-[#0a1e3f] focus:ring-2 focus:ring-blue-100 outline-none transition-all"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1.5">Department</label>
+                      <input
+                        type="text"
+                        value={department}
+                        onChange={e => setDepartment(e.target.value)}
+                        className="w-full px-3 py-2.5 text-sm text-slate-800 border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:border-[#0a1e3f] focus:ring-2 focus:ring-blue-100 outline-none transition-all"
+                      />
+                    </div>
                   </div>
 
                   <div>
                     <label className="block text-xs font-semibold text-slate-600 mb-1.5">Bio / Notes</label>
                     <textarea
                       rows={3}
-                      placeholder="Optional notes about your role or shift..."
+                      value={bio}
+                      onChange={e => setBio(e.target.value)}
+                      placeholder="Add any notes about your current post or shift parameters..."
                       className="w-full px-3 py-2.5 text-sm text-slate-800 border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:border-[#0a1e3f] focus:ring-2 focus:ring-blue-100 outline-none transition-all resize-none"
                     />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* ── ACCOUNT ── */}
-            {activeTab === "account" && (
-              <div>
-                <div className="px-6 py-5 border-b border-slate-100">
-                  <h2 className="text-base font-bold text-slate-800">Account Settings</h2>
-                  <p className="text-xs text-slate-500 mt-0.5">Manage your login credentials and account preferences.</p>
-                </div>
-                <div className="p-6 space-y-5">
-                  {[
-                    { label: "Username / Login ID", val: user.email || "officer.delacruz@pnp.gov.ph" },
-                    { label: "Current Password", val: "••••••••••••", type: "password" },
-                    { label: "New Password", val: "", type: "password", placeholder: "Enter new password..." },
-                    { label: "Confirm New Password", val: "", type: "password", placeholder: "Confirm new password..." },
-                  ].map(f => (
-                    <div key={f.label}>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1.5">{f.label}</label>
-                      <input
-                        type={f.type || "text"}
-                        defaultValue={f.val}
-                        placeholder={f.placeholder}
-                        className="w-full px-3 py-2.5 text-sm text-slate-800 border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:border-[#0a1e3f] focus:ring-2 focus:ring-blue-100 outline-none transition-all"
-                      />
-                    </div>
-                  ))}
-
-                  <div className="pt-2 border-t border-slate-100">
-                    <p className="text-xs font-bold text-slate-700 mb-3">Danger Zone</p>
-                    <button className="px-4 py-2 text-xs font-semibold border border-red-200 text-red-600 rounded-lg hover:bg-red-50 transition-colors">
-                      Deactivate Account
-                    </button>
                   </div>
                 </div>
               </div>
@@ -189,134 +459,89 @@ export default function Settings({ user = {}, agency = "PNP" }) {
               <div>
                 <div className="px-6 py-5 border-b border-slate-100">
                   <h2 className="text-base font-bold text-slate-800">Security Settings</h2>
-                  <p className="text-xs text-slate-500 mt-0.5">Configure two-factor authentication and session management.</p>
+                  <p className="text-xs text-slate-500 mt-0.5">Manage your password credentials and run alarm test simulations.</p>
                 </div>
-                <div className="p-6 space-y-5">
-                  {[
-                    { title: "Two-Factor Authentication", desc: "Require a verification code on every login.", enabled: false },
-                    { title: "Login Alerts", desc: "Send email alerts for new logins.", enabled: true },
-                    { title: "Session Timeout", desc: "Auto-logout after 30 minutes of inactivity.", enabled: true },
-                    { title: "IP Restriction", desc: "Only allow access from approved IP addresses.", enabled: false },
-                  ].map(s => (
-                    <div key={s.title} className="flex items-start justify-between gap-4 p-4 bg-slate-50 rounded-xl border border-slate-100">
-                      <div>
-                        <p className="text-sm font-semibold text-slate-800">{s.title}</p>
-                        <p className="text-xs text-slate-500 mt-0.5">{s.desc}</p>
-                      </div>
-                      <button className={`relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors duration-200 ease-in-out focus:outline-none ${s.enabled ? "bg-[#0a1e3f]" : "bg-slate-200"}`}>
-                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition duration-200 ease-in-out mt-0.5 ${s.enabled ? "translate-x-4" : "translate-x-0.5"}`} />
+                <div className="p-6 space-y-6">
+                  {/* Change Password Fields */}
+                  <div className="space-y-4">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Change Password</h3>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1.5">Current Password</label>
+                      <input
+                        type="password"
+                        value={currentPassword}
+                        onChange={e => setCurrentPassword(e.target.value)}
+                        placeholder="••••••••••••"
+                        className="w-full px-3 py-2.5 text-sm text-slate-800 border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:border-[#0a1e3f] focus:ring-2 focus:ring-blue-100 outline-none transition-all"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1.5">New Password</label>
+                      <input
+                        type="password"
+                        value={newPassword}
+                        onChange={e => setNewPassword(e.target.value)}
+                        placeholder="Enter new password..."
+                        className="w-full px-3 py-2.5 text-sm text-slate-800 border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:border-[#0a1e3f] focus:ring-2 focus:ring-blue-100 outline-none transition-all"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1.5">Confirm New Password</label>
+                      <input
+                        type="password"
+                        value={confirmNewPassword}
+                        onChange={e => setConfirmNewPassword(e.target.value)}
+                        placeholder="Confirm new password..."
+                        className="w-full px-3 py-2.5 text-sm text-slate-800 border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:border-[#0a1e3f] focus:ring-2 focus:ring-blue-100 outline-none transition-all"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Alarm / Notification Preferences */}
+                  <div className="pt-6 border-t border-slate-100 space-y-4">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Notification Alerts</h3>
+                    <div className="space-y-3.5">
+                      <label className="flex items-start gap-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={soundAlerts}
+                          onChange={e => setSoundAlerts(e.target.checked)}
+                          className="mt-0.5 w-4.5 h-4.5 rounded border-slate-300 text-[#0a1e3f] focus:ring-[#0a1e3f]"
+                        />
+                        <div>
+                          <p className="text-xs font-semibold text-slate-700">Enable Incident Alarm Sound</p>
+                          <p className="text-[11px] text-slate-400">Play an alert chime or siren when a new emergency is reported.</p>
+                        </div>
+                      </label>
+
+                      <label className="flex items-start gap-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={loopAlarm}
+                          onChange={e => setLoopAlarm(e.target.checked)}
+                          className="mt-0.5 w-4.5 h-4.5 rounded border-slate-300 text-[#0a1e3f] focus:ring-[#0a1e3f]"
+                        />
+                        <div>
+                          <p className="text-xs font-semibold text-slate-700">Continuous Emergency Siren (Looping)</p>
+                          <p className="text-[11px] text-slate-400">Keep sounding the emergency siren continuously until manually clicked or dismissed.</p>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Simulation testing section */}
+                  <div className="pt-6 border-t border-slate-100 space-y-4">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Simulation Testing</h3>
+                    <div className="bg-slate-50 rounded-xl border border-slate-100 p-4 pt-3.5">
+                      <p className="text-sm font-semibold text-slate-800 mb-1">Simulate New Incident Alert & Sound</p>
+                      <p className="text-xs text-slate-500 mb-3.5">Trigger a simulated incoming incident dispatcher popup to verify system alarms, live notifications, and sound functionalities.</p>
+                      <button
+                        onClick={handleTestAlert}
+                        className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-dashed border-[#0a1e3f] text-[#0a1e3f] hover:bg-blue-50 text-xs font-bold transition-all"
+                      >
+                        Simulate Incoming Crime Alert Popup & Sound
                       </button>
                     </div>
-                  ))}
-
-                  <div className="bg-slate-50 rounded-xl border border-slate-100 p-4">
-                    <p className="text-sm font-semibold text-slate-800 mb-3">Active Sessions</p>
-                    {[
-                      { browser: "Chrome on Windows", loc: "Calbayog City, PH", time: "Now — Current session", active: true },
-                      { browser: "Firefox on Android", loc: "Samar, PH", time: "2 hours ago", active: false },
-                    ].map(sess => (
-                      <div key={sess.browser} className="flex items-center justify-between py-2.5 border-b border-slate-200 last:border-0">
-                        <div>
-                          <p className="text-xs font-semibold text-slate-700">{sess.browser}</p>
-                          <p className="text-[10px] text-slate-400 mt-0.5">{sess.loc} · {sess.time}</p>
-                        </div>
-                        {!sess.active && (
-                          <button className="text-[10px] font-bold text-red-500 hover:text-red-600 border border-red-200 rounded-lg px-2 py-1 hover:bg-red-50 transition-colors">
-                            Revoke
-                          </button>
-                        )}
-                        {sess.active && (
-                          <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-lg px-2 py-1">Active</span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* ── PREFERENCES ── */}
-            {activeTab === "preferences" && (
-              <div>
-                <div className="px-6 py-5 border-b border-slate-100">
-                  <h2 className="text-base font-bold text-slate-800">System Preferences</h2>
-                  <p className="text-xs text-slate-500 mt-0.5">Adjust display, notification, and operational preferences.</p>
-                </div>
-                <div className="p-6 space-y-5">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {[
-                      { label: "Language", opts: ["English (US)", "Filipino"] },
-                      { label: "Timezone", opts: ["Asia/Manila (UTC+8)", "UTC"] },
-                      { label: "Date Format", opts: ["MM/DD/YYYY", "DD/MM/YYYY", "YYYY-MM-DD"] },
-                      { label: "Time Format", opts: ["12-Hour (AM/PM)", "24-Hour"] },
-                    ].map(f => (
-                      <div key={f.label}>
-                        <label className="block text-xs font-semibold text-slate-600 mb-1.5">{f.label}</label>
-                        <select className="w-full px-3 py-2.5 text-sm text-slate-800 border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:border-[#0a1e3f] focus:ring-2 focus:ring-blue-100 outline-none transition-all">
-                          {f.opts.map(o => <option key={o}>{o}</option>)}
-                        </select>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="space-y-3 pt-2">
-                    <p className="text-xs font-bold text-slate-700">Notification Preferences</p>
-                    {[
-                      { label: "Sound alerts on new incident", on: true },
-                      { label: "Desktop push notifications", on: true },
-                      { label: "Email digest (daily)", on: false },
-                      { label: "SMS alerts for critical incidents", on: false },
-                    ].map(p => (
-                      <label key={p.label} className="flex items-center justify-between p-3.5 rounded-xl bg-slate-50 border border-slate-100 cursor-pointer hover:bg-slate-100 transition-colors">
-                        <span className="text-sm text-slate-700">{p.label}</span>
-                        <input type="checkbox" defaultChecked={p.on} className="w-4 h-4 rounded text-[#0a1e3f] border-slate-300 focus:ring-blue-400" />
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* ── AGENCY CONFIG ── */}
-            {activeTab === "agency" && (
-              <div>
-                <div className="px-6 py-5 border-b border-slate-100">
-                  <h2 className="text-base font-bold text-slate-800">Agency Configuration</h2>
-                  <p className="text-xs text-slate-500 mt-0.5">Configure agency-level settings and operational parameters.</p>
-                </div>
-                <div className="p-6 space-y-5">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {[
-                      { label: "Agency Name", val: "Philippine National Police" },
-                      { label: "Agency Code", val: agency },
-                      { label: "Station / Unit", val: "Calbayog City Police Station" },
-                      { label: "Jurisdiction Area", val: "Calbayog City, Samar" },
-                      { label: "Emergency Hotline", val: "117 / (055) 209-1234" },
-                      { label: "Dispatch Frequency", val: "10 seconds" },
-                    ].map(f => (
-                      <div key={f.label}>
-                        <label className="block text-xs font-semibold text-slate-600 mb-1.5">{f.label}</label>
-                        <input
-                          type="text"
-                          defaultValue={f.val}
-                          className="w-full px-3 py-2.5 text-sm text-slate-800 border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:border-[#0a1e3f] focus:ring-2 focus:ring-blue-100 outline-none transition-all"
-                        />
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="space-y-3 pt-2">
-                    <p className="text-xs font-bold text-slate-700">Operational Toggles</p>
-                    {[
-                      { label: "Auto-assign nearest unit to new incident", on: true },
-                      { label: "Require supervisor approval for closing incidents", on: false },
-                      { label: "Enable real-time GPS tracking of units", on: true },
-                    ].map(p => (
-                      <label key={p.label} className="flex items-center justify-between p-3.5 rounded-xl bg-slate-50 border border-slate-100 cursor-pointer hover:bg-slate-100 transition-colors">
-                        <span className="text-sm text-slate-700">{p.label}</span>
-                        <input type="checkbox" defaultChecked={p.on} className="w-4 h-4 rounded text-[#0a1e3f] border-slate-300 focus:ring-blue-400" />
-                      </label>
-                    ))}
                   </div>
                 </div>
               </div>
@@ -324,32 +549,103 @@ export default function Settings({ user = {}, agency = "PNP" }) {
 
             {/* Save footer */}
             <div className="flex items-center justify-between px-6 py-4 bg-slate-50 border-t border-slate-100">
-              <button className="text-sm text-slate-500 hover:text-slate-700 font-medium transition-colors">
+              <button
+                onClick={handleDiscard}
+                className="text-sm text-slate-500 hover:text-slate-700 font-medium transition-colors"
+              >
                 Discard changes
               </button>
               <button
                 onClick={handleSave}
-                className={`flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-semibold transition-all shadow-sm ${
-                  saved
-                    ? "bg-emerald-600 text-white shadow-emerald-600/20"
-                    : "bg-[#0a1e3f] text-white hover:bg-[#07152c] shadow-[#0a1e3f]/20"
-                }`}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all bg-[#0a1e3f] text-white hover:bg-[#07152c] shadow-sm shadow-[#0a1e3f]/20 hover:scale-[1.01]"
               >
-                {saved ? (
-                  <>
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                    </svg>
-                    Saved!
-                  </>
-                ) : (
-                  "Save Changes"
-                )}
+                Save Changes
               </button>
             </div>
           </div>
         </div>
       </div>
+
+
+      {/* ══════════════ SETTINGS MODAL ══════════════ */}
+      {modalConfig && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-[#030d1e]/75 backdrop-blur-sm" onClick={() => modalConfig.type !== 'loading' && closeModal()} />
+          <div className="relative z-10 w-full max-w-[420px] rounded-2xl overflow-hidden shadow-[0_32px_80px_-8px_rgba(0,0,0,0.7)] border border-[#1a3a6b]/60 flex flex-col bg-white animate-zoom-in">
+            {/* Top strip */}
+            <div className={`h-1 w-full bg-gradient-to-r ${
+              modalConfig.type === 'error' || modalConfig.type === 'confirm_danger' ? 'from-red-700 to-orange-400' :
+              modalConfig.type === 'success' ? 'from-emerald-600 to-teal-400' : 'from-[#0a1e3f] to-blue-500'
+            }`} />
+            
+            <div className="bg-[#0a1e3f] px-6 py-4 flex items-center gap-4 shrink-0">
+              <div className="w-10 h-10 rounded-xl bg-white/10 border border-white/15 flex items-center justify-center shrink-0">
+                {modalConfig.type === 'success' ? (
+                  <svg className="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                ) : modalConfig.type === 'error' || modalConfig.type === 'confirm_danger' ? (
+                  <svg className="w-5 h-5 text-red-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                ) : modalConfig.type === 'loading' ? (
+                  <svg className="w-5 h-5 text-blue-400 animate-spin" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                ) : (
+                  <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" /></svg>
+                )}
+              </div>
+              <div>
+                <h3 className="text-white font-black text-sm tracking-wide uppercase">{modalConfig.title}</h3>
+                <p className="text-white/50 text-[10px] uppercase tracking-wider mt-0.5">Settings notification</p>
+              </div>
+            </div>
+
+            <div className="p-6 bg-[#f8fafc]">
+              <p className="text-slate-600 text-sm font-medium leading-relaxed">
+                {modalConfig.message}
+              </p>
+            </div>
+
+            {modalConfig.type !== 'loading' && (
+              <div className="bg-white border-t border-slate-100 px-6 py-4 flex items-center justify-end gap-3 shrink-0">
+                {(modalConfig.type === 'confirm' || modalConfig.type === 'confirm_danger') && (
+                  <button
+                    onClick={closeModal}
+                    className="px-4 py-2 text-[13px] font-semibold text-slate-500 hover:text-slate-700 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                )}
+                
+                {modalConfig.type === 'confirm_danger' ? (
+                  <button
+                    onClick={modalConfig.onConfirm}
+                    className="px-5 py-2 rounded-lg text-[13px] font-black text-white bg-red-600 hover:bg-red-700 active:scale-95 transition-all uppercase tracking-wide shadow-lg shadow-red-600/20"
+                  >
+                    {modalConfig.confirmText}
+                  </button>
+                ) : modalConfig.type === 'confirm' ? (
+                  <button
+                    onClick={modalConfig.onConfirm}
+                    className="px-5 py-2 rounded-lg text-[13px] font-black text-white bg-[#0a1e3f] hover:bg-emerald-600 active:scale-95 transition-all uppercase tracking-wide shadow-lg shadow-[#0a1e3f]/20 hover:shadow-emerald-600/30"
+                  >
+                    {modalConfig.confirmText}
+                  </button>
+                ) : (
+                  <button
+                    onClick={closeModal}
+                    className="px-5 py-2 rounded-lg text-[13px] font-black text-white bg-[#0a1e3f] active:scale-95 transition-all uppercase tracking-wide shadow-lg shadow-[#0a1e3f]/20"
+                  >
+                    OK
+                  </button>
+                )}
+              </div>
+            )}
+            
+            {/* Bottom strip */}
+            <div className={`h-1 w-full bg-gradient-to-r ${
+              modalConfig.type === 'error' || modalConfig.type === 'confirm_danger' ? 'from-red-700 to-orange-400' :
+              modalConfig.type === 'success' ? 'from-emerald-600 to-teal-400' : 'from-[#0a1e3f] to-blue-500'
+            }`} />
+          </div>
+        </div>
+      )}
     </div>
   );
-}
+};
