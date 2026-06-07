@@ -17,6 +17,16 @@ const emergencyReportSchema = new mongoose.Schema(
       enum: ["BFP", "CDRRMO", "PNP"],
       required: true
     },
+    assignedAgency: {
+      type: String,
+      enum: ["BFP", "CDRRMO", "PNP", "NONE"],
+      default: "NONE"
+    },
+    assignedResponder: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null
+    },
     description: {
       type: String,
       default: ""
@@ -51,7 +61,43 @@ const emergencyReportSchema = new mongoose.Schema(
         type: String,
         default: ""
       }
-    }
+    },
+    actionLog: [
+      {
+        actorId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User"
+        },
+        actorName: {
+          type: String,
+          default: "System"
+        },
+        actorRole: {
+          type: String,
+          default: ""
+        },
+        action: {
+          type: String,
+          required: true
+        },
+        fromStatus: {
+          type: String,
+          default: ""
+        },
+        toStatus: {
+          type: String,
+          default: ""
+        },
+        message: {
+          type: String,
+          default: ""
+        },
+        createdAt: {
+          type: Date,
+          default: Date.now
+        }
+      }
+    ]
   },
   { timestamps: true }
 );

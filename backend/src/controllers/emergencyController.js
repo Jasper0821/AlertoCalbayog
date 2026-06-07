@@ -80,7 +80,8 @@ exports.createEmergencyReport = async (req, res) => {
 
     // Populate user info before emitting
     const populatedReport = await EmergencyReport.findById(report._id)
-      .populate("userId", "fullName email role");
+      .populate("userId", "fullName email role phoneNumber")
+      .populate("assignedResponder", "fullName email role agency phoneNumber");
 
     const io = req.app.get("io");
 
@@ -105,6 +106,7 @@ exports.getAllReports = async (req, res) => {
   try {
     const reports = await EmergencyReport.find()
       .populate("userId", "fullName email role")
+      .populate("assignedResponder", "fullName email role agency phoneNumber")
       .sort({ createdAt: -1 });
 
     res.json(reports);
@@ -117,6 +119,7 @@ exports.getMyReports = async (req, res) => {
   try {
     const reports = await EmergencyReport.find({ userId: req.user.id })
       .populate("userId", "fullName email role")
+      .populate("assignedResponder", "fullName email role agency phoneNumber")
       .sort({ createdAt: -1 });
 
     res.json(reports);
@@ -154,6 +157,7 @@ exports.getReportsByAgency = async (req, res) => {
     // notifiedAgencies is an array — MongoDB matches if the value exists in the array
     const reports = await EmergencyReport.find({ notifiedAgencies: agency })
       .populate("userId", "fullName email role")
+      .populate("assignedResponder", "fullName email role agency phoneNumber")
       .sort({ createdAt: -1 });
 
     res.json(reports);
