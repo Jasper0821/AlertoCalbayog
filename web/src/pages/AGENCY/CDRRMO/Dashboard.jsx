@@ -111,9 +111,31 @@ function CdrrmoDashboard() {
   const handleStatusChange = async (id, newStatus) => {
     setStatusOverrides(prev => ({ ...prev, [id]: newStatus }));
     try {
-      await api.put(`/emergency/${id}`, { status: newStatus });
+      const res = await api.put(`/reports/${id}/status`, { status: newStatus });
+      const updatedReport = res.data?.report;
+      if (updatedReport?._id) {
+        setReports(prev => prev.map(r => r._id === updatedReport._id ? updatedReport : r));
+      }
+      setStatusOverrides(prev => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
     } catch (err) {
-      console.warn("Backend update failed, using local status override:", err);
+      setStatusOverrides(prev => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+      Swal.fire({
+        toast: true,
+        position: "top-end",
+        icon: "error",
+        title: err.response?.data?.message || "Unable to update incident status",
+        showConfirmButton: false,
+        timer: 2600,
+      });
+      console.warn("Backend update failed:", err);
     }
   };
 
@@ -121,7 +143,7 @@ function CdrrmoDashboard() {
     ...r,
     status: statusOverrides[r._id] || r.status
   }));
-  const pendingCount = safeReports.filter(r => r.status === "pending").length;
+  const pendingCount = safeReports.filter(r => ["pending", "verified"].includes(r.status)).length;
   const activeCount = safeReports.filter(r => ["responding", "ongoing", "dispatching", "en_route", "active"].includes(r.status)).length;
 
   // Poll for safety + initial load
@@ -277,10 +299,24 @@ function CdrrmoDashboard() {
       setActiveAlert(newReport);
     });
 
+    socket.on("reportStatusChanged", (updatedReport) => {
+      console.log("📡 CDRRMO Command Center received status change:", updatedReport);
+      setReports(prev => prev.some(r => r._id === updatedReport._id)
+        ? prev.map(r => r._id === updatedReport._id ? updatedReport : r)
+        : [updatedReport, ...prev]
+      );
+      setStatusOverrides(prev => {
+        const next = { ...prev };
+        delete next[updatedReport._id];
+        return next;
+      });
+    });
+
     return () => {
       socket.emit("leaveRoom", room);
       socket.emit("leaveRoom", "admin");
       socket.off("newEmergencyAlert");
+      socket.off("reportStatusChanged");
       socket.disconnect();
     };
   }, [user.agency, user.soundAlerts, user.loopAlarm]);
@@ -328,14 +364,14 @@ function CdrrmoDashboard() {
 
   const renderContent = () => {
     switch (activeNav) {
-      case "dashboard": return <DashboardOverview reports={safeReports} setActiveNav={setActiveNav} />;
+      case "dashboard": return <DashboardOverview reports={safeReports} setActiveNav={setActiveNav} onStatusChange={handleStatusChange} />;
       case "incident-reports": return <ActiveIncidents reports={safeReports} onStatusChange={handleStatusChange} />;
       case "queuing": return <QueuingSystem reports={safeReports} onStatusChange={handleStatusChange} />;
       case "live-map": return <LiveMap reports={safeReports} />;
       case "incident-history": return <IncidentHistory reports={safeReports} />;
       case "analytics": return <Analytics reports={safeReports} />;
       case "settings": return <Settings user={user} onUserUpdate={setUser} />;
-      default: return <DashboardOverview reports={safeReports} setActiveNav={setActiveNav} />;
+      default: return <DashboardOverview reports={safeReports} setActiveNav={setActiveNav} onStatusChange={handleStatusChange} />;
     }
   };
 

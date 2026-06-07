@@ -19,8 +19,10 @@ const getCoordinates = (report, index) => {
   return [cityCenter[0] + offset[0], cityCenter[1] + offset[1]];
 };
 
-export default function DashboardOverview({ reports = [], setActiveNav }) {
-  const latestReports = (Array.isArray(reports) ? reports : []).slice(0, 4);
+export default function DashboardOverview({ reports = [], setActiveNav, onStatusChange }) {
+  const activeIncidentReports = (Array.isArray(reports) ? reports : []).filter(report =>
+    !["resolved", "responded", "closed"].includes((report.status || "").toLowerCase())
+  );
 
   // Dynamic KPI calculations based on mock / API reports
   const totalIncidents = reports.length;
@@ -93,7 +95,7 @@ export default function DashboardOverview({ reports = [], setActiveNav }) {
           <div className="px-5 py-4 flex items-center justify-between border-b border-slate-100">
             <div>
               <h3 className="text-sm font-bold text-slate-800">Live Emergency Reports</h3>
-              <p className="text-[11px] text-slate-400 mt-0.5">Latest incoming emergency incidents</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">All unresolved emergency incidents with inline status controls</p>
             </div>
             <div className="flex gap-2">
               <button className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-600 transition-colors">
@@ -112,17 +114,19 @@ export default function DashboardOverview({ reports = [], setActiveNav }) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {latestReports.length === 0 ? (
+                {activeIncidentReports.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="py-10 text-center text-sm text-slate-400">No reports available.</td>
                   </tr>
-                ) : latestReports.map((report, i) => {
+                ) : activeIncidentReports.map((report, i) => {
                   const type = (report.emergencyType || "others").toLowerCase();
                   const status = (report.status || "pending").toLowerCase();
                   const typeInfo = TYPE_ICONS[type] || TYPE_ICONS.others;
                   const statusInfo = STATUS_STYLES[status] || STATUS_STYLES.pending;
                   const incId = String(getIncidentId(report, i));
-                  const loc = typeof report.location === "string" ? report.location : (report.location?.name || "Unknown");
+                  const loc = typeof report.location === "string"
+                    ? report.location
+                    : (report.location?.name || [report.location?.barangay, report.location?.street, report.location?.purok].filter(Boolean).join(", ") || "Unknown");
                   const timeStr = report.createdAt
                     ? new Date(report.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })
                     : "—";
@@ -145,9 +149,20 @@ export default function DashboardOverview({ reports = [], setActiveNav }) {
                         <span className="text-xs text-slate-500 font-semibold">{timeStr}</span>
                       </td>
                       <td className="px-5 py-3.5">
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-2">
                           <span className={`w-1.5 h-1.5 rounded-full ${statusInfo.dot}`} />
-                          <span className={`text-xs font-bold ${statusInfo.text}`}>{statusInfo.label}</span>
+                          <select
+                            value={status === "responding" ? "active" : status}
+                            onChange={(e) => onStatusChange?.(report._id, e.target.value)}
+                            disabled={!report._id}
+                            className={`min-w-[160px] rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold outline-none transition-colors focus:border-[#0a1e3f] focus:ring-2 focus:ring-[#0a1e3f]/10 disabled:cursor-not-allowed disabled:opacity-60 ${statusInfo.text}`}
+                            title="Update incident status"
+                          >
+                            <option value="pending">Pending</option>
+                            <option value="verified">Verified / Acknowledged</option>
+                            <option value="active">Active</option>
+                            <option value="resolved">Resolved</option>
+                          </select>
                         </div>
                       </td>
                     </tr>
@@ -158,7 +173,7 @@ export default function DashboardOverview({ reports = [], setActiveNav }) {
           </div>
 
           <div className="px-5 py-3 border-t border-slate-100 flex items-center justify-between bg-slate-50/50">
-            <p className="text-[11px] text-slate-400">{latestReports.length} most recent incidents shown</p>
+            <p className="text-[11px] text-slate-400">{activeIncidentReports.length} open incidents shown</p>
             <div className="flex items-center gap-4">
               <button
                 onClick={() => setActiveNav?.("incident-reports")}

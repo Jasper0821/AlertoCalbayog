@@ -1,9 +1,9 @@
 import { STATUS_STYLES, TYPE_ICONS } from "./utils.js";
 
-export default function ActiveIncidents({ reports = [] }) {
-  // Only show reports that are currently ACTIVE (being responded to)
+export default function ActiveIncidents({ reports = [], onStatusChange }) {
+  // Show all unresolved reports so responders can progress incidents without opening the queue.
   const activeReports = (Array.isArray(reports) ? reports : []).filter(r =>
-    (r.status || "").toLowerCase() === "active"
+    !["resolved", "responded", "closed"].includes((r.status || "").toLowerCase())
   );
 
   return (
@@ -13,12 +13,12 @@ export default function ActiveIncidents({ reports = [] }) {
         <div>
           <h1 className="text-xl font-bold text-slate-800">Incident Reports</h1>
           <p className="text-sm text-slate-500 mt-0.5">
-            Currently active emergency incidents being responded to by CDRRMO units.
+            Current emergency incidents routed to CDRRMO units.
           </p>
         </div>
         <span className="flex items-center gap-1.5 text-xs font-bold bg-indigo-50 border border-indigo-200 text-indigo-700 px-3 py-1.5 rounded-full shrink-0">
           <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
-          {activeReports.length} Active
+          {activeReports.length} Open
         </span>
       </div>
 
@@ -118,6 +118,18 @@ export default function ActiveIncidents({ reports = [] }) {
                       <span className={`w-1.5 h-1.5 rounded-full ${statusInfo.dot}`}></span>
                       {statusInfo.label}
                     </span>
+                    <select
+                      value={status === "responding" ? "active" : status}
+                      onChange={(e) => onStatusChange?.(report._id, e.target.value)}
+                      disabled={!report._id}
+                      className={`ml-2 min-w-[170px] rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold outline-none transition-colors focus:border-[#0a1e3f] focus:ring-2 focus:ring-[#0a1e3f]/10 disabled:cursor-not-allowed disabled:opacity-60 ${statusInfo.text}`}
+                      title="Update incident status"
+                    >
+                      <option value="pending">Pending</option>
+                      <option value="verified">Verified / Acknowledged</option>
+                      <option value="active">Active</option>
+                      <option value="resolved">Resolved</option>
+                    </select>
                   </td>
                 </tr>
               );
@@ -136,7 +148,7 @@ export default function ActiveIncidents({ reports = [] }) {
                       </svg>
                     </div>
                     <div>
-                      <p className="text-sm font-semibold text-slate-600">No active incidents</p>
+                      <p className="text-sm font-semibold text-slate-600">No open incidents</p>
                       <p className="text-xs text-slate-400 mt-0.5">All incidents are pending or have been resolved.</p>
                     </div>
                   </div>

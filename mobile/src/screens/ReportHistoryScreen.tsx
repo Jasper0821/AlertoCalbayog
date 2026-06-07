@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { View, Text, ScrollView, TouchableOpacity, Alert, RefreshControl } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, Alert, RefreshControl, DeviceEventEmitter } from "react-native";
 import Header from "../components/Header";
 import api from "../api/axios";
 import { getToken } from "../utils/Storage";
@@ -18,6 +18,16 @@ export default function ReportHistoryScreen(): React.JSX.Element {
 
   useEffect(() => {
     fetchMyReports();
+
+    // Listen for real-time status updates from the socket listener
+    const subscription = DeviceEventEmitter.addListener("reportStatusUpdated", (notif) => {
+      console.log("📡 ReportHistoryScreen received status update, refreshing reports...");
+      fetchMyReports();
+    });
+
+    return () => {
+      subscription.remove();
+    };
   }, []);
 
   const fetchMyReports = async () => {
@@ -81,8 +91,11 @@ export default function ReportHistoryScreen(): React.JSX.Element {
 
   const getStatusConfig = (status: string) => {
     switch (status?.toLowerCase()) {
-      case 'resolved': return { border: 'border-green', text: 'text-green', bg: 'bg-green/10' };
-      case 'responding': return { border: 'border-blue', text: 'text-blue', bg: 'bg-blue/10' };
+      case 'resolved':
+      case 'responded': return { border: 'border-green', text: 'text-green', bg: 'bg-green/10' };
+      case 'responding':
+      case 'active': return { border: 'border-blue', text: 'text-blue', bg: 'bg-blue/10' };
+      case 'verified': return { border: 'border-purple', text: 'text-purple', bg: 'bg-purple/10' };
       case 'pending': return { border: 'border-primary', text: 'text-primary', bg: 'bg-primary/10' };
       default: return { border: 'border-textGray', text: 'text-textGray', bg: 'bg-textGray/10' };
     }

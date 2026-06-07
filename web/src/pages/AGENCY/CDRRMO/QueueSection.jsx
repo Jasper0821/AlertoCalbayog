@@ -5,9 +5,9 @@ import api from"../../../api/axios.js";
 export function QueueSection({ reports = [] }) {
  const [activeTab, setActiveTab] = useState("pending");
 
- const pendingReports = reports.filter(r => r.status ==="pending");
- const activeReports = reports.filter(r => r.status ==="responding");
- const completedReports = reports.filter(r => r.status ==="resolved" || r.status ==="closed");
+ const pendingReports = reports.filter(r => r.status ==="pending" || r.status ==="verified");
+ const activeReports = reports.filter(r => r.status ==="responding" || r.status ==="active");
+ const completedReports = reports.filter(r => r.status ==="resolved" || r.status ==="closed" || r.status ==="responded");
 
  const getTabData = () => {
  switch (activeTab) {
@@ -72,21 +72,20 @@ export function QueueSection({ reports = [] }) {
  <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Assigned Agency</p>
  <p className="text-sm font-bold text-slate-900 mt-1 transition-colors">{item.assignedAgency ||"Dispatching..."}</p>
  <select
- className={`${pillBase} mt-2 cursor-pointer outline-none ${item.status ==="pending" ? statusChip.danger : statusChip.success}`}
- value={item.status}
+ className={`${pillBase} mt-2 cursor-pointer outline-none ${item.status ==="pending" || item.status ==="verified" ? statusChip.danger : statusChip.success}`}
+ value={item.status === "active" ? "responding" : (item.status === "responded" ? "resolved" : item.status)}
  onChange={async (e) => {
  try {
- await api.put(`/emergency/${item._id || item.id}`, { ...item, status: e.target.value });
- window.location.reload();
+ await api.put(`/reports/${item._id || item.id}/status`, { status: e.target.value });
  } catch (err) {
  console.error("Failed to update report status:", err);
  }
  }}
  >
  <option value="pending">Pending</option>
- <option value="responding">Responding</option>
+ <option value="verified">Verified / Acknowledged</option>
+ <option value="responding">Active / Rescue on the way</option>
  <option value="resolved">Resolved</option>
- <option value="closed">Closed</option>
  </select>
  </div>
  </article>
