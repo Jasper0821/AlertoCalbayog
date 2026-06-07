@@ -2,6 +2,7 @@ import React from "react";
 
 export const STATUS_STYLES = {
   pending:     { dot: "bg-amber-400",  text: "text-amber-600",   label: "Pending" },
+  verified:    { dot: "bg-teal-500",   text: "text-teal-600",    label: "Verified / Acknowledged" },
   responding:  { dot: "bg-blue-500",   text: "text-blue-600",    label: "Responding" },
   resolved:    { dot: "bg-emerald-500",text: "text-emerald-600", label: "Resolved" },
   responded:   { dot: "bg-emerald-500",text: "text-emerald-600", label: "Responded" },

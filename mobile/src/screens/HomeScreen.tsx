@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from "react";
-import { View, Text, TouchableOpacity, Animated, Easing } from "react-native";
+import { View, Text, TouchableOpacity, Animated, Easing, Alert, DeviceEventEmitter } from "react-native";
 import Header from "../components/Header";
 import IncidentPicker from "../components/IncidentPicker";
-import { clearStorage } from "../utils/Storage";
+import { clearStorage, getUser } from "../utils/Storage";
+import socket from "../api/socket";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../navigation/AppNavigator";
 
@@ -22,6 +23,40 @@ export default function HomeScreen({
 
   // Pulse animation for the Send Report button
   const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    let active = true;
+
+    const setupSocket = async () => {
+      const user = await getUser();
+      const userId = user?._id || user?.id;
+      if (!userId) return;
+
+      if (active) {
+        socket.connect();
+        socket.emit("joinRoom", userId);
+        console.log("📡 Mobile socket connected & joined room:", userId);
+
+        socket.on("notification", (notif: { title: string; message: string; reportId: string; status: string }) => {
+          console.log("📡 Received status update notification:", notif);
+          
+          // Display alert popup to the resident
+          Alert.alert(notif.title, notif.message, [{ text: "OK" }]);
+
+          // Broadcast notification to other active screens
+          DeviceEventEmitter.emit("reportStatusUpdated", notif);
+        });
+      }
+    };
+
+    setupSocket();
+
+    return () => {
+      active = false;
+      socket.off("notification");
+      socket.disconnect();
+    };
+  }, []);
 
   useEffect(() => {
     const pulse = Animated.loop(

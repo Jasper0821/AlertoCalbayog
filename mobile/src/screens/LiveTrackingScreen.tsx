@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { View, Text, Alert, TouchableOpacity, Animated, Easing } from "react-native";
+import { View, Text, Alert, TouchableOpacity, Animated, Easing, DeviceEventEmitter } from "react-native";
 import * as Location from "expo-location";
 import Header from "../components/Header";
 import api from "../api/axios";
@@ -32,8 +32,33 @@ export default function LiveTrackingScreen({
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const signalAnim = useRef(new Animated.Value(0)).current;
 
+  const getStatusTextAndColor = () => {
+    switch (reportStatus?.toLowerCase()) {
+      case "verified":
+        return { text: "Report Verified", desc: "Your emergency report has been verified by the command center. Dispatching responders now.", color: "#8B5CF6" };
+      case "responding":
+      case "active":
+        return { text: "Rescue on the Way", desc: "Help is coming! A professional responder has been dispatched and is heading to your location. Please stay safe.", color: "#10B981" };
+      case "resolved":
+      case "responded":
+        return { text: "Report Resolved", desc: "The emergency incident has been successfully resolved. Thank you for reporting.", color: "#10B981" };
+      case "pending":
+      default:
+        return { text: "Waiting for Dispatch", desc: "Your emergency report has been successfully sent to the authorities. A dispatcher will assign a responder shortly. Keep your phone nearby.", color: "#B91C1C" };
+    }
+  };
+
+  const statusInfo = getStatusTextAndColor();
+
   useEffect(() => {
     startTracking();
+
+    const subscription = DeviceEventEmitter.addListener("reportStatusUpdated", (notif) => {
+      if (notif.reportId === reportId && notif.status) {
+        console.log("📡 LiveTrackingScreen received status update event:", notif.status);
+        setReportStatus(notif.status);
+      }
+    });
 
     // Pulse animation for status icon
     const pulse = Animated.loop(
@@ -69,6 +94,7 @@ export default function LiveTrackingScreen({
     return () => {
       pulse.stop();
       waves.stop();
+      subscription.remove();
       if (watchRef.current) {
         watchRef.current.remove();
       }
@@ -150,10 +176,11 @@ export default function LiveTrackingScreen({
             <Text className="text-[10px] font-black uppercase tracking-widest text-textGray mb-0.5">Response Status</Text>
             <View className="flex-row items-center">
               <View 
-                className={`w-2 h-2 rounded-full mr-2 ${reportStatus === 'responding' ? 'bg-green-500' : 'bg-primary'}`} 
+                className="w-2 h-2 rounded-full mr-2" 
+                style={{ backgroundColor: statusInfo.color }}
               />
               <Text className="text-base font-bold text-text tracking-tight">
-                {reportStatus === "responding" ? "Responder on the Way" : "Waiting for Dispatch"}
+                {statusInfo.text}
               </Text>
             </View>
           </View>
@@ -181,7 +208,7 @@ export default function LiveTrackingScreen({
               height: 300,
               borderRadius: 150,
               borderWidth: 2,
-              borderColor: reportStatus === 'responding' ? '#10B98120' : '#B91C1C20',
+              borderColor: `${statusInfo.color}20`,
               transform: [{ scale: signalAnim.interpolate({ inputRange: [0, 1], outputRange: [0.5, 2] }) }],
               opacity: signalAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0, 1, 0] }),
             }}
@@ -193,7 +220,7 @@ export default function LiveTrackingScreen({
               height: 300,
               borderRadius: 150,
               borderWidth: 2,
-              borderColor: reportStatus === 'responding' ? '#10B98120' : '#B91C1C20',
+              borderColor: `${statusInfo.color}20`,
               transform: [{ scale: signalAnim.interpolate({ inputRange: [0, 1], outputRange: [0.2, 1.5] }) }],
               opacity: signalAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0, 0.5, 0] }),
             }}
@@ -201,32 +228,34 @@ export default function LiveTrackingScreen({
 
           <Animated.View style={{ transform: [{ scale: pulseAnim }] }} className="mb-8">
             <View 
-              className={`w-28 h-28 rounded-full items-center justify-center border-4 ${reportStatus === 'responding' ? 'border-green-500 bg-green-500/10' : 'border-red bg-red/10'}`}
+              className="w-28 h-28 rounded-full items-center justify-center border-4"
+              style={{ borderColor: statusInfo.color, backgroundColor: `${statusInfo.color}10` }}
             >
-              <EmergencyIcon size={60} color={reportStatus === 'responding' ? '#10B981' : '#B91C1C'} />
+              <EmergencyIcon size={60} color={statusInfo.color} />
             </View>
           </Animated.View>
 
           <View className="items-center">
-            <Text className={`text-3xl font-black text-center mb-4 tracking-tighter ${reportStatus === 'responding' ? 'text-green-500' : 'text-primary'}`}>
-              {reportStatus === "responding" ? "RESPONDER\nON THE WAY" : "REPORT\nPENDING"}
+            <Text 
+              className="text-3xl font-black text-center mb-4 tracking-tighter"
+              style={{ color: statusInfo.color }}
+            >
+              {statusInfo.text.toUpperCase()}
             </Text>
             
             <View className="h-1 w-12 bg-border rounded-full mb-6" />
 
             <Text className="text-textGray text-center text-sm font-medium leading-6 px-4">
-              {reportStatus === "responding" 
-                ? "Help is coming! A professional responder has been dispatched and is currently heading to your location. Please stay where you are."
-                : "Your emergency report has been successfully sent to the authorities. A dispatcher will assign a responder shortly. Keep your phone nearby."}
+              {statusInfo.desc}
             </Text>
           </View>
 
           {/* Bottom Badge */}
           <View 
-            className={`absolute bottom-10 px-6 py-2 rounded-full border ${reportStatus === 'responding' ? 'border-green-500/30 bg-green-500/5' : 'border-border bg-background'}`}
+            className="absolute bottom-10 px-6 py-2 rounded-full border border-border bg-background"
           >
-            <Text className={`text-[10px] font-black uppercase tracking-[2px] ${reportStatus === 'responding' ? 'text-green-500' : 'text-textGray'}`}>
-              {reportStatus === "responding" ? "● Priority Dispatch Active" : "Waiting for verification..."}
+            <Text className="text-[10px] font-black uppercase tracking-[2px] text-textGray">
+              {reportStatus === "responding" || reportStatus === "active" ? "● Priority Dispatch Active" : "● Status Synchronized"}
             </Text>
           </View>
         </View>

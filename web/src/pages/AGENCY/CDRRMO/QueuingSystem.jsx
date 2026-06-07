@@ -10,7 +10,7 @@ export default function QueuingSystem({ reports = [], onStatusChange }) {
   );
 
   const handleStatusSelect = (id, newStatus) => {
-    if (newStatus === "responded") {
+    if (newStatus === "resolved" || newStatus === "responded") {
       setResolvingIncidentId(id);
     } else {
       onStatusChange(id, newStatus);
@@ -29,9 +29,13 @@ export default function QueuingSystem({ reports = [], onStatusChange }) {
             <span className="w-2 h-2 rounded-full bg-amber-400"></span>
             {activeReports.filter(r => (r.status||'').toLowerCase() === 'pending').length} Pending
           </span>
+          <span className="flex items-center gap-1.5 text-xs font-bold bg-teal-50 border border-teal-200 text-teal-700 px-3 py-1.5 rounded-full">
+            <span className="w-2 h-2 rounded-full bg-teal-400"></span>
+            {activeReports.filter(r => (r.status||'').toLowerCase() === 'verified').length} Verified
+          </span>
           <span className="flex items-center gap-1.5 text-xs font-bold bg-indigo-50 border border-indigo-200 text-indigo-700 px-3 py-1.5 rounded-full">
             <span className="w-2 h-2 rounded-full bg-indigo-400"></span>
-            {activeReports.filter(r => (r.status||'').toLowerCase() === 'active').length} Active
+            {activeReports.filter(r => ["responding", "active"].includes((r.status||'').toLowerCase())).length} Active
           </span>
         </div>
       </div>
@@ -92,13 +96,14 @@ export default function QueuingSystem({ reports = [], onStatusChange }) {
                       <div className="flex items-center gap-2">
                         <span className={`w-2 h-2 rounded-full ${statusInfo.dot}`}></span>
                         <select
-                          value={status}
+                          value={status === "active" ? "responding" : (status === "responded" ? "resolved" : status)}
                           onChange={(e) => handleStatusSelect(report._id, e.target.value)}
                           className={`text-xs font-bold bg-transparent border-none p-0 pr-6 focus:outline-none focus:ring-0 cursor-pointer ${statusInfo.text}`}
                         >
                           <option value="pending" className="text-amber-600 font-bold">Pending</option>
-                          <option value="active" className="text-indigo-600 font-bold">Active</option>
-                          <option value="responded" className="text-emerald-600 font-bold">Resolve</option>
+                          <option value="verified" className="text-teal-600 font-bold">Verified / Acknowledged</option>
+                          <option value="responding" className="text-indigo-600 font-bold">Active / Rescue on the way</option>
+                          <option value="resolved" className="text-emerald-600 font-bold">Resolved</option>
                         </select>
                       </div>
                     )}
@@ -155,7 +160,7 @@ export default function QueuingSystem({ reports = [], onStatusChange }) {
               </button>
               <button
                 onClick={() => {
-                  onStatusChange(resolvingIncidentId, "responded");
+                  onStatusChange(resolvingIncidentId, "resolved");
                   setResolvingIncidentId(null);
                 }}
                 className="px-5 py-2 rounded-lg text-[13px] font-black text-white bg-[#0a1e3f] hover:bg-emerald-600 active:scale-95 transition-all uppercase tracking-wide shadow-lg shadow-[#0a1e3f]/20 hover:shadow-emerald-600/30"
