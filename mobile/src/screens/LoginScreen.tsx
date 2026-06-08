@@ -7,13 +7,17 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Image,
+  StyleSheet,
+  StatusBar,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import CustomInput from "../components/CustomInput";
-import Header from "../components/Header";
 import api from "../api/axios";
 import { saveToken, saveUser } from "../utils/Storage";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../navigation/AppNavigator";
+import { COLORS } from "../styles/colors";
 
 type LoginScreenNavigationProp = NativeStackNavigationProp<
   RootStackParamList,
@@ -30,6 +34,7 @@ export default function LoginScreen({
   const [email, setEmail] = useState<string>("");
   const [password, setPassword] = useState<string>("");
   const [agreed, setAgreed] = useState<boolean>(false);
+  const insets = useSafeAreaInsets();
 
   const handleLogin = async (): Promise<void> => {
     if (!agreed) {
@@ -56,84 +61,316 @@ export default function LoginScreen({
   };
 
   return (
-    <KeyboardAvoidingView
-      className="flex-1 bg-darkBlue"
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-    >
-      <ScrollView
-        contentContainerClassName="flex-grow justify-center p-5"
-        showsVerticalScrollIndicator={false}
+    <View className="flex-1 bg-background">
+      <StatusBar barStyle="dark-content" backgroundColor={COLORS.background} />
+
+      <KeyboardAvoidingView
+        className="flex-1"
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-        <Header title="AlertoCalbayog" showActions={false} />
+        <ScrollView
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingTop: Math.max(insets.top, 16) + 8, paddingBottom: Math.max(insets.bottom, 16) + 16 },
+          ]}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* ── Top-left: Logo + App Title ── */}
+          <View style={styles.brandRow}>
+            <View style={styles.logoContainer}>
+              <Image
+                source={require("../../assets/logo.png")}
+                style={styles.logo}
+                resizeMode="contain"
+              />
+            </View>
+            <View style={styles.brandTextContainer}>
+              <Text style={styles.brandTitle}>Alerto</Text>
+              <Text style={styles.brandSubtitle}>Calbayog</Text>
+            </View>
+          </View>
 
-        <View className="mt-5 rounded-3xl border border-border bg-surface p-6 shadow-2xl shadow-slate-900/10">
-          <Text className="mb-2 text-3xl font-black text-primary tracking-tight">Sign In</Text>
-          <Text className="mb-6 text-textGray text-sm">Welcome back, secure your area.</Text>
+          {/* ── Centered Form Area ── */}
+          <View style={styles.formSection}>
+            {/* Greeting */}
+            <Text style={styles.heading}>Welcome Back</Text>
+            <Text style={styles.subheading}>
+              Sign in to stay informed and keep your community safe.
+            </Text>
 
-          <CustomInput
-            placeholder="Email Address"
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
-          />
+            {/* Subtle divider */}
+            <View style={styles.divider} />
 
-          <CustomInput
-            placeholder="Password"
-            secureTextEntry
-            value={password}
-            onChangeText={setPassword}
-          />
+            {/* Email Field */}
+            <Text style={styles.fieldLabel}>Email Address</Text>
+            <CustomInput
+              placeholder="Enter your Email"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
 
-          <View className="mt-4 flex-row items-start">
+            {/* Password Field */}
+            <Text style={styles.fieldLabel}>Password</Text>
+            <CustomInput
+              placeholder="Enter your password"
+              secureTextEntry
+              value={password}
+              onChangeText={setPassword}
+            />
+
+            {/* User Agreement Checkbox */}
             <TouchableOpacity
               onPress={() => setAgreed(!agreed)}
-              className={`mr-3 mt-1 h-5 w-5 items-center justify-center rounded-lg border ${
-                agreed ? "border-primary bg-primary" : "border-border bg-background"
-              }`}
-              activeOpacity={0.8}
+              activeOpacity={0.7}
+              style={styles.agreementRow}
             >
-              {agreed && <Text className="text-xs font-bold text-white">✓</Text>}
-            </TouchableOpacity>
-
-            <Text className="flex-1 text-sm leading-5 text-textGray">
-              I agree to the{" "}
-              <Text
-                className="font-bold text-primary"
-                onPress={() => navigation.navigate("UserAgreement")}
+              <View
+                style={[
+                  styles.checkbox,
+                  agreed && styles.checkboxChecked,
+                ]}
               >
-                User Agreement
-              </Text>{" "}
-              and acknowledge the terms of use.
-            </Text>
-          </View>
+                {agreed && <Text style={styles.checkmark}>✓</Text>}
+              </View>
 
-          <TouchableOpacity
-            className={`mt-6 items-center rounded-2xl py-4 shadow-lg ${
-              agreed ? "bg-primary shadow-primary/40" : "bg-primary/30"
-            }`}
-            onPress={handleLogin}
-            activeOpacity={0.8}
-            disabled={!agreed}
-          >
-            <Text className="text-base font-black uppercase tracking-widest text-white">
-              Login
-            </Text>
-          </TouchableOpacity>
-
-          <View className="mt-8 flex-row justify-center">
-            <Text className="text-sm text-textGray">
-              Don't have an account?{" "}
-            </Text>
-            <TouchableOpacity onPress={() => navigation.navigate("Register")}>
-              <Text className="text-sm font-bold text-primary">
-                Register Now
+              <Text style={styles.agreementText}>
+                I agree to the{" "}
+                <Text
+                  style={styles.agreementLink}
+                  onPress={() => navigation.navigate("UserAgreement")}
+                >
+                  User Agreement
+                </Text>{" "}
+                and acknowledge the terms of use.
               </Text>
             </TouchableOpacity>
-          </View>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
 
+            {/* Login Button */}
+            <TouchableOpacity
+              style={[
+                styles.loginButton,
+                !agreed && styles.loginButtonDisabled,
+              ]}
+              onPress={handleLogin}
+              activeOpacity={0.85}
+              disabled={!agreed}
+            >
+              <Text style={styles.loginButtonText}>Sign In</Text>
+            </TouchableOpacity>
+
+            {/* Register Link */}
+            <View style={styles.registerRow}>
+              <Text style={styles.registerText}>
+                Don't have an account?{" "}
+              </Text>
+              <TouchableOpacity onPress={() => navigation.navigate("Register")}>
+                <Text style={styles.registerLink}>Create Account</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* ── Bottom tagline ── */}
+          <View style={styles.footer}>
+            <View style={styles.footerLine} />
+            <Text style={styles.footerText}>
+              Public Safety &amp; Emergency Alert System
+            </Text>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  scrollContent: {
+    flexGrow: 1,
+    paddingHorizontal: 28,
+    justifyContent: "space-between",
+  },
+
+  /* ── Brand ── */
+  brandRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  logoContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: COLORS.primary,
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  logo: {
+    width: 30,
+    height: 30,
+  },
+  brandTextContainer: {
+    marginLeft: 12,
+    flexDirection: "row",
+    alignItems: "baseline",
+  },
+  brandTitle: {
+    fontSize: 20,
+    fontWeight: "900",
+    color: COLORS.primary,
+    letterSpacing: -0.5,
+  },
+  brandSubtitle: {
+    fontSize: 20,
+    fontWeight: "900",
+    color: COLORS.accent,
+    marginLeft: 5,
+    letterSpacing: -0.3,
+  },
+
+  /* ── Form Section ── */
+  formSection: {
+    flex: 1,
+    justifyContent: "center",
+    paddingVertical: 24,
+  },
+  heading: {
+    fontSize: 32,
+    fontWeight: "900",
+    color: COLORS.primary,
+    letterSpacing: -1,
+    marginBottom: 6,
+  },
+  subheading: {
+    fontSize: 15,
+    color: COLORS.textMuted,
+    lineHeight: 22,
+    marginBottom: 4,
+  },
+  divider: {
+    width: 40,
+    height: 3.5,
+    backgroundColor: COLORS.accent,
+    borderRadius: 4,
+    marginTop: 14,
+    marginBottom: 28,
+  },
+  fieldLabel: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: COLORS.primary,
+    marginBottom: 6,
+    letterSpacing: 0.2,
+    textTransform: "uppercase",
+    opacity: 0.65,
+  },
+
+  /* ── Agreement ── */
+  agreementRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 7,
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.surface,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+    marginTop: 1,
+  },
+  checkboxChecked: {
+    borderColor: COLORS.accent,
+    backgroundColor: COLORS.accent,
+  },
+  checkmark: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#FFFFFF",
+  },
+  agreementText: {
+    flex: 1,
+    fontSize: 13.5,
+    lineHeight: 20,
+    color: COLORS.textMuted,
+  },
+  agreementLink: {
+    fontWeight: "800",
+    color: COLORS.accent,
+  },
+
+  /* ── Login Button ── */
+  loginButton: {
+    marginTop: 24,
+    backgroundColor: COLORS.primary,
+    paddingVertical: 16,
+    borderRadius: 16,
+    alignItems: "center",
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 6,
+  },
+  loginButtonDisabled: {
+    backgroundColor: "rgba(10, 30, 63, 0.2)",
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  loginButtonText: {
+    fontSize: 16,
+    fontWeight: "900",
+    color: "#FFFFFF",
+    letterSpacing: 1.5,
+    textTransform: "uppercase",
+  },
+
+  /* ── Register ── */
+  registerRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    marginTop: 28,
+  },
+  registerText: {
+    fontSize: 14,
+    color: COLORS.textMuted,
+  },
+  registerLink: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: COLORS.accent,
+  },
+
+  /* ── Footer ── */
+  footer: {
+    alignItems: "center",
+    paddingTop: 12,
+    paddingBottom: 8,
+  },
+  footerLine: {
+    width: 32,
+    height: 3,
+    backgroundColor: COLORS.border,
+    borderRadius: 2,
+    marginBottom: 10,
+  },
+  footerText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: COLORS.textMuted,
+    letterSpacing: 1.5,
+    textTransform: "uppercase",
+    opacity: 0.5,
+  },
+});

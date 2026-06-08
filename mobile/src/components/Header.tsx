@@ -1,9 +1,11 @@
-import React, { useState } from "react";
-import { View, Text, TouchableOpacity, Modal, Pressable, StyleSheet } from "react-native";
+import React, { useState, useEffect } from "react";
+import { View, Text, TouchableOpacity, Modal, Pressable, StyleSheet, DeviceEventEmitter } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
-import { ArrowLeftIcon } from "./SvgIcons";
+import { ArrowLeftIcon, BellIcon } from "./SvgIcons";
 import { COLORS } from "../styles/colors";
+import api from "../api/axios";
+import { getToken } from "../utils/Storage";
 
 interface Props {
   title: string;
@@ -19,6 +21,40 @@ export default function Header({
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
   const [isModalVisible, setModalVisible] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  const fetchUnreadCount = async () => {
+    try {
+      const token = await getToken();
+      if (!token) return;
+      
+      const res = await api.get("/notifications/unread-count", {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setUnreadCount(res.data.count || 0);
+    } catch (err) {
+      console.log("Failed to fetch unread count:", err);
+    }
+  };
+
+  useEffect(() => {
+    if (!showActions) return;
+
+    fetchUnreadCount();
+
+    const subStatus = DeviceEventEmitter.addListener("reportStatusUpdated", () => {
+      fetchUnreadCount();
+    });
+
+    const subRead = DeviceEventEmitter.addListener("notificationsRead", () => {
+      fetchUnreadCount();
+    });
+
+    return () => {
+      subStatus.remove();
+      subRead.remove();
+    };
+  }, [showActions]);
 
   const hotlines = [
     { agency: "PNP (Police)", number: "117 / 0911-123-4567", icon: "🚓" },
@@ -60,9 +96,23 @@ export default function Header({
           >
             <Text className="text-primary text-lg">☰</Text>
           </TouchableOpacity>
-          <View className="w-10 h-10 rounded-full bg-surface border border-border items-center justify-center">
-            <Text className="text-xs">🔔</Text>
-          </View>
+          <TouchableOpacity 
+            onPress={() => navigation.navigate("Notifications" as never)}
+            className="w-10 h-10 rounded-full bg-surface border border-border items-center justify-center relative"
+            activeOpacity={0.8}
+          >
+            <BellIcon size={20} color={COLORS.primary} />
+            {unreadCount > 0 && (
+              <View 
+                style={{ backgroundColor: COLORS.red }} 
+                className="absolute -top-1 -right-1 rounded-full h-5 min-w-[20px] items-center justify-center px-1 border border-white"
+              >
+                <Text className="text-white text-[10px] font-black">
+                  {unreadCount > 99 ? "99+" : unreadCount}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
         </View>
         )}
       </View>

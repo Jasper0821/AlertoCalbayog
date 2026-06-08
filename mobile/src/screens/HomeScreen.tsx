@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { View, Text, TouchableOpacity, Animated, Easing, Alert, DeviceEventEmitter } from "react-native";
+import { View, Text, TouchableOpacity, Animated, Easing, DeviceEventEmitter } from "react-native";
 import Header from "../components/Header";
 import IncidentPicker from "../components/IncidentPicker";
 import { clearStorage, getUser } from "../utils/Storage";
@@ -40,10 +40,7 @@ export default function HomeScreen({
         socket.on("notification", (notif: { title: string; message: string; reportId: string; status: string }) => {
           console.log("📡 Received status update notification:", notif);
           
-          // Display alert popup to the resident
-          Alert.alert(notif.title, notif.message, [{ text: "OK" }]);
-
-          // Broadcast notification to other active screens
+          // Broadcast notification to other active screens (e.g. Header and NotificationsScreen)
           DeviceEventEmitter.emit("reportStatusUpdated", notif);
         });
       }
