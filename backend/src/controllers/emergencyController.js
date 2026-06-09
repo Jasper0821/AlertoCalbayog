@@ -18,21 +18,26 @@ exports.createEmergencyReport = async (req, res) => {
 
     try {
       if (typeof fetch === "function") {
+        // 1-second timeout so geocoding never delays the alert emission
+        const controller = new AbortController();
+        const geoTimeout = setTimeout(() => controller.abort(), 1000);
+
         const response = await fetch(
           `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&accept-language=en`,
           {
-            headers: {
-              "User-Agent": "AlertoCalbayog/1.0"
-            }
+            headers: { "User-Agent": "AlertoCalbayog/1.0" },
+            signal: controller.signal
           }
         );
+        clearTimeout(geoTimeout);
+
         if (response.ok) {
           const data = await response.json();
           if (data && data.address) {
             const addr = data.address;
             barangay = addr.suburb || addr.neighbourhood || addr.village || addr.quarter || addr.city_district || "";
             street = addr.road || addr.street || addr.footway || addr.path || "";
-            
+
             // Extract Purok if mentioned
             if (addr.neighbourhood && addr.neighbourhood.toLowerCase().includes("purok")) {
               purok = addr.neighbourhood;
@@ -50,13 +55,16 @@ exports.createEmergencyReport = async (req, res) => {
               parts.push(barangay.toLowerCase().startsWith("brgy") ? barangay : `Brgy. ${barangay}`);
             }
             if (addr.city) parts.push(addr.city);
-            
+
             name = parts.join(", ") || data.display_name || "";
           }
         }
       }
     } catch (err) {
-      console.error("Reverse geocoding failed:", err.message);
+      // Abort or fetch error — proceed with coordinate fallback
+      if (err.name !== "AbortError") {
+        console.error("Reverse geocoding failed:", err.message);
+      }
     }
 
     if (!name) {
