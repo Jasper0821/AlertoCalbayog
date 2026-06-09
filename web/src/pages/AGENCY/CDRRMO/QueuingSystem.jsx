@@ -35,7 +35,7 @@ export default function QueuingSystem({ reports = [], onStatusChange }) {
           </span>
           <span className="flex items-center gap-1.5 text-xs font-bold bg-indigo-50 border border-indigo-200 text-indigo-700 px-3 py-1.5 rounded-full">
             <span className="w-2 h-2 rounded-full bg-indigo-400"></span>
-            {activeReports.filter(r => ["responding", "active"].includes((r.status||'').toLowerCase())).length} Active
+            {activeReports.filter(r => ["responding", "active"].includes((r.status||'').toLowerCase())).length} Responding
           </span>
         </div>
       </div>
@@ -102,7 +102,7 @@ export default function QueuingSystem({ reports = [], onStatusChange }) {
                         >
                           <option value="pending" className="text-amber-600 font-bold">Pending</option>
                           <option value="verified" className="text-teal-600 font-bold">Verified / Acknowledged</option>
-                          <option value="responding" className="text-indigo-600 font-bold">Active / Rescue on the way</option>
+                          <option value="responding" className="text-indigo-600 font-bold">Responding / Rescue on the way</option>
                           <option value="resolved" className="text-emerald-600 font-bold">Resolved</option>
                         </select>
                       </div>

@@ -6,38 +6,39 @@ import { STATUS_STYLES, getIncidentId } from "./utils.js";
 
 const cityCenter = [12.068, 124.597];
 
+// ── Emoji pin config for each CDRRMO emergency type (no crime — that's PNP) ──
 const TYPE_MAP_CONFIG = {
   fire: {
     label: "Fire Emergency",
-    color: "#dc2626",        // red-600
+    emoji: "\uD83D\uDD25",
+    color: "#dc2626",
     legendBg: "#fef2f2",
     legendBorder: "#fca5a5",
     legendText: "#dc2626",
-    svgPath: "M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z M9.879 16.121A3 3 0 1012.015 11L11 14H9c0 .768.293 1.536.879 2.121z",
   },
   medical: {
-    label: "Medical Assist",
-    color: "#059669",        // emerald-600
+    label: "Medical Emergency",
+    emoji: "\uD83C\uDFE5",
+    color: "#059669",
     legendBg: "#ecfdf5",
     legendBorder: "#6ee7b7",
     legendText: "#059669",
-    svgPath: "M9 12h6M12 9v6M3 12a9 9 0 1118 0 9 9 0 01-18 0z",
   },
-  disaster: {
-    label: "Disaster Rescue",
-    color: "#d97706",        // amber-600
+  flood: {
+    label: "Flood / Water",
+    emoji: "\uD83C\uDF0A",
+    color: "#2563eb",
+    legendBg: "#eff6ff",
+    legendBorder: "#93c5fd",
+    legendText: "#2563eb",
+  },
+  others: {
+    label: "Other Incident",
+    emoji: "\u26A0\uFE0F",
+    color: "#d97706",
     legendBg: "#fffbeb",
     legendBorder: "#fcd34d",
     legendText: "#d97706",
-    svgPath: "M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z",
-  },
-  others: {
-    label: "Others",
-    color: "#64748b",        // slate-500
-    legendBg: "#f8fafc",
-    legendBorder: "#cbd5e1",
-    legendText: "#64748b",
-    svgPath: "M9 12h6M9 16h6M9 8h6M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z",
   },
 };
 
@@ -53,31 +54,35 @@ function MapResizeBridge() {
   return null;
 }
 
+// Resolve a report's emergencyType to a config entry
 function getTypeConfig(emergencyType) {
-  const key = (emergencyType || "others").toLowerCase();
-  return TYPE_MAP_CONFIG[key] || TYPE_MAP_CONFIG.others;
+  const raw = (emergencyType || "others").toLowerCase().trim();
+  // crime is PNP-only — show as generic warning on CDRRMO map
+  if (raw === "crime" || raw === "security") return TYPE_MAP_CONFIG.others;
+  return TYPE_MAP_CONFIG[raw] || TYPE_MAP_CONFIG.others;
 }
 
-function buildDivIcon(color, svgPath) {
+// Build a teardrop Leaflet pin with a large emoji centred inside
+function buildDivIcon(cfg, isResolved) {
+  const pinColor = isResolved ? "#94a3b8" : cfg.color;
+  const emoji = isResolved ? "\u2705" : cfg.emoji;
+
   return L.divIcon({
     className: "",
-    html: `<div style="
-        width:40px;height:40px;
-        background:${color};
-        border-radius:50% 50% 50% 0;
-        transform:rotate(-45deg);
-        display:flex;align-items:center;justify-content:center;
-        border:3px solid #ffffff;
-        box-shadow:0 3px 10px rgba(0,0,0,0.35)">
-      <div style="transform:rotate(45deg);display:flex;align-items:center;justify-content:center;width:100%;height:100%">
-        <svg style="width:18px;height:18px" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
-          <path d="${svgPath}"/>
+    html: `
+      <div style="position:relative;width:44px;height:56px;filter:drop-shadow(0 4px 10px rgba(0,0,0,0.4));cursor:pointer;">
+        <svg viewBox="0 0 44 56" xmlns="http://www.w3.org/2000/svg"
+             style="position:absolute;top:0;left:0;width:44px;height:56px;">
+          <path d="M22 2C12.06 2 4 10.06 4 20c0 7.5 5.5 15 10.5 21C18.5 45.5 22 51 22 51s3.5-5.5 7.5-10C34.5 35 40 27.5 40 20C40 10.06 31.94 2 22 2z"
+            fill="${pinColor}" stroke="white" stroke-width="2.5"/>
         </svg>
-      </div>
-    </div>`,
-    iconSize: [40, 40],
-    iconAnchor: [20, 40],
-    popupAnchor: [0, -42],
+        <div style="position:absolute;top:6px;left:0;width:44px;height:32px;display:flex;align-items:center;justify-content:center;font-size:19px;line-height:1;">
+          ${emoji}
+        </div>
+      </div>`,
+    iconSize: [44, 56],
+    iconAnchor: [22, 56],
+    popupAnchor: [0, -58],
   });
 }
 
@@ -103,9 +108,12 @@ export default function LiveMap({ reports = [] }) {
   };
 
   // Collect unique types present in reports for the legend
-  const presentTypes = [...new Set(safeReports.map(r =>
-    (r.emergencyType || "others").toLowerCase()
-  ))].filter(t => TYPE_MAP_CONFIG[t]);
+  const presentTypes = [...new Set(safeReports.map(r => {
+    const raw = (r.emergencyType || "others").toLowerCase().trim();
+    // crime → others for CDRRMO
+    if (raw === "crime" || raw === "security") return "others";
+    return raw;
+  }))].filter(t => TYPE_MAP_CONFIG[t]);
 
   return (
     <div className="space-y-5">
@@ -118,7 +126,7 @@ export default function LiveMap({ reports = [] }) {
         {/* Map Toolbar */}
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 shrink-0 flex-wrap gap-3">
           <div className="flex items-center gap-3 flex-wrap">
-            {(presentTypes.length > 0 ? presentTypes : ["fire", "medical", "disaster"]).map(type => {
+            {(presentTypes.length > 0 ? presentTypes : ["fire", "medical", "flood"]).map(type => {
               const cfg = TYPE_MAP_CONFIG[type] || TYPE_MAP_CONFIG.others;
               return (
                 <div key={type} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border"
@@ -153,7 +161,7 @@ export default function LiveMap({ reports = [] }) {
               const isResolved = status === "resolved" || status === "closed";
               const pinId = getIncidentId(report, idx);
               const cfg = getTypeConfig(report.emergencyType);
-              const icon = buildDivIcon(isResolved ? "#94a3b8" : cfg.color, cfg.svgPath);
+              const icon = buildDivIcon(cfg, isResolved);
 
               return (
                 <Marker key={report._id || idx} position={coords} icon={icon}>

@@ -94,6 +94,53 @@ function CdrrmoDashboard() {
   const [currentTime, setCurrentTime] = useState(new Date());
 
   const alarmSirenRef = useRef(null);
+  const sharedAudioCtxRef = useRef(null);
+
+  // Unlock AudioContext on first user gesture to defeat browser autoplay policy
+  useEffect(() => {
+    const unlockAudio = () => {
+      if (!sharedAudioCtxRef.current) {
+        sharedAudioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (sharedAudioCtxRef.current.state === "suspended") {
+        sharedAudioCtxRef.current.resume();
+      }
+    };
+    window.addEventListener("click", unlockAudio, { once: true });
+    window.addEventListener("touchstart", unlockAudio, { once: true });
+    return () => {
+      window.removeEventListener("click", unlockAudio);
+      window.removeEventListener("touchstart", unlockAudio);
+    };
+  }, []);
+
+  // Request desktop notification permission on mount
+  useEffect(() => {
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
+  }, []);
+
+  // Helper: send a native OS desktop notification
+  const sendDesktopNotification = (report) => {
+    if (!("Notification" in window) || Notification.permission !== "granted") return;
+    const title = `🚨 CDRRMO ALERT: ${report.emergencyType || "Emergency"}`;
+    const body = [
+      report.userId?.fullName || "Anonymous Reporter",
+      report.location?.name || report.location?.barangay || "Unknown Location",
+      report.description ? report.description.slice(0, 80) + (report.description.length > 80 ? "..." : "") : "",
+    ].filter(Boolean).join(" · ");
+    const notif = new Notification(title, {
+      body,
+      icon: "/logo.png",
+      tag: `cdrrmo-alert-${report._id || Date.now()}`,
+      requireInteraction: true,
+    });
+    notif.onclick = () => {
+      window.focus();
+      notif.close();
+    };
+  };
 
   const [user, setUser] = useState(() => {
     try { return JSON.parse(localStorage.getItem("user") || "{}"); }
@@ -188,9 +235,8 @@ function CdrrmoDashboard() {
       osc.connect(gain);
       gain.connect(audioCtx.destination);
 
-      // Fade in to avoid pops
-      gain.gain.setValueAtTime(0, audioCtx.currentTime);
-      gain.gain.linearRampToValueAtTime(0.15, audioCtx.currentTime + 0.1);
+      // Full volume, immediate — no fade ramp
+      gain.gain.setValueAtTime(1.0, audioCtx.currentTime);
 
       osc.start();
       lfo.start();
@@ -290,13 +336,16 @@ function CdrrmoDashboard() {
         return [newReport, ...prev];
       });
 
-      // Always play siren for emergency alerts
+      // Play siren immediately
       if (user.soundAlerts !== false) {
         playSiren();
       }
 
-      // Open the custom dispatch popup screen!
+      // Open the custom dispatch popup screen instantly
       setActiveAlert(newReport);
+
+      // Fire native OS desktop notification immediately
+      sendDesktopNotification(newReport);
     });
 
     socket.on("reportStatusChanged", (updatedReport) => {
@@ -329,6 +378,7 @@ function CdrrmoDashboard() {
         playSiren();
       }
       setActiveAlert(e.detail);
+      sendDesktopNotification(e.detail);
     };
     window.addEventListener("simulate-emergency-alert", handleSimulatedAlert);
     return () => {
