@@ -94,6 +94,53 @@ function AdminDashboard() {
   const [currentTime, setCurrentTime] = useState(new Date());
 
   const alarmSirenRef = useRef(null);
+  const sharedAudioCtxRef = useRef(null);
+
+  // Unlock AudioContext on first user gesture to defeat browser autoplay policy
+  useEffect(() => {
+    const unlockAudio = () => {
+      if (!sharedAudioCtxRef.current) {
+        sharedAudioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (sharedAudioCtxRef.current.state === "suspended") {
+        sharedAudioCtxRef.current.resume();
+      }
+    };
+    window.addEventListener("click", unlockAudio, { once: true });
+    window.addEventListener("touchstart", unlockAudio, { once: true });
+    return () => {
+      window.removeEventListener("click", unlockAudio);
+      window.removeEventListener("touchstart", unlockAudio);
+    };
+  }, []);
+
+  // Request desktop notification permission on mount
+  useEffect(() => {
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
+  }, []);
+
+  // Helper: send a native OS desktop notification
+  const sendDesktopNotification = (report) => {
+    if (!("Notification" in window) || Notification.permission !== "granted") return;
+    const title = `🚨 PNP ALERT: ${report.emergencyType || "Crime / Incident"}`;
+    const body = [
+      report.userId?.fullName || "Anonymous Reporter",
+      report.location?.name || report.location?.barangay || "Unknown Location",
+      report.description ? report.description.slice(0, 80) + (report.description.length > 80 ? "..." : "") : "",
+    ].filter(Boolean).join(" · ");
+    const notif = new Notification(title, {
+      body,
+      icon: "/logo.png",
+      tag: `pnp-alert-${report._id || Date.now()}`,
+      requireInteraction: true,
+    });
+    notif.onclick = () => {
+      window.focus();
+      notif.close();
+    };
+  };
 
   const [user, setUser] = useState(() => {
     try { return JSON.parse(localStorage.getItem("user") || "{}"); }
@@ -166,7 +213,7 @@ function AdminDashboard() {
       osc.connect(gain);
       gain.connect(audioCtx.destination);
       
-      gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+      gain.gain.setValueAtTime(1.0, audioCtx.currentTime);
       
       osc.start();
       lfo.start();
@@ -218,7 +265,7 @@ function AdminDashboard() {
       gain1.connect(audioCtx.destination);
       osc1.type = "sine";
       osc1.frequency.setValueAtTime(880, audioCtx.currentTime); // A5
-      gain1.gain.setValueAtTime(0.08, audioCtx.currentTime);
+      gain1.gain.setValueAtTime(1.0, audioCtx.currentTime);
       osc1.start(audioCtx.currentTime);
       osc1.stop(audioCtx.currentTime + 0.15);
 
@@ -231,7 +278,7 @@ function AdminDashboard() {
         gain2.connect(audioCtx2.destination);
         osc2.type = "sine";
         osc2.frequency.setValueAtTime(1100, audioCtx2.currentTime); // C6
-        gain2.gain.setValueAtTime(0.08, audioCtx2.currentTime);
+        gain2.gain.setValueAtTime(1.0, audioCtx2.currentTime);
         osc2.start(audioCtx2.currentTime);
         osc2.stop(audioCtx2.currentTime + 0.25);
       }, 150);
@@ -268,8 +315,11 @@ function AdminDashboard() {
           }
         }
 
-        // Open the custom dispatch popup screen!
+        // Open the custom dispatch popup instantly
         setActiveAlert(newReport);
+
+        // Fire native OS desktop notification immediately
+        sendDesktopNotification(newReport);
       }
     });
 
@@ -295,6 +345,7 @@ function AdminDashboard() {
         }
       }
       setActiveAlert(e.detail);
+      sendDesktopNotification(e.detail);
     };
     window.addEventListener("simulate-crime-alert", handleSimulatedAlert);
     return () => {
