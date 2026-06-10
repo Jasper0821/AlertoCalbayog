@@ -416,3 +416,25 @@ export function TrashIcon({ size = 20, color = "#EF4444" }: IconProps): React.JS
   );
 }
 
+export function HistoryIcon({ size = 22, color = "#0A1E3F" }: IconProps): React.JSX.Element {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M12 8V12L15 15"
+        stroke={color}
+        strokeWidth={1.8}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M3.05 11A9 9 0 1 1 5.38 16.5M3 17V12.5H7.5"
+        stroke={color}
+        strokeWidth={1.8}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
+
