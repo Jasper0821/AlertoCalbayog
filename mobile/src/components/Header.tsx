@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { View, Text, TouchableOpacity, Modal, Pressable, StyleSheet, DeviceEventEmitter } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
-import { ArrowLeftIcon, BellIcon } from "./SvgIcons";
+import { ArrowLeftIcon, BellIcon, HistoryIcon } from "./SvgIcons";
 import { COLORS } from "../styles/colors";
 import api from "../api/axios";
 import { getToken } from "../utils/Storage";
@@ -95,6 +95,13 @@ export default function Header({
             className="w-10 h-10 rounded-full bg-surface border border-border items-center justify-center"
           >
             <Text className="text-primary text-lg">☰</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            onPress={() => navigation.navigate("ReportHistory" as never)}
+            className="w-10 h-10 rounded-full bg-surface border border-border items-center justify-center"
+            activeOpacity={0.8}
+          >
+            <HistoryIcon size={20} color={COLORS.primary} />
           </TouchableOpacity>
           <TouchableOpacity 
             onPress={() => navigation.navigate("Notifications" as never)}
