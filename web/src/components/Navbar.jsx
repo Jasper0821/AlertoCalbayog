@@ -5,20 +5,6 @@ export function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
   const location = useLocation();
 
-  const userJson = localStorage.getItem("user") || sessionStorage.getItem("user");
-  let user = null;
-  try {
-    user = userJson ? JSON.parse(userJson) : null;
-  } catch(e) {}
-
-  const getDashboardRoute = (u) => {
-    if (!u) return "/login";
-    if (u.role === "admin") return "/admindashboard";
-    if (u.agency === "PNP") return "/crimedashboard";
-    return "/dashboard";
-  };
-  const dashboardRoute = getDashboardRoute(user);
-
   const navLink = (to, label) => {
     const isActive = location.pathname === to;
     return (
@@ -57,30 +43,18 @@ export function Navbar() {
 
         {/* Right Actions */}
         <div className="hidden md:flex items-center gap-4">
-
-          {user ? (
-            <Link
-              to={dashboardRoute}
-              className="flex h-9 items-center justify-center px-6 rounded-md bg-[#0a1e3f] text-[13px] font-bold text-white hover:bg-[#07152c] transition-all duration-150 active:scale-95 transform"
-            >
-              Go to Dashboard
-            </Link>
-          ) : (
-            <>
-              <Link
-                to="/login"
-                className="flex h-9 items-center justify-center px-6 rounded-md border-[1.5px] border-dashed border-slate-400 text-[13px] font-bold text-slate-200 hover:border-white hover:text-white transition-all duration-150 active:scale-95 transform"
-              >
-                Login
-              </Link>
-              <Link
-                to="/register"
-                className="flex h-9 items-center justify-center px-6 rounded-md bg-white text-[13px] font-bold text-[#0a1e3f] hover:bg-slate-100 transition-all duration-150 active:scale-95 transform"
-              >
-                Register
-              </Link>
-            </>
-          )}
+          <Link
+            to="/login"
+            className="flex h-9 items-center justify-center px-6 rounded-md border-[1.5px] border-dashed border-slate-400 text-[13px] font-bold text-slate-200 hover:border-white hover:text-white transition-all duration-150 active:scale-95 transform"
+          >
+            Login
+          </Link>
+          <Link
+            to="/register"
+            className="flex h-9 items-center justify-center px-6 rounded-md bg-white text-[13px] font-bold text-[#0a1e3f] hover:bg-slate-100 transition-all duration-150 active:scale-95 transform"
+          >
+            Register
+          </Link>
         </div>
 
         {/* Mobile Menu Toggle */}
@@ -107,32 +81,20 @@ export function Navbar() {
           <Link to="/about" onClick={() => setIsOpen(false)} className="text-[15px] font-medium text-slate-400 hover:text-white py-2 transition-all duration-150 active:scale-95 transform">About</Link>
           <Link to="/contact" onClick={() => setIsOpen(false)} className="text-[15px] font-medium text-slate-400 hover:text-white py-2 transition-all duration-150 active:scale-95 transform">Contact</Link>
           <div className="h-px bg-slate-800 my-2"></div>
-          {user ? (
-            <Link
-              to={dashboardRoute}
-              onClick={() => setIsOpen(false)}
-              className="flex h-10 items-center justify-center rounded-md bg-white text-[14px] font-bold text-[#0a1e3f] hover:bg-slate-100 transition-all duration-150 active:scale-95 transform"
-            >
-              Go to Dashboard
-            </Link>
-          ) : (
-            <>
-              <Link
-                to="/login"
-                onClick={() => setIsOpen(false)}
-                className="flex h-10 items-center justify-center rounded-md border-[1.5px] border-dashed border-slate-400 text-[14px] font-bold text-slate-200 hover:border-white hover:text-white transition-all duration-150 active:scale-95 transform"
-              >
-                Login
-              </Link>
-              <Link
-                to="/register"
-                onClick={() => setIsOpen(false)}
-                className="flex h-10 items-center justify-center rounded-md bg-white text-[14px] font-bold text-[#0a1e3f] hover:bg-slate-100 transition-all duration-150 active:scale-95 transform"
-              >
-                Register
-              </Link>
-            </>
-          )}
+          <Link
+            to="/login"
+            onClick={() => setIsOpen(false)}
+            className="flex h-10 items-center justify-center rounded-md border-[1.5px] border-dashed border-slate-400 text-[14px] font-bold text-slate-200 hover:border-white hover:text-white transition-all duration-150 active:scale-95 transform"
+          >
+            Login
+          </Link>
+          <Link
+            to="/register"
+            onClick={() => setIsOpen(false)}
+            className="flex h-10 items-center justify-center rounded-md bg-white text-[14px] font-bold text-[#0a1e3f] hover:bg-slate-100 transition-all duration-150 active:scale-95 transform"
+          >
+            Register
+          </Link>
         </div>
       </div>
     </nav>

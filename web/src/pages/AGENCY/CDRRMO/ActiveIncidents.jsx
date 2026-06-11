@@ -1,9 +1,16 @@
-import { STATUS_STYLES, TYPE_ICONS } from "./utils.js";
+import {
+  TYPE_ICONS,
+  STATUS_STYLES,
+  formatBarangay,
+  formatStreetPurok,
+  getIncidentStatusInfo,
+  normalizeIncidentStatus
+} from "./utils.js";
 
-export default function ActiveIncidents({ reports = [], onStatusChange }) {
+export default function ActiveIncidents({ reports = [] }) {
   // Show all unresolved reports so responders can progress incidents without opening the queue.
   const activeReports = (Array.isArray(reports) ? reports : []).filter(r =>
-    !["resolved", "responded", "closed"].includes((r.status || "").toLowerCase())
+    normalizeIncidentStatus(r.status) !== "resolved"
   );
 
   return (
@@ -118,18 +125,6 @@ export default function ActiveIncidents({ reports = [], onStatusChange }) {
                       <span className={`w-1.5 h-1.5 rounded-full ${statusInfo.dot}`}></span>
                       {statusInfo.label}
                     </span>
-                    <select
-                      value={status === "responding" ? "active" : status}
-                      onChange={(e) => onStatusChange?.(report._id, e.target.value)}
-                      disabled={!report._id}
-                      className={`ml-2 min-w-[170px] rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold outline-none transition-colors focus:border-[#0a1e3f] focus:ring-2 focus:ring-[#0a1e3f]/10 disabled:cursor-not-allowed disabled:opacity-60 ${statusInfo.text}`}
-                      title="Update incident status"
-                    >
-                      <option value="pending">Pending</option>
-                      <option value="verified">Verified / Acknowledged</option>
-                      <option value="active">Active</option>
-                      <option value="resolved">Resolved</option>
-                    </select>
                   </td>
                 </tr>
               );

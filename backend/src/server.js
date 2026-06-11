@@ -4,8 +4,7 @@ const { Server } = require("socket.io");
 const connectDB = require("./config/db");
 const app = require("./app");
 const setupSocket = require("./sockets/socket");
-
-connectDB();
+const backfillReportStatuses = require("./utils/backfillReportStatuses");
 
 const server = http.createServer(app);
 
@@ -28,6 +27,13 @@ const networkInterfaces = os.networkInterfaces();
 const lanIP = Object.values(networkInterfaces)
   .flat()
   .find((iface) => iface.family === "IPv4" && !iface.internal)?.address || "unknown";
+
+connectDB()
+  .then(backfillReportStatuses)
+  .catch((err) => {
+    console.error("Startup failed:", err.message);
+    process.exit(1);
+  });
 
 server.listen(PORT, HOST, () => {
   console.log(`✅ Server running on port ${PORT}`);

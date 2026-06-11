@@ -33,7 +33,7 @@ const emergencyReportSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["pending", "verified", "responding", "active", "resolved", "responded", "closed"],
+      enum: ["pending", "responding", "resolved"],
       default: "pending"
     },
     location: {

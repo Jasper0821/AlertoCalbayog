@@ -189,9 +189,31 @@ function AdminDashboard() {
   const handleStatusChange = async (id, newStatus) => {
     setStatusOverrides(prev => ({ ...prev, [id]: newStatus }));
     try {
-      await api.put(`/emergency/${id}`, { status: newStatus });
+      const res = await api.put(`/emergency/${id}`, { status: newStatus });
+      const updatedReport = res.data?.report;
+      if (updatedReport?._id) {
+        setReports(prev => prev.map(r => r._id === updatedReport._id ? updatedReport : r));
+      }
+      setStatusOverrides(prev => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
     } catch (err) {
-      console.warn("Backend update failed, using local status override:", err);
+      setStatusOverrides(prev => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+      Swal.fire({
+        toast: true,
+        position: "top-end",
+        icon: "error",
+        title: err.response?.data?.message || "Unable to update incident status",
+        showConfirmButton: false,
+        timer: 2600,
+      });
+      console.warn("Backend update failed:", err);
     }
   };
 
@@ -354,10 +376,26 @@ function AdminDashboard() {
       }
     });
 
+    socket.on("reportStatusChanged", (updatedReport) => {
+      console.log("📡 PNP Command Center received status change:", updatedReport);
+      if ((updatedReport.emergencyType || "").toLowerCase() === "crime") {
+        setReports(prev => prev.some(r => r._id === updatedReport._id)
+          ? prev.map(r => r._id === updatedReport._id ? updatedReport : r)
+          : [updatedReport, ...prev]
+        );
+        setStatusOverrides(prev => {
+          const next = { ...prev };
+          delete next[updatedReport._id];
+          return next;
+        });
+      }
+    });
+
     return () => {
       socket.emit("leaveRoom", room);
       socket.emit("leaveRoom", "admin");
       socket.off("newEmergencyAlert");
+      socket.off("reportStatusChanged");
       socket.disconnect();
     };
   }, [user.agency, user.soundAlerts, user.loopAlarm]);
@@ -389,7 +427,7 @@ function AdminDashboard() {
     if (!activeAlert) return;
 
     // Update local and backend status
-    handleStatusChange(activeAlert._id, "active");
+    handleStatusChange(activeAlert._id, "responding");
 
     // Close modal silently — no secondary popup
     setActiveAlert(null);

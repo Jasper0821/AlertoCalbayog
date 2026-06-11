@@ -82,10 +82,9 @@ export function QueueSection({ reports = [] }) {
  }
  }}
  >
- <option value="pending">Pending</option>
- <option value="verified">Verified / Acknowledged</option>
- <option value="responding">Active / Rescue on the way</option>
- <option value="resolved">Resolved</option>
+  <option value="pending">Pending</option>
+  <option value="responding">Responding</option>
+  <option value="resolved">Resolved</option>
  </select>
  </div>
  </article>
