@@ -1,16 +1,27 @@
 import React from "react";
+import { STATUS_STYLES_BASE } from "../../../utils/incidentFormatters.js";
+
+export {
+  cleanBarangay,
+  cleanPurok,
+  formatBarangay,
+  formatIncidentLocation,
+  formatStreetPurok,
+  getIncidentStatusInfo,
+  getLocationParts,
+  normalizeIncidentStatus
+} from "../../../utils/incidentFormatters.js";
 
 export const STATUS_STYLES = {
-  pending:     { dot: "bg-amber-400",  text: "text-amber-600",   label: "Pending" },
-  responding:  { dot: "bg-blue-500",   text: "text-blue-600",    label: "Responding" },
-  resolved:    { dot: "bg-emerald-500",text: "text-emerald-600", label: "Resolved" },
-  responded:   { dot: "bg-emerald-500",text: "text-emerald-600", label: "Responded" },
-  closed:      { dot: "bg-slate-400",  text: "text-slate-500",   label: "Closed" },
-  ongoing:     { dot: "bg-orange-500", text: "text-orange-600",  label: "Ongoing" },
-  cancelled:   { dot: "bg-red-400",    text: "text-slate-500",   label: "Cancelled" },
-  dispatching: { dot: "bg-red-500",    text: "text-red-600",     label: "Dispatching" },
-  active:      { dot: "bg-indigo-500", text: "text-indigo-600",  label: "Active" },
-  en_route:    { dot: "bg-blue-500",   text: "text-blue-600",    label: "En Route" },
+  ...STATUS_STYLES_BASE,
+  verified: STATUS_STYLES_BASE.pending,
+  active: STATUS_STYLES_BASE.responding,
+  ongoing: STATUS_STYLES_BASE.responding,
+  dispatching: STATUS_STYLES_BASE.responding,
+  en_route: STATUS_STYLES_BASE.responding,
+  responded: STATUS_STYLES_BASE.resolved,
+  closed: STATUS_STYLES_BASE.resolved,
+  cancelled: STATUS_STYLES_BASE.resolved,
 };
 
 export const PRIORITY_STYLES = {
@@ -145,7 +156,7 @@ export const MOCK_QUEUE_REPORTS = {
     { _id: "q5", incidentId: "INC-2024-095", emergencyType: "crime", userId: { fullName: "Lito Lapid", phoneNumber: "0945-222-3344" }, location: { name: "Brgy. Dagum, Maharlika Hwy", barangay: "Dagum", street: "Maharlika Hwy", purok: "Purok 1" }, status: "pending", createdAt: new Date(Date.now() - 900000).toISOString() },
   ],
   active: [
-    { _id: "q3", incidentId: "INC-2024-093", emergencyType: "crime", userId: { fullName: "Mike Cruz", phoneNumber: "0919-111-2222" }, location: { name: "Brgy. Nijaga, Coastal Rd", barangay: "Nijaga", street: "Coastal Rd.", purok: "" }, status: "active", createdAt: new Date(Date.now() - 800000).toISOString() },
-    { _id: "q4", incidentId: "INC-2024-094", emergencyType: "crime", userId: { fullName: "Sonia Santos", phoneNumber: "0932-444-5555" }, location: { name: "Brgy. Balud, Riverside St", barangay: "Balud", street: "Riverside St.", purok: "Purok 5" }, status: "active", createdAt: new Date(Date.now() - 1500000).toISOString() },
+    { _id: "q3", incidentId: "INC-2024-093", emergencyType: "crime", userId: { fullName: "Mike Cruz", phoneNumber: "0919-111-2222" }, location: { name: "Purok 3, Brgy. Nijaga, Calbayog City", barangay: "Nijaga", street: "Coastal Rd.", purok: "Purok 3" }, status: "responding", createdAt: new Date(Date.now() - 800000).toISOString() },
+    { _id: "q4", incidentId: "INC-2024-094", emergencyType: "crime", userId: { fullName: "Sonia Santos", phoneNumber: "0932-444-5555" }, location: { name: "Purok 5, Brgy. Balud, Calbayog City", barangay: "Balud", street: "Riverside St.", purok: "Purok 5" }, status: "responding", createdAt: new Date(Date.now() - 1500000).toISOString() },
   ],
 };

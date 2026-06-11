@@ -152,15 +152,14 @@ export default function DashboardOverview({ reports = [], setActiveNav, onStatus
                         <div className="flex items-center gap-2">
                           <span className={`w-1.5 h-1.5 rounded-full ${statusInfo.dot}`} />
                           <select
-                            value={status === "responding" ? "active" : status}
+                            value={status === "active" ? "responding" : (status === "responded" ? "resolved" : status)}
                             onChange={(e) => onStatusChange?.(report._id, e.target.value)}
                             disabled={!report._id}
                             className={`min-w-[160px] rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold outline-none transition-colors focus:border-[#0a1e3f] focus:ring-2 focus:ring-[#0a1e3f]/10 disabled:cursor-not-allowed disabled:opacity-60 ${statusInfo.text}`}
                             title="Update incident status"
                           >
                             <option value="pending">Pending</option>
-                            <option value="verified">Verified / Acknowledged</option>
-                            <option value="active">Active</option>
+                            <option value="responding">Responding</option>
                             <option value="resolved">Resolved</option>
                           </select>
                         </div>

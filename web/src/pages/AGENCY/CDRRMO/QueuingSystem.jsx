@@ -29,10 +29,6 @@ export default function QueuingSystem({ reports = [], onStatusChange }) {
             <span className="w-2 h-2 rounded-full bg-amber-400"></span>
             {activeReports.filter(r => (r.status||'').toLowerCase() === 'pending').length} Pending
           </span>
-          <span className="flex items-center gap-1.5 text-xs font-bold bg-teal-50 border border-teal-200 text-teal-700 px-3 py-1.5 rounded-full">
-            <span className="w-2 h-2 rounded-full bg-teal-400"></span>
-            {activeReports.filter(r => (r.status||'').toLowerCase() === 'verified').length} Verified
-          </span>
           <span className="flex items-center gap-1.5 text-xs font-bold bg-indigo-50 border border-indigo-200 text-indigo-700 px-3 py-1.5 rounded-full">
             <span className="w-2 h-2 rounded-full bg-indigo-400"></span>
             {activeReports.filter(r => ["responding", "active"].includes((r.status||'').toLowerCase())).length} Responding
@@ -101,8 +97,7 @@ export default function QueuingSystem({ reports = [], onStatusChange }) {
                           className={`text-xs font-bold bg-transparent border-none p-0 pr-6 focus:outline-none focus:ring-0 cursor-pointer ${statusInfo.text}`}
                         >
                           <option value="pending" className="text-amber-600 font-bold">Pending</option>
-                          <option value="verified" className="text-teal-600 font-bold">Verified / Acknowledged</option>
-                          <option value="responding" className="text-indigo-600 font-bold">Responding / Rescue on the way</option>
+                          <option value="responding" className="text-indigo-600 font-bold">Responding</option>
                           <option value="resolved" className="text-emerald-600 font-bold">Resolved</option>
                         </select>
                       </div>

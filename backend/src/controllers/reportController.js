@@ -2,7 +2,7 @@ const EmergencyReport = require("../models/EmergencyReport");
 const User = require("../models/User");
 const Notification = require("../models/Notification");
 
-const ALLOWED_STATUS_UPDATES = new Set(["pending", "verified", "responding", "active", "resolved", "responded", "closed"]);
+const ALLOWED_STATUS_UPDATES = new Set(["pending", "responding", "resolved"]);
 
 const populateReport = (query) =>
   query
@@ -10,14 +10,14 @@ const populateReport = (query) =>
     .populate("assignedResponder", "fullName email role agency phoneNumber");
 
 const buildStatusMessage = (status) => {
-  if (status === "verified") {
-    return "Your incident report has been verified. Rescue is on the way.";
+  if (status === "pending") {
+    return "Your incident report has been received and is waiting for response.";
   }
-  if (status === "responding" || status === "active") {
-    return "Your incident report is active. Rescue units are en route.";
+  if (status === "responding") {
+    return "Rescue/responders are on the way to your incident.";
   }
-  if (status === "resolved" || status === "responded") {
-    return "Your incident report has been resolved.";
+  if (status === "resolved") {
+    return "Your incident has been completed.";
   }
   return `Your incident report status has been updated to ${status}.`;
 };
@@ -83,7 +83,9 @@ const emitReportChange = async (req, report, notificationMessage, notificationTy
 
 exports.updateReportStatus = async (req, res) => {
   try {
-    const status = String(req.body.status || "").toLowerCase();
+    let status = String(req.body.status || "").trim().toLowerCase();
+    if (status === "active") status = "responding";
+    if (status === "responded") status = "resolved";
     const { id } = req.params;
 
     if (!ALLOWED_STATUS_UPDATES.has(status)) {

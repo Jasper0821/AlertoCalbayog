@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, Animated, Easing, DeviceEventEmitter } fr
 import Header from "../components/Header";
 import IncidentPicker from "../components/IncidentPicker";
 import { clearStorage, getUser } from "../utils/Storage";
-import socket from "../api/socket";
+import socket, { connectSocket } from "../api/socket";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../navigation/AppNavigator";
 
@@ -33,12 +33,17 @@ export default function HomeScreen({
       if (!userId) return;
 
       if (active) {
-        socket.connect();
-        socket.emit("joinRoom", userId);
-        console.log("📡 Mobile socket connected & joined room:", userId);
+        const joinUserRoom = () => {
+          socket.emit("joinRoom", userId);
+          console.log("Mobile socket connected and joined room:", userId);
+        };
+
+        socket.off("connect", joinUserRoom);
+        socket.on("connect", joinUserRoom);
+        connectSocket();
 
         socket.on("notification", (notif: { title: string; message: string; reportId: string; status: string }) => {
-          console.log("📡 Received status update notification:", notif);
+          console.log("Received status update notification:", notif);
           
           // Broadcast notification to other active screens (e.g. Header and NotificationsScreen)
           DeviceEventEmitter.emit("reportStatusUpdated", notif);
@@ -50,6 +55,7 @@ export default function HomeScreen({
 
     return () => {
       active = false;
+      socket.off("connect");
       socket.off("notification");
       socket.disconnect();
     };

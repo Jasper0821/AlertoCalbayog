@@ -51,19 +51,11 @@ function PrivateRoute({ children, allowedRoles, allowedAgency }) {
 }
 
 function PublicRoute({ children }) {
-  const token = localStorage.getItem("token") || sessionStorage.getItem("token");
-  const userJson = localStorage.getItem("user") || sessionStorage.getItem("user");
-  let user = null;
-
-  try {
-    user = userJson ? JSON.parse(userJson) : null;
-  } catch (e) {
-    user = null;
-  }
-
-  if (token && user) {
-    return <Navigate to={getAgencyRoute(user)} replace />;
-  }
+  // Always clear stale auth data so login/register pages always render
+  localStorage.removeItem("token");
+  localStorage.removeItem("user");
+  sessionStorage.removeItem("token");
+  sessionStorage.removeItem("user");
 
   return children;
 }

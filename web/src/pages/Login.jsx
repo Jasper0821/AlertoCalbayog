@@ -89,7 +89,7 @@ function Login() {
 
             <div className="grid gap-1.5 text-left">
               <label className="text-[12px] font-bold text-slate-600 ml-0.5" htmlFor="email">
-                Responder ID / Email
+                 Email
               </label>
               <div className="relative flex items-center">
                 <span className="absolute left-3.5 text-slate-400">
@@ -105,7 +105,7 @@ function Login() {
                   name="email"
                   type="email"
                   autoComplete="email"
-                  placeholder="Enter your credential"
+                  placeholder="Please enter your email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
@@ -116,7 +116,7 @@ function Login() {
             <div className="grid gap-1.5 text-left">
               <div className="flex items-center justify-between ml-0.5">
                 <label className="text-[12px] font-bold text-slate-600" htmlFor="password">
-                  Security Key
+                  Password
                 </label>
                 <Link
                   to="/forgot-password"
