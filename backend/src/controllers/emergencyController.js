@@ -18,7 +18,6 @@ exports.createEmergencyReport = async (req, res) => {
 
     try {
       if (typeof fetch === "function") {
-        // 1-second timeout so geocoding never delays the alert emission
         const controller = new AbortController();
         const geoTimeout = setTimeout(() => controller.abort(), 1000);
 
@@ -38,7 +37,6 @@ exports.createEmergencyReport = async (req, res) => {
             barangay = addr.suburb || addr.neighbourhood || addr.village || addr.quarter || addr.city_district || "";
             street = addr.road || addr.street || addr.footway || addr.path || "";
 
-            // Extract Purok if mentioned
             if (addr.neighbourhood && addr.neighbourhood.toLowerCase().includes("purok")) {
               purok = addr.neighbourhood;
             } else if (addr.suburb && addr.suburb.toLowerCase().includes("purok")) {
@@ -47,7 +45,6 @@ exports.createEmergencyReport = async (req, res) => {
               purok = addr.subdivision;
             }
 
-            // Build clean location name
             const parts = [];
             if (purok) parts.push(purok);
             if (street && street !== purok) parts.push(street);
@@ -61,7 +58,6 @@ exports.createEmergencyReport = async (req, res) => {
         }
       }
     } catch (err) {
-      // Abort or fetch error — proceed with coordinate fallback
       if (err.name !== "AbortError") {
         console.error("Reverse geocoding failed:", err.message);
       }
@@ -86,19 +82,16 @@ exports.createEmergencyReport = async (req, res) => {
       }
     });
 
-    // Populate user info before emitting
     const populatedReport = await EmergencyReport.findById(report._id)
       .populate("userId", "fullName email role phoneNumber")
       .populate("assignedResponder", "fullName email role agency phoneNumber");
 
     const io = req.app.get("io");
 
-    // Emit to each notified agency room
     notifiedAgencies.forEach((agency) => {
       io.to(agency).emit("newEmergencyAlert", populatedReport);
     });
 
-    // Always notify admin
     io.to("admin").emit("newEmergencyAlert", populatedReport);
 
     res.status(201).json({
@@ -146,7 +139,6 @@ exports.deleteMyReport = async (req, res) => {
       return res.status(404).json({ message: "Report not found" });
     }
 
-    // Ensure the report belongs to the currently logged-in user
     if (report.userId.toString() !== req.user.id) {
       return res.status(403).json({ message: "You can only delete your own reports" });
     }
@@ -162,7 +154,6 @@ exports.deleteMyReport = async (req, res) => {
 exports.getReportsByAgency = async (req, res) => {
   try {
     const { agency } = req.params;
-    // notifiedAgencies is an array — MongoDB matches if the value exists in the array
     const reports = await EmergencyReport.find({ notifiedAgencies: agency })
       .populate("userId", "fullName email role")
       .populate("assignedResponder", "fullName email role agency phoneNumber")

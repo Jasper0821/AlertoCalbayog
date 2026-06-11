@@ -1,26 +1,27 @@
 const nodemailer = require("nodemailer");
 
-/**
- * Creates a transporter.
- * - If GMAIL_USER + GMAIL_APP_PASS are set in .env → use real Gmail SMTP
- * - Otherwise → auto-create a free Ethereal test account (no setup needed).
- *   OTP code + preview URL are printed to the console.
- */
 async function createTransporter() {
-  if (process.env.GMAIL_USER && process.env.GMAIL_APP_PASS &&
-      process.env.GMAIL_USER !== "your_gmail@gmail.com" &&
-      process.env.GMAIL_APP_PASS !== "your_16_char_app_password" &&
-      process.env.GMAIL_APP_PASS.trim() !== "") {
+  const gmailUser = process.env.GMAIL_USER?.trim();
+  const gmailPass = process.env.GMAIL_APP_PASS?.replace(/\s+/g, "").trim();
+
+  if (
+    gmailUser &&
+    gmailPass &&
+    gmailUser !== "your_gmail@gmail.com" &&
+    gmailPass !== "your_16_char_app_password" &&
+    gmailPass !== ""
+  ) {
     return nodemailer.createTransport({
-      service: "gmail",
+      host: "smtp.gmail.com",
+      port: 465,
+      secure: true,
       auth: {
-        user: process.env.GMAIL_USER,
-        pass: process.env.GMAIL_APP_PASS,
+        user: gmailUser,
+        pass: gmailPass,
       },
     });
   }
 
-  // Auto-generate a free Ethereal test account — no signup required
   const testAccount = await nodemailer.createTestAccount();
   console.log("\n📧  [Mailer] No Gmail credentials found — using Ethereal test SMTP.");
   console.log(`    User: ${testAccount.user}`);
@@ -37,16 +38,11 @@ async function createTransporter() {
   });
 }
 
-/**
- * Send a 6-digit OTP to the given email address.
- * @param {string} toEmail
- * @param {string} otpCode
- */
 async function sendOtpEmail(toEmail, otpCode) {
-  const transporter = await createTransporter();
+  let transporter = await createTransporter();
 
   const mailOptions = {
-    from: `"AlertoCalbayog" <${process.env.GMAIL_USER || "noreply@alertocalbayog.local"}>`,
+    from: `"AlertoCalbayog" <${process.env.GMAIL_USER?.trim() || "noreply@alertocalbayog.local"}>`,
     to: toEmail,
     subject: "🔐 Your AlertoCalbayog Password Reset Code",
     html: `
@@ -61,7 +57,7 @@ async function sendOtpEmail(toEmail, otpCode) {
           </div>
 
           <p style="font-size:14px;color:#334155;margin:0 0 20px;">
-            We received a request to reset your password. Use the code below — it expires in <strong>10 minutes</strong>.
+            We received a request to reset your password. Use the code below — it expires in <strong>5 minutes</strong>.
           </p>
 
           <div style="background:#f1f5f9;border:2px dashed #cbd5e1;border-radius:12px;padding:20px;text-align:center;margin-bottom:24px;">
@@ -71,7 +67,7 @@ async function sendOtpEmail(toEmail, otpCode) {
 
           <p style="font-size:12px;color:#94a3b8;text-align:center;margin:0;">
             If you did not request this, please ignore this email.<br/>
-            This code will expire automatically after 10 minutes.
+            This code will expire automatically after 5 minutes.
           </p>
 
           <div style="border-top:1px solid #e2e8f0;margin-top:28px;padding-top:16px;text-align:center;">
@@ -82,12 +78,28 @@ async function sendOtpEmail(toEmail, otpCode) {
     `,
   };
 
-  const info = await transporter.sendMail(mailOptions);
+  let info;
+  try {
+    info = await transporter.sendMail(mailOptions);
+  } catch (err) {
+    if (err.code === "EAUTH") {
+      console.warn("\n⚠️  [Mailer] Gmail authentication failed — falling back to Ethereal test SMTP.");
+      const testAccount = await nodemailer.createTestAccount();
+      console.log(`    Ethereal User: ${testAccount.user}`);
+      transporter = nodemailer.createTransport({
+        host: "smtp.ethereal.email",
+        port: 587,
+        secure: false,
+        auth: { user: testAccount.user, pass: testAccount.pass },
+      });
+      info = await transporter.sendMail(mailOptions);
+    } else {
+      throw err;
+    }
+  }
 
-  // Always log the OTP to console for easy dev access
   console.log(`\n✅  [OTP] Code for ${toEmail}: ${otpCode}`);
 
-  // If Ethereal is being used, print the preview URL
   const previewUrl = nodemailer.getTestMessageUrl(info);
   if (previewUrl) {
     console.log(`📬  [Ethereal Preview] View email at: ${previewUrl}\n`);

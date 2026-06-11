@@ -89,6 +89,35 @@ export default function Analytics({ reports = [] }) {
         ))}
       </div>
 
+      {/* Top Barangay Insight */}
+      {barangayData.length > 0 && (
+        <div className="mt-6 p-5 bg-white border border-slate-200 rounded-2xl shadow-sm">
+          <h3 className="text-sm font-bold text-slate-800 mb-3">Top Barangay by Incidents</h3>
+          <div className="flex items-center gap-4">
+            <div className="flex-shrink-0 w-12 h-12 bg-[#0a1e3f] text-white rounded-full flex items-center justify-center text-lg font-black">
+              {barangayData[0].count}
+            </div>
+            <div className="text-sm font-medium text-slate-700">{barangayData[0].name}</div>
+          </div>
+        </div>
+      )}
+
+      {/* Status Circle Analytics */}
+      <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+        {[
+          { label: "Pending", value: pending, color: "bg-amber-500" },
+          { label: "Responded", value: responded, color: "bg-emerald-500" },
+          { label: "Active", value: active, color: "bg-indigo-500" },
+        ].map((s, idx) => (
+          <div key={s.label} className="flex flex-col items-center">
+            <div className={`relative w-24 h-24 ${s.color} rounded-full flex items-center justify-center text-white text-2xl font-bold transition-transform duration-1000 ${animate ? "scale-100" : "scale-0"}`}>
+              {s.value}
+            </div>
+            <p className="mt-2 text-sm font-medium text-slate-700">{s.label}</p>
+          </div>
+        ))}
+      </div>
+
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
 

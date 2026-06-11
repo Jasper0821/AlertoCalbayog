@@ -22,9 +22,8 @@ setupSocket(io);
 const os = require("os");
 
 const PORT = process.env.PORT || 5000;
-const HOST = "0.0.0.0"; // Listen on all network interfaces
+const HOST = "0.0.0.0";
 
-// Get local LAN IP for display
 const networkInterfaces = os.networkInterfaces();
 const lanIP = Object.values(networkInterfaces)
   .flat()
@@ -34,4 +33,14 @@ server.listen(PORT, HOST, () => {
   console.log(`✅ Server running on port ${PORT}`);
   console.log(`   Local:   http://localhost:${PORT}`);
   console.log(`   Network: http://${lanIP}:${PORT}  ← share this with your team`);
+});
+
+server.on("error", (err) => {
+  if (err.code === "EADDRINUSE") {
+    console.error(`\n❌ Port ${PORT} is already in use.`);
+    console.error(`   Stop the other process first, then try again.\n`);
+    process.exit(1);
+  } else {
+    throw err;
+  }
 });

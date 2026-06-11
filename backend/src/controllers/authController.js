@@ -8,7 +8,6 @@ const generateToken = (id, role) => {
   return jwt.sign({ id, role }, process.env.JWT_SECRET, { expiresIn: "7d" });
 };
 
-// ─── Register ───────────────────────────────────────────────────────────────
 exports.register = async (req, res) => {
   console.log("Registration request received:", req.body);
   try {
@@ -47,7 +46,6 @@ exports.register = async (req, res) => {
   }
 };
 
-// ─── Login ──────────────────────────────────────────────────────────────────
 exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -78,7 +76,6 @@ exports.login = async (req, res) => {
   }
 };
 
-// ─── Forgot Password — generate & email OTP ─────────────────────────────────
 exports.forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
@@ -86,24 +83,19 @@ exports.forgotPassword = async (req, res) => {
 
     const user = await User.findOne({ email: email.toLowerCase().trim() });
     if (!user) {
-      // Return 200 to avoid leaking whether the email exists
       return res.status(200).json({ message: "If that email exists, an OTP has been sent." });
     }
 
-    // Delete any previous unused OTPs for this email
     await Otp.deleteMany({ email: email.toLowerCase().trim() });
 
-    // Generate a random 6-digit numeric code
     const code = String(Math.floor(100000 + Math.random() * 900000));
 
-    // Persist to database — expires in 10 minutes
     await Otp.create({
       email: email.toLowerCase().trim(),
       code,
-      expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+      expiresAt: new Date(Date.now() + 5 * 60 * 1000),
     });
 
-    // Send the code via Gmail
     await sendOtpEmail(email, code);
 
     res.status(200).json({ message: "OTP sent to your email address." });
@@ -113,7 +105,6 @@ exports.forgotPassword = async (req, res) => {
   }
 };
 
-// ─── Verify OTP ─────────────────────────────────────────────────────────────
 exports.verifyOtp = async (req, res) => {
   try {
     const { email, code } = req.body;
@@ -135,11 +126,9 @@ exports.verifyOtp = async (req, res) => {
       return res.status(400).json({ message: "OTP has expired. Please request a new one." });
     }
 
-    // Mark as used — prevents replay attacks
     record.used = true;
     await record.save();
 
-    // Issue a short-lived (5 min) reset token
     const resetToken = jwt.sign(
       { email: email.toLowerCase().trim(), purpose: "password-reset" },
       process.env.JWT_SECRET,
@@ -153,7 +142,6 @@ exports.verifyOtp = async (req, res) => {
   }
 };
 
-// ─── Reset Password ──────────────────────────────────────────────────────────
 exports.resetPassword = async (req, res) => {
   try {
     const { resetToken, newPassword } = req.body;

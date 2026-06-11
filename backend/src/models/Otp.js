@@ -21,7 +21,6 @@ const otpSchema = new mongoose.Schema({
   },
 });
 
-// Auto-delete expired documents via MongoDB TTL index
 otpSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 module.exports = mongoose.model("Otp", otpSchema);

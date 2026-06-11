@@ -4,7 +4,6 @@ import { Navbar } from "../components/Navbar";
 import { Footer } from "../components/Footer";
 import api from "../api/axios.js";
 
-
 function ForgotPassword() {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
@@ -22,11 +21,9 @@ function ForgotPassword() {
         email: email.trim().toLowerCase(),
       });
 
-      // Store email so VerifyOTP page can use it
       sessionStorage.setItem("resetEmail", email.trim().toLowerCase());
       setIsSuccess(true);
 
-      // Auto-redirect after 2 s
       setTimeout(() => navigate("/verify-otp"), 2000);
     } catch (err) {
       const msg = err?.response?.data?.message;
@@ -41,11 +38,9 @@ function ForgotPassword() {
       <Navbar />
 
       <div className="flex-1 flex flex-col items-center justify-center px-4 pt-32 pb-20 relative">
-        {/* Background Decorative Elements */}
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(12,49,102,0.03),transparent_40%)]" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgba(239,68,68,0.02),transparent_40%)]" />
 
-        {/* Password Recovery Card */}
         <section className="relative w-full max-w-[420px] overflow-hidden rounded-2xl border border-slate-200/60 bg-white p-7 sm:p-8 shadow-[0_20px_50px_-20px_rgba(0,0,0,0.08)] z-10">
 
           <div className="text-left mb-6">
@@ -83,7 +78,6 @@ function ForgotPassword() {
           ) : (
             <form className="space-y-5" onSubmit={handleSubmit}>
 
-              {/* Email Input */}
               <div className="grid gap-1.5 text-left">
                 <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 ml-0.5" htmlFor="reset-email">
                   Agency Email Address
@@ -108,7 +102,6 @@ function ForgotPassword() {
                 </div>
               </div>
 
-              {/* Error banner */}
               {error && (
                 <div className="flex items-start gap-2 bg-red-50 border border-red-100 rounded-xl px-3.5 py-3">
                   <svg className="w-4 h-4 text-red-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
@@ -118,7 +111,6 @@ function ForgotPassword() {
                 </div>
               )}
 
-              {/* Submit Button */}
               <div className="pt-2">
                 <button
                   type="submit"
@@ -145,10 +137,8 @@ function ForgotPassword() {
                 </button>
               </div>
 
-              {/* Divider */}
               <div className="h-px bg-slate-100 my-6"></div>
 
-              {/* Back to Login */}
               <div className="flex justify-center">
                 <Link
                   to="/login"

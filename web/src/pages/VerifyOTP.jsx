@@ -7,7 +7,6 @@ import api from "../api/axios.js";
 function VerifyOTP() {
   const navigate = useNavigate();
 
-  // Retrieve the email that was set in ForgotPassword
   const [email, setEmail] = useState(() => sessionStorage.getItem("resetEmail") || "");
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [isVerifying, setIsVerifying] = useState(false);
@@ -17,7 +16,6 @@ function VerifyOTP() {
   const [resetToken, setResetToken] = useState("");
   const inputRefs = useRef([]);
 
-  // Password reset fields
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showNew, setShowNew] = useState(false);
@@ -26,12 +24,10 @@ function VerifyOTP() {
   const [resetSuccess, setResetSuccess] = useState(false);
   const [passwordError, setPasswordError] = useState("");
 
-  // If there's no email in session, redirect back
   useEffect(() => {
     if (!email) navigate("/forgot-password");
   }, [email, navigate]);
 
-  // ── OTP input handlers ────────────────────────────────────────────────────
   const handleChange = (element, index) => {
     if (isNaN(element.value)) return;
     const newOtp = otp.map((d, idx) => (idx === index ? element.value : d));
@@ -61,7 +57,6 @@ function VerifyOTP() {
     inputRefs.current[nextEmpty]?.focus();
   };
 
-  // ── Verify OTP via API ────────────────────────────────────────────────────
   const handleVerify = async (event) => {
     event.preventDefault();
     const entered = otp.join("");
@@ -83,7 +78,6 @@ function VerifyOTP() {
     }
   };
 
-  // ── Resend OTP ────────────────────────────────────────────────────────────
   const handleResend = async () => {
     setOtp(["", "", "", "", "", ""]);
     setOtpError("");
@@ -98,7 +92,6 @@ function VerifyOTP() {
     inputRefs.current[0]?.focus();
   };
 
-  // ── Reset Password via API ────────────────────────────────────────────────
   const handleResetPassword = async (event) => {
     event.preventDefault();
     setPasswordError("");
@@ -131,13 +124,11 @@ function VerifyOTP() {
       <Navbar />
 
       <div className="flex-1 flex flex-col items-center justify-center px-4 pt-32 pb-20 relative">
-        {/* Background Decorative */}
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(12,49,102,0.03),transparent_40%)]" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgba(239,68,68,0.02),transparent_40%)]" />
 
         <section className="relative w-full max-w-[420px] overflow-hidden rounded-2xl border border-slate-200/60 bg-white p-7 sm:p-8 shadow-[0_20px_50px_-20px_rgba(0,0,0,0.08)] z-10">
 
-          {/* Shield Icon Header */}
           <div className="flex flex-col items-center mb-6">
             <div className="bg-[#0a1e3f] w-14 h-14 rounded-xl flex items-center justify-center shadow-lg mb-3">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="w-7 h-7 text-blue-400" strokeLinecap="round" strokeLinejoin="round">
@@ -155,10 +146,8 @@ function VerifyOTP() {
             </p>
           </div>
 
-          {/* ─── OTP Section ─── */}
           {!otpVerified && (
             <form onSubmit={handleVerify} className="space-y-5">
-              {/* OTP Input Boxes */}
               <div className="flex justify-between gap-2" onPaste={handlePaste}>
                 {otp.map((data, index) => (
                   <input
@@ -180,7 +169,6 @@ function VerifyOTP() {
                 ))}
               </div>
 
-              {/* OTP Error */}
               {otpError && (
                 <div className="flex items-start gap-2 bg-red-50 border border-red-100 rounded-xl px-3.5 py-3">
                   <svg className="w-4 h-4 text-red-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
@@ -190,12 +178,10 @@ function VerifyOTP() {
                 </div>
               )}
 
-              {/* Resend success */}
               {resendMsg && (
                 <p className="text-center text-[11px] font-semibold text-emerald-600">{resendMsg}</p>
               )}
 
-              {/* Verify Button */}
               <div className="border border-dashed border-blue-500 rounded-lg p-[2.5px] transition-transform duration-150 active:scale-[0.98] transform">
                 <button
                   type="submit"
@@ -222,7 +208,6 @@ function VerifyOTP() {
                 </button>
               </div>
 
-              {/* Resend */}
               <p className="text-center text-[11px] font-semibold text-slate-400">
                 Didn't receive a code?{" "}
                 <button
@@ -234,10 +219,8 @@ function VerifyOTP() {
                 </button>
               </p>
 
-              {/* Divider */}
               <div className="h-px bg-slate-100" />
 
-              {/* Footer info */}
               <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-slate-400">
                 <span className="flex items-center gap-1.5">
                   <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
@@ -251,10 +234,8 @@ function VerifyOTP() {
             </form>
           )}
 
-          {/* ─── Create New Password Section ─── */}
           {otpVerified && !resetSuccess && (
             <form onSubmit={handleResetPassword} className="space-y-5">
-              {/* New Password */}
               <div className="grid gap-1.5 text-left">
                 <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500 ml-0.5" htmlFor="newPassword">
                   New Password
@@ -290,7 +271,6 @@ function VerifyOTP() {
                 </div>
               </div>
 
-              {/* Confirm Password */}
               <div className="grid gap-1.5 text-left">
                 <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500 ml-0.5" htmlFor="confirmPassword">
                   Confirm Password
@@ -325,7 +305,6 @@ function VerifyOTP() {
                 </div>
               </div>
 
-              {/* Password Error */}
               {passwordError && (
                 <div className="flex items-start gap-2 bg-red-50 border border-red-100 rounded-xl px-3.5 py-3">
                   <svg className="w-4 h-4 text-red-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
@@ -335,7 +314,6 @@ function VerifyOTP() {
                 </div>
               )}
 
-              {/* Submit Button */}
               <div className="border border-dashed border-blue-500 rounded-lg p-[2.5px] transition-transform duration-150 active:scale-[0.98] transform">
                 <button
                   type="submit"
@@ -376,7 +354,6 @@ function VerifyOTP() {
             </form>
           )}
 
-          {/* Reset Success */}
           {resetSuccess && (
             <div className="flex flex-col items-center py-4 space-y-4 text-center">
               <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-emerald-500 text-white shadow-lg shadow-emerald-500/20">
@@ -392,7 +369,6 @@ function VerifyOTP() {
           )}
         </section>
 
-        {/* Return to Login Portal */}
         <div className="mt-5 z-10">
           <Link
             to="/login"
