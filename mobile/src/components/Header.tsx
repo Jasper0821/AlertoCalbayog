@@ -57,9 +57,9 @@ export default function Header({
   }, [showActions]);
 
   const hotlines = [
-    { agency: "PNP (Police)", number: "117 / 0911-123-4567", icon: "🚓" },
-    { agency: "BFP (Fire)", number: "911 / 0922-123-4567", icon: "🚒" },
-    { agency: "CDRRMO (Rescue)", number: "0933-123-4567", icon: "🚑" },
+    { agency: "PNP CALBAYOG", number: "117 / 0905-4254-511", icon: "🚓" },
+    { agency: "BFP CALBAYOG", number: "911 / 0927-1279-488", icon: "🚒" },
+    { agency: "CDRRMO", number: "0917-1779-215", icon: "🚑" },
   ];
 
   return (
