@@ -9,7 +9,7 @@ const userSchema = new mongoose.Schema(
     username: {
       type: String,
       unique: true,
-      sparse: true // Allows nulls to coexist if index already exists
+      sparse: true
     },
     email: {
       type: String,

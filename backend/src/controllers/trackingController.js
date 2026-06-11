@@ -12,7 +12,6 @@ exports.updateTracking = async (req, res) => {
       longitude
     });
 
-    // Fetch the current status of the report
     const report = await EmergencyReport.findById(reportId).select("status");
 
     const io = req.app.get("io");

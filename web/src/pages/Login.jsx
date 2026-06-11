@@ -8,22 +8,45 @@ function Login() {
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loginSuccess, setLoginSuccess] = useState(false);
+  const [dashboardLabel, setDashboardLabel] = useState("");
   const [error, setError] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
 
-  // Clear any existing session so users can always switch accounts
   useEffect(() => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
+    sessionStorage.removeItem("token");
+    sessionStorage.removeItem("user");
   }, []);
 
-  // Route user to correct dashboard based on their role
+  useEffect(() => {
+    if (!rememberMe) return;
+
+    const handleBeforeUnload = (e) => {
+      e.preventDefault();
+      e.returnValue = "You have Remember Me enabled. Are you sure you want to close this tab?";
+      return e.returnValue;
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [rememberMe]);
+
   const getAgencyRoute = (user) => {
     if (user.role === "admin") return "/admindashboard";
     if (user.agency === "PNP") return "/crimedashboard";
     return "/dashboard";
+  };
+
+  const getDashboardLabel = (user) => {
+    if (user.role === "admin") return "Admin Dashboard";
+    if (user.agency === "PNP") return "PNP Dashboard";
+    if (user.agency === "CDRRMO") return "CDRRMO Dashboard";
+    if (user.agency === "BFP") return "BFP Dashboard";
+    return "Dashboard";
   };
 
   const handleSubmit = async (event) => {
@@ -34,13 +57,19 @@ function Login() {
     try {
       const res = await api.post("/auth/login", { email, password });
 
-      // Save token and user data
-      localStorage.setItem("token", res.data.token);
-      localStorage.setItem("user", JSON.stringify(res.data.user));
+      if (rememberMe) {
+        localStorage.setItem("token", res.data.token);
+        localStorage.setItem("user", JSON.stringify(res.data.user));
+        localStorage.setItem("rememberMe", "true");
+      } else {
+        sessionStorage.setItem("token", res.data.token);
+        sessionStorage.setItem("user", JSON.stringify(res.data.user));
+        localStorage.removeItem("rememberMe");
+      }
 
+      setDashboardLabel(getDashboardLabel(res.data.user));
       setLoginSuccess(true);
 
-      // Route to correct agency dashboard after animation
       const route = getAgencyRoute(res.data.user);
       setTimeout(() => {
         navigate(route);
@@ -56,14 +85,11 @@ function Login() {
       <Navbar />
 
       <div className="flex-1 flex flex-col items-center justify-center px-4 relative mt-16 sm:mt-20">
-        {/* Background Decorative Elements */}
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(12,49,102,0.03),transparent_40%)]" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgba(239,68,68,0.02),transparent_40%)]" />
 
-        {/* Main Login Card */}
         <section className="relative w-full max-w-[420px] overflow-hidden rounded-2xl border border-slate-200/60 bg-white p-7 sm:p-8 shadow-[0_20px_50px_-20px_rgba(0,0,0,0.08)] z-10">
-          
-          {/* Portal Logo & Header inside the box */}
+
           <div className="flex flex-col items-center mb-6 z-10 text-center">
             <img
               src="/logo.png"
@@ -80,7 +106,6 @@ function Login() {
 
           <form className="space-y-5" onSubmit={handleSubmit}>
 
-            {/* Credentials / ID Email Input */}
             <div className="grid gap-1.5 text-left">
               <label className="text-[12px] font-bold text-slate-600 ml-0.5" htmlFor="email">
                 Responder ID / Email
@@ -107,10 +132,9 @@ function Login() {
               </div>
             </div>
 
-            {/* Security Key Input */}
             <div className="grid gap-1.5 text-left">
               <div className="flex items-center justify-between ml-0.5">
-                <label className="text-[12px] font-bold text-slate-600 " htmlFor="password">
+                <label className="text-[12px] font-bold text-slate-600" htmlFor="password">
                   Security Key
                 </label>
                 <Link
@@ -163,20 +187,36 @@ function Login() {
               </p>
             )}
 
-            {/* Remember Terminal Checkbox */}
             <div className="flex items-center gap-3 text-left py-1">
-              <input
-                className="h-4 w-4 rounded border-slate-200 bg-white accent-blue-600 cursor-pointer"
-                id="remember"
-                name="remember"
-                type="checkbox"
-              />
-              <label className="text-[12px] font-semibold text-slate-500 cursor-pointer" htmlFor="remember">
+              <div className="relative flex items-center">
+                <input
+                  className="h-4 w-4 rounded border-slate-300 cursor-pointer appearance-none checked:bg-blue-600 checked:border-blue-600 border-2 transition-all duration-150"
+                  id="remember"
+                  name="remember"
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                />
+                {rememberMe && (
+                  <svg
+                    className="pointer-events-none absolute left-0 top-0 h-4 w-4 text-white p-[2px]"
+                    viewBox="0 0 16 16"
+                    fill="currentColor"
+                  >
+                    <path d="M13.485 1.929a1 1 0 010 1.414l-7.071 7.071a1 1 0 01-1.414 0L1.929 7.343a1 1 0 011.414-1.414L5.999 8.586l6.364-6.364a1 1 0 011.414 0h-.292z" />
+                  </svg>
+                )}
+              </div>
+              <label className="text-[12px] font-semibold text-slate-500 cursor-pointer select-none" htmlFor="remember">
                 Remember me
+                {rememberMe && (
+                  <span className="ml-1.5 text-[10px] font-bold text-blue-600 uppercase tracking-wider bg-blue-50 px-1.5 py-0.5 rounded-md">
+                    Active — tab close warning on
+                  </span>
+                )}
               </label>
             </div>
 
-            {/* Red Secure Access Button with Blue Dashed Outline wrap */}
             <div className="border border-dashed border-blue-500 rounded-lg p-[2.5px] transition-transform duration-150 active:scale-[0.98] transform">
               <button
                 className="w-full flex h-11 items-center justify-center rounded-[6px] bg-[#b91c1c] hover:bg-[#a11818] text-white text-[13px] font-bold uppercase tracking-wider gap-2 shadow-md transition-colors"
@@ -202,7 +242,6 @@ function Login() {
               </button>
             </div>
 
-            {/* Horizontal Divider & Encrypted Monitor warning */}
             <div className="h-px bg-slate-100 my-6"></div>
 
             <div className="flex items-start gap-3 text-left">
@@ -216,7 +255,6 @@ function Login() {
               </p>
             </div>
 
-            {/* Back Link to Home/Register moved inside the box */}
             <p className="mt-5 text-center text-[12px] font-semibold text-slate-500">
               New responder?{" "}
               <Link className="text-blue-600 hover:text-blue-700 hover:underline transition-all duration-150 active:scale-95 transform inline-block" to="/register">
@@ -227,7 +265,6 @@ function Login() {
           </form>
         </section>
 
-        {/* SUCCESS MESSAGE OVERLAY */}
         {loginSuccess && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/60 backdrop-blur-xl p-4 transition-all duration-1000 animate-in fade-in fill-mode-both">
             <div className="max-w-md w-full rounded-[56px] bg-white p-12 text-center shadow-[0_40px_120px_rgba(0,0,0,0.3)] border border-slate-100 animate-in zoom-in-95 slide-in-from-bottom-12 duration-700">
@@ -239,13 +276,13 @@ function Login() {
               <p className="text-xs font-black uppercase tracking-[0.2em] text-emerald-600 mb-4">Authentication Secure</p>
               <h3 className="text-3xl font-black tracking-tighter text-slate-900 uppercase leading-[0.9]">Login Successful</h3>
               <p className="mt-6 text-lg font-bold text-slate-500 leading-relaxed">
-                Welcome back, Responders. Routing to your agency terminal...
+                Welcome to <span className="text-[#0a1e3f]">{dashboardLabel}</span>. Routing to your terminal...
               </p>
               <div className="mt-10 flex flex-col items-center gap-3">
                 <div className="h-1.5 w-32 rounded-full bg-slate-100 overflow-hidden">
                   <div className="h-full bg-emerald-500 animate-[loading_1.5s_ease-in-out_infinite]" style={{ width: '60%' }} />
                 </div>
-                <p className="text-xs font-black uppercase tracking-widest text-slate-300 ">Initializing Terminal</p>
+                <p className="text-xs font-black uppercase tracking-widest text-slate-300">Initializing Terminal</p>
               </div>
             </div>
           </div>
