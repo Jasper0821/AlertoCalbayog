@@ -12,7 +12,6 @@ import IncidentHistory from "./IncidentHistory.jsx";
 import Analytics from "./Analytics.jsx";
 import Settings from "./Settings.jsx";
 
-import { MOCK_REPORTS, MOCK_QUEUE_REPORTS } from "./utils.js";
 
 const NAV = [
   {
@@ -77,10 +76,42 @@ const NAV = [
 ];
 
 function CdrrmoDashboard() {
-  const [reports, setReports] = useState([]);
-  const [statusOverrides, setStatusOverrides] = useState({});
+  const [reports, setReports] = useState(() => {
+    try {
+      const stored = localStorage.getItem("cdrrmoReports");
+      return stored ? JSON.parse(stored) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+  const [statusOverrides, setStatusOverrides] = useState(() => {
+    try {
+      const stored = localStorage.getItem("cdrrmoStatusOverrides");
+      return stored ? JSON.parse(stored) : {};
+    } catch (e) {
+      return {};
+    }
+  });
+
+  useEffect(() => {
+    if (reports.length > 0) {
+      localStorage.setItem("cdrrmoReports", JSON.stringify(reports));
+    }
+  }, [reports]);
+
+  useEffect(() => {
+    if (Object.keys(statusOverrides).length > 0) {
+      localStorage.setItem("cdrrmoStatusOverrides", JSON.stringify(statusOverrides));
+    }
+  }, [statusOverrides]);
   const [isOffline, setIsOffline] = useState(false);
-  const [activeNav, setActiveNav] = useState("dashboard");
+  const [activeNav, setActiveNav] = useState(() => {
+    return localStorage.getItem("cdrrmoActiveNav") || "dashboard";
+  });
+
+  useEffect(() => {
+    localStorage.setItem("cdrrmoActiveNav", activeNav);
+  }, [activeNav]);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [showNotifDropdown, setShowNotifDropdown] = useState(false);
@@ -200,9 +231,9 @@ function CdrrmoDashboard() {
         const res = await api.get(`/emergency/agency/CDRRMO`);
         setReports(Array.isArray(res.data) ? res.data : (res.data?.reports || []));
         setIsOffline(false);
-      } catch {
+      } catch (error) {
         setIsOffline(true);
-        setReports([...MOCK_REPORTS, ...MOCK_QUEUE_REPORTS.pending, ...MOCK_QUEUE_REPORTS.active]);
+        // We don't overwrite with mock data on failure to keep localStorage data
       }
     };
     fetchReports();
@@ -408,20 +439,31 @@ function CdrrmoDashboard() {
   };
 
   const confirmLogout = () => {
+    localStorage.removeItem("token");
     localStorage.removeItem("user");
     window.location.href = "/";
   };
 
+  const filteredReports = safeReports.filter(r => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase();
+    const type = (r.type || r.crimeType || r.incidentType || "").toLowerCase();
+    const location = (r.location?.barangay || (typeof r.location === "string" ? r.location : "")).toLowerCase();
+    const reporter = (r.reporterName || "").toLowerCase();
+    const details = (r.details || "").toLowerCase();
+    return type.includes(q) || location.includes(q) || reporter.includes(q) || details.includes(q);
+  });
+
   const renderContent = () => {
     switch (activeNav) {
-      case "dashboard": return <DashboardOverview reports={safeReports} setActiveNav={setActiveNav} onStatusChange={handleStatusChange} />;
-      case "incident-reports": return <ActiveIncidents reports={safeReports} onStatusChange={handleStatusChange} />;
-      case "queuing": return <QueuingSystem reports={safeReports} onStatusChange={handleStatusChange} />;
-      case "live-map": return <LiveMap reports={safeReports} />;
-      case "incident-history": return <IncidentHistory reports={safeReports} />;
-      case "analytics": return <Analytics reports={safeReports} />;
+      case "dashboard": return <DashboardOverview reports={filteredReports} setActiveNav={setActiveNav} onStatusChange={handleStatusChange} />;
+      case "incident-reports": return <ActiveIncidents reports={filteredReports} onStatusChange={handleStatusChange} />;
+      case "queuing": return <QueuingSystem reports={filteredReports} onStatusChange={handleStatusChange} />;
+      case "live-map": return <LiveMap reports={filteredReports} />;
+      case "incident-history": return <IncidentHistory reports={filteredReports} />;
+      case "analytics": return <Analytics reports={filteredReports} />;
       case "settings": return <Settings user={user} onUserUpdate={setUser} />;
-      default: return <DashboardOverview reports={safeReports} setActiveNav={setActiveNav} onStatusChange={handleStatusChange} />;
+      default: return <DashboardOverview reports={filteredReports} setActiveNav={setActiveNav} onStatusChange={handleStatusChange} />;
     }
   };
 
