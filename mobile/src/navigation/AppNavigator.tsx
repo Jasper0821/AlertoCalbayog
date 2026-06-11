@@ -10,6 +10,7 @@ import EmergencyReportScreen from "../screens/EmergencyReportScreen";
 import LiveTrackingScreen from "../screens/LiveTrackingScreen";
 import ReportHistoryScreen from "../screens/ReportHistoryScreen";
 import UserAgreementScreen from "../screens/UserAgreementScreen";
+import NotificationsScreen from "../screens/NotificationsScreen";
 
 export type RootStackParamList = {
   Splash: undefined;
@@ -20,6 +21,7 @@ export type RootStackParamList = {
   LiveTracking: { reportId: string; latitude: number; longitude: number; emergencyType: string };
   ReportHistory: undefined;
   UserAgreement: undefined;
+  Notifications: undefined;
 };  
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -41,6 +43,7 @@ export default function AppNavigator(): React.JSX.Element {
         <Stack.Screen name="LiveTracking" component={LiveTrackingScreen} />
         <Stack.Screen name="ReportHistory" component={ReportHistoryScreen} />
         <Stack.Screen name="UserAgreement" component={UserAgreementScreen} />
+        <Stack.Screen name="Notifications" component={NotificationsScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

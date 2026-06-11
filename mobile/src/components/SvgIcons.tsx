@@ -352,3 +352,89 @@ export function EyeOffIcon({ size = 24, color = "#9CA3AF" }: IconProps): React.J
     </Svg>
   );
 }
+
+export function BellIcon({ size = 22, color = "#0A1E3F" }: IconProps): React.JSX.Element {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M18 8A6 6 0 1 0 6 8C6 15 3 17 3 17H21S18 15 18 8Z"
+        stroke={color}
+        strokeWidth={1.8}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M13.73 21A2 2 0 0 1 10.27 21"
+        stroke={color}
+        strokeWidth={1.8}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
+export function TrashIcon({ size = 20, color = "#EF4444" }: IconProps): React.JSX.Element {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M3 6H21"
+        stroke={color}
+        strokeWidth={1.8}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M19 6V20C19 21 18 22 17 22H7C6 22 5 21 5 20V6"
+        stroke={color}
+        strokeWidth={1.8}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M8 6V4C8 3 9 2 10 2H14C15 2 16 3 16 4V6"
+        stroke={color}
+        strokeWidth={1.8}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M10 11V17"
+        stroke={color}
+        strokeWidth={1.8}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M14 11V17"
+        stroke={color}
+        strokeWidth={1.8}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
+export function HistoryIcon({ size = 22, color = "#0A1E3F" }: IconProps): React.JSX.Element {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M12 8V12L15 15"
+        stroke={color}
+        strokeWidth={1.8}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M3.05 11A9 9 0 1 1 5.38 16.5M3 17V12.5H7.5"
+        stroke={color}
+        strokeWidth={1.8}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
+

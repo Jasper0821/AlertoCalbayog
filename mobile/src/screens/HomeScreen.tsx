@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { View, Text, TouchableOpacity, Animated, Easing, Alert, DeviceEventEmitter } from "react-native";
+import { View, Text, TouchableOpacity, Animated, Easing, DeviceEventEmitter } from "react-native";
 import Header from "../components/Header";
 import IncidentPicker from "../components/IncidentPicker";
 import { clearStorage, getUser } from "../utils/Storage";
@@ -40,10 +40,7 @@ export default function HomeScreen({
         socket.on("notification", (notif: { title: string; message: string; reportId: string; status: string }) => {
           console.log("📡 Received status update notification:", notif);
           
-          // Display alert popup to the resident
-          Alert.alert(notif.title, notif.message, [{ text: "OK" }]);
-
-          // Broadcast notification to other active screens
+          // Broadcast notification to other active screens (e.g. Header and NotificationsScreen)
           DeviceEventEmitter.emit("reportStatusUpdated", notif);
         });
       }
@@ -131,17 +128,6 @@ export default function HomeScreen({
 
       {/* Bottom section */}
       <View className="px-5 pb-6 gap-3">
-        <TouchableOpacity
-          className="bg-surface flex-row items-center p-4 rounded-2xl border border-border shadow-sm shadow-slate-900/10"
-          onPress={() => navigation.navigate("ReportHistory")}
-        >
-          <View className="w-9 h-9 rounded-xl bg-background items-center justify-center mr-3 border border-border">
-            <Text className="text-sm">📜</Text>
-          </View>
-          <Text className="flex-1 text-primary font-bold text-sm">Report History</Text>
-          <Text className="text-primary/30 text-lg font-bold">→</Text>
-        </TouchableOpacity>
-
         <TouchableOpacity
           className="items-center py-3 bg-red/10 rounded-2xl border border-red/20"
           onPress={logout}

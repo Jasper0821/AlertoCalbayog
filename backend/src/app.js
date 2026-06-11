@@ -6,6 +6,7 @@ const emergencyRoutes = require("./routes/emergencyRoutes");
 const userRoutes = require("./routes/userRoutes");
 const reportRoutes = require("./routes/reportRoutes");
 const trackingRoutes = require("./routes/trackingRoutes");
+const notificationRoutes = require("./routes/notificationRoutes");
 
 const app = express();
 
@@ -17,6 +18,7 @@ app.use("/api/emergency", emergencyRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/reports", reportRoutes);
 app.use("/api/tracking", trackingRoutes);
+app.use("/api/notifications", notificationRoutes);
 
 app.get("/", (req, res) => {
   res.send("AlertoCalbayog API is running");

@@ -3,6 +3,8 @@ import { backendHost } from "./axios";
 
 // Construct the Socket.IO server URL based on the dynamically resolved backend host.
 // backendHost is obtained from Expo Constants or falls back to a static LAN IP.
+// Reusing the same PC host IP address configured in axios.ts
+const backendHost = "192.168.1.12";
 const SOCKET_URL = `http://${backendHost}:5000`;
 
 // Initialise the socket with sensible defaults for React Native / Expo environments.

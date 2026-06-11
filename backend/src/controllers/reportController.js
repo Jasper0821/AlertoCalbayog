@@ -1,5 +1,6 @@
 const EmergencyReport = require("../models/EmergencyReport");
 const User = require("../models/User");
+const Notification = require("../models/Notification");
 
 const ALLOWED_STATUS_UPDATES = new Set(["pending", "verified", "responding", "active", "resolved", "responded", "closed"]);
 
@@ -21,7 +22,7 @@ const buildStatusMessage = (status) => {
   return `Your incident report status has been updated to ${status}.`;
 };
 
-const emitReportChange = (req, report, notificationMessage) => {
+const emitReportChange = async (req, report, notificationMessage, notificationType = "status_update") => {
   const io = req.app.get("io");
   if (!io) return;
 
@@ -30,12 +31,41 @@ const emitReportChange = (req, report, notificationMessage) => {
 
   const userIdStr = report.userId && report.userId._id ? report.userId._id.toString() : report.userId?.toString();
   if (userIdStr && notificationMessage) {
-    io.to(userIdStr).emit("notification", {
-      title: "Incident Update",
-      message: notificationMessage,
-      reportId,
-      status: report.status
-    });
+    // Persist the notification in the database
+    try {
+      const saved = await Notification.create({
+        userId: userIdStr,
+        reportId,
+        title: "Incident Update",
+        message: notificationMessage,
+        status: report.status,
+        type: notificationType
+      });
+
+      // Emit real-time notification with the persisted document _id
+      io.to(userIdStr).emit("notification", {
+        _id: saved._id.toString(),
+        title: saved.title,
+        message: saved.message,
+        reportId,
+        status: report.status,
+        type: notificationType,
+        read: false,
+        createdAt: saved.createdAt
+      });
+    } catch (err) {
+      console.error("Failed to persist notification:", err.message);
+      // Still emit the socket event even if DB save fails
+      io.to(userIdStr).emit("notification", {
+        title: "Incident Update",
+        message: notificationMessage,
+        reportId,
+        status: report.status,
+        type: notificationType,
+        read: false,
+        createdAt: new Date().toISOString()
+      });
+    }
   }
 
   if (report.notifiedAgencies) {
@@ -101,7 +131,7 @@ exports.updateReportStatus = async (req, res) => {
     await report.populate("userId", "fullName email role phoneNumber");
     await report.populate("assignedResponder", "fullName email role agency phoneNumber");
 
-    emitReportChange(req, report, buildStatusMessage(status));
+    await emitReportChange(req, report, buildStatusMessage(status), "status_update");
 
     res.json({
       message: "Report status updated",
@@ -151,10 +181,11 @@ exports.assignReportResponder = async (req, res) => {
     await report.save();
     const populatedReport = await populateReport(EmergencyReport.findById(report._id));
 
-    emitReportChange(
+    await emitReportChange(
       req,
       populatedReport,
-      `A responder has been assigned to your incident report. Current status: ${populatedReport.status}.`
+      `A responder has been assigned to your incident report. Current status: ${populatedReport.status}.`,
+      "responder_assigned"
     );
 
     res.json({
