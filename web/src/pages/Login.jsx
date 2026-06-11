@@ -13,7 +13,6 @@ function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
 
   useEffect(() => {
     localStorage.removeItem("token");
@@ -22,18 +21,7 @@ function Login() {
     sessionStorage.removeItem("user");
   }, []);
 
-  useEffect(() => {
-    if (!rememberMe) return;
 
-    const handleBeforeUnload = (e) => {
-      e.preventDefault();
-      e.returnValue = "You have Remember Me enabled. Are you sure you want to close this tab?";
-      return e.returnValue;
-    };
-
-    window.addEventListener("beforeunload", handleBeforeUnload);
-    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, [rememberMe]);
 
   const getAgencyRoute = (user) => {
     if (user.role === "admin") return "/admindashboard";
@@ -57,15 +45,8 @@ function Login() {
     try {
       const res = await api.post("/auth/login", { email, password });
 
-      if (rememberMe) {
-        localStorage.setItem("token", res.data.token);
-        localStorage.setItem("user", JSON.stringify(res.data.user));
-        localStorage.setItem("rememberMe", "true");
-      } else {
-        sessionStorage.setItem("token", res.data.token);
-        sessionStorage.setItem("user", JSON.stringify(res.data.user));
-        localStorage.removeItem("rememberMe");
-      }
+      localStorage.setItem("token", res.data.token);
+      localStorage.setItem("user", JSON.stringify(res.data.user));
 
       setDashboardLabel(getDashboardLabel(res.data.user));
       setLoginSuccess(true);
@@ -187,35 +168,7 @@ function Login() {
               </p>
             )}
 
-            <div className="flex items-center gap-3 text-left py-1">
-              <div className="relative flex items-center">
-                <input
-                  className="h-4 w-4 rounded border-slate-300 cursor-pointer appearance-none checked:bg-blue-600 checked:border-blue-600 border-2 transition-all duration-150"
-                  id="remember"
-                  name="remember"
-                  type="checkbox"
-                  checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
-                />
-                {rememberMe && (
-                  <svg
-                    className="pointer-events-none absolute left-0 top-0 h-4 w-4 text-white p-[2px]"
-                    viewBox="0 0 16 16"
-                    fill="currentColor"
-                  >
-                    <path d="M13.485 1.929a1 1 0 010 1.414l-7.071 7.071a1 1 0 01-1.414 0L1.929 7.343a1 1 0 011.414-1.414L5.999 8.586l6.364-6.364a1 1 0 011.414 0h-.292z" />
-                  </svg>
-                )}
-              </div>
-              <label className="text-[12px] font-semibold text-slate-500 cursor-pointer select-none" htmlFor="remember">
-                Remember me
-                {rememberMe && (
-                  <span className="ml-1.5 text-[10px] font-bold text-blue-600 uppercase tracking-wider bg-blue-50 px-1.5 py-0.5 rounded-md">
-                    Active — tab close warning on
-                  </span>
-                )}
-              </label>
-            </div>
+
 
             <div className="border border-dashed border-blue-500 rounded-lg p-[2.5px] transition-transform duration-150 active:scale-[0.98] transform">
               <button
