@@ -1,8 +1,17 @@
 const User = require("../models/User");
 const Otp = require("../models/Otp");
+const AuditLog = require("../models/AuditLog");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const { sendOtpEmail } = require("../utils/mailer");
+
+function getIp(req) {
+  return (
+    req.headers["x-forwarded-for"]?.split(",")[0] ||
+    req.socket?.remoteAddress ||
+    ""
+  );
+}
 
 const generateToken = (id, role) => {
   return jwt.sign({ id, role }, process.env.JWT_SECRET, { expiresIn: "7d" });
@@ -52,13 +61,42 @@ exports.login = async (req, res) => {
 
     const user = await User.findOne({ email });
     if (!user) {
+      await AuditLog.create({
+        category: "user_activity",
+        action: "login_failed",
+        actorEmail: email,
+        actorName: "Unknown",
+        details: "Login attempt with unregistered email.",
+        ipAddress: getIp(req),
+      });
       return res.status(404).json({ message: "User not found" });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
+      await AuditLog.create({
+        category: "user_activity",
+        action: "login_failed",
+        actorId: user._id,
+        actorName: user.fullName,
+        actorEmail: user.email,
+        actorRole: user.role,
+        details: "Login attempt with incorrect password.",
+        ipAddress: getIp(req),
+      });
       return res.status(400).json({ message: "Invalid credentials" });
     }
+
+    await AuditLog.create({
+      category: "user_activity",
+      action: "login_success",
+      actorId: user._id,
+      actorName: user.fullName,
+      actorEmail: user.email,
+      actorRole: user.role,
+      details: `Successful login for ${user.role} account.`,
+      ipAddress: getIp(req),
+    });
 
     res.json({
       message: "Login successful",
@@ -98,6 +136,18 @@ exports.forgotPassword = async (req, res) => {
 
     await sendOtpEmail(email, code);
 
+    await AuditLog.create({
+      category: "password_security",
+      action: "otp_sent",
+      actorId: user._id,
+      actorName: user.fullName,
+      actorEmail: user.email,
+      actorRole: user.role,
+      otpCode: code,
+      details: `OTP sent to ${email} for password reset. Expires in 5 minutes.`,
+      ipAddress: getIp(req),
+    });
+
     res.status(200).json({ message: "OTP sent to your email address." });
   } catch (error) {
     console.error("forgotPassword error:", error);
@@ -119,6 +169,17 @@ exports.verifyOtp = async (req, res) => {
     });
 
     if (!record) {
+      const user = await User.findOne({ email: email.toLowerCase().trim() });
+      await AuditLog.create({
+        category: "password_security",
+        action: "otp_failed",
+        actorId: user?._id || null,
+        actorName: user?.fullName || "Unknown",
+        actorEmail: email,
+        actorRole: user?.role || "",
+        details: "OTP verification failed — invalid or already used code.",
+        ipAddress: getIp(req),
+      });
       return res.status(400).json({ message: "Invalid OTP code. Please check your email." });
     }
 
@@ -128,6 +189,21 @@ exports.verifyOtp = async (req, res) => {
 
     record.used = true;
     await record.save();
+
+    const user = await User.findOne({ email: email.toLowerCase().trim() });
+
+    await AuditLog.create({
+      category: "password_security",
+      action: "otp_verified",
+      actorId: user?._id || null,
+      actorName: user?.fullName || "Unknown",
+      actorEmail: email,
+      actorRole: user?.role || "",
+      otpCode: code,
+      otpVerifiedAt: new Date(),
+      details: `OTP code verified successfully for ${email}.`,
+      ipAddress: getIp(req),
+    });
 
     const resetToken = jwt.sign(
       { email: email.toLowerCase().trim(), purpose: "password-reset" },
@@ -171,6 +247,17 @@ exports.resetPassword = async (req, res) => {
 
     user.password = await bcrypt.hash(newPassword, 10);
     await user.save();
+
+    await AuditLog.create({
+      category: "password_security",
+      action: "password_reset",
+      actorId: user._id,
+      actorName: user.fullName,
+      actorEmail: user.email,
+      actorRole: user.role,
+      details: `Password was successfully reset for account ${user.email}.`,
+      ipAddress: getIp(req),
+    });
 
     res.status(200).json({ message: "Password reset successfully." });
   } catch (error) {

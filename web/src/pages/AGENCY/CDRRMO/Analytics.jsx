@@ -1,4 +1,7 @@
 import { useState, useEffect } from "react";
+import { BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+
+import { getValidCalbayogBarangay } from "../../../utils/barangays.js";
 
 export default function Analytics({ reports = [] }) {
   const [animate, setAnimate] = useState(false);
@@ -19,11 +22,14 @@ export default function Analytics({ reports = [] }) {
   const active = safeReports.filter(r => (r.status || "").toLowerCase() === "active").length;
   const resolutionRate = total > 0 ? Math.round((responded / total) * 100) : 0;
 
-  // Barangay breakdown from mock data
+  // Barangay breakdown from actual data
   const barangayMap = {};
   safeReports.forEach(r => {
-    const bgy = r.location?.barangay || (typeof r.location === "string" ? r.location : "Unknown");
-    barangayMap[bgy] = (barangayMap[bgy] || 0) + 1;
+    const rawLoc = r.location?.barangay || (typeof r.location === "string" ? r.location : r.location?.name || "");
+    const bgy = getValidCalbayogBarangay(rawLoc);
+    if (bgy) {
+      barangayMap[bgy] = (barangayMap[bgy] || 0) + 1;
+    }
   });
   const barangayData = Object.entries(barangayMap)
     .map(([name, count]) => ({ name, count }))
@@ -148,43 +154,30 @@ export default function Analytics({ reports = [] }) {
 
         {/* Barangay Hotspot Chart */}
         <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-5">
-          <h3 className="text-sm font-bold text-slate-800 mb-1">Incident Hotspots by Barangay</h3>
-          <p className="text-[11px] text-slate-400 mb-5">Top barangays with most emergency reports</p>
-          {barangayData.length > 0 ? (
-            <div className="space-y-3">
-              {barangayData.map((b, i) => {
-                const pct = Math.round((b.count / maxBgy) * 100);
-                const colors = ["bg-[#0a1e3f]", "bg-blue-600", "bg-indigo-500", "bg-violet-500", "bg-sky-400", "bg-slate-400"];
-                return (
-                  <div key={b.name} className="flex items-center gap-3">
-                    <span className="text-[10px] font-bold text-slate-400 w-4">{i + 1}</span>
-                    <span className="text-xs font-semibold text-slate-700 w-28 shrink-0 truncate">{b.name}</span>
-                    <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-                      <div className={`h-full rounded-full ${colors[i % colors.length]} transition-all duration-1000 ease-out`} style={{ width: `${animate ? pct : 0}%` }} />
-                    </div>
-                    <span className="text-xs font-bold text-slate-800 w-5 text-right">{b.count}</span>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {respTable.map((row, i) => {
-                const pct = Math.round((row.incidents / 23) * 100);
-                const colors = ["bg-[#0a1e3f]", "bg-blue-600", "bg-indigo-500", "bg-violet-500", "bg-sky-400"];
-                return (
-                  <div key={row.barangay} className="flex items-center gap-3">
-                    <span className="text-[10px] font-bold text-slate-400 w-4">{i + 1}</span>
-                    <span className="text-xs font-semibold text-slate-700 w-28 shrink-0">{row.barangay}</span>
-                    <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-                      <div className={`h-full rounded-full ${colors[i]} transition-all duration-1000 ease-out`} style={{ width: `${animate ? pct : 0}%` }} />
-                    </div>
-                    <span className="text-xs font-bold text-slate-800 w-5 text-right">{row.incidents}</span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+          <h3 className="text-sm font-bold text-slate-800 mb-1">Incidents by Barangay / Location</h3>
+          <p className="text-[11px] text-slate-400 mb-5">Top areas from geocoded report locations</p>
+          <div className="h-72">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={barangayData} layout="vertical" margin={{ top: 8, right: 18, left: 28, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" horizontal={false} />
+                <XAxis type="number" allowDecimals={false} axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 12, fontWeight: 700 }} />
+                <YAxis type="category" dataKey="name" width={92} axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 11, fontWeight: 700 }} />
+                <Tooltip 
+                  cursor={{ fill: "rgba(15, 23, 42, 0.04)" }}
+                  content={({ active, payload, label }) => {
+                    if (!active || !payload?.length) return null;
+                    return (
+                      <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs shadow-lg">
+                        <p className="font-black text-slate-900">{label}</p>
+                        <p className="mt-1 font-semibold text-slate-600">{payload[0].value} incidents</p>
+                      </div>
+                    );
+                  }}
+                />
+                <Bar dataKey="count" fill="#475569" radius={[0, 8, 8, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         </div>
 
         {/* Response Time Table */}

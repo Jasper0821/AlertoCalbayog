@@ -530,14 +530,14 @@ function CdrrmoDashboard() {
       <aside
         className={`fixed inset-y-0 left-0 z-50 flex flex-col w-64 transition-transform duration-300 ease-in-out lg:static lg:translate-x-0 lg:shadow-none ${isSidebarOpen ? "translate-x-0" : "-translate-x-full"
           }`}
-        style={{ background: "#0a1e3f" }}
+        style={{ background: "#052e16" }}
       >
         {/* Logo / Brand */}
         <div className="flex items-center gap-3 px-5 h-16 shrink-0" style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
           <img src="/logo.png" alt="Alerto Calbayog Logo" className="w-9 h-9 object-contain transition-transform duration-300 hover:scale-105 shrink-0" />
           <div className="min-w-0">
             <p className="text-sm font-bold text-white leading-none truncate">Alerto Calbayog</p>
-            <p className="text-[10px] text-blue-300 font-semibold mt-0.5 tracking-wide">Dispatch Command</p>
+            <p className="text-[10px] text-emerald-300 font-semibold mt-0.5 tracking-wide">Dispatch Command</p>
           </div>
         </div>
 
@@ -547,7 +547,7 @@ function CdrrmoDashboard() {
             <div className="w-2 h-2 rounded-full bg-emerald-400 ring-2 ring-emerald-400/30 shrink-0"></div>
             <div>
               <p className="text-[11px] font-bold text-white">{agency} — Shift Active</p>
-              <p className="text-[10px] text-blue-300 font-semibold">{activeCount} units responding</p>
+              <p className="text-[10px] text-emerald-300 font-semibold">{activeCount} units responding</p>
             </div>
           </div>
         </div>
@@ -562,7 +562,7 @@ function CdrrmoDashboard() {
                 onClick={() => { setActiveNav(item.id); setIsSidebarOpen(false); }}
                 className={`group w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 text-left relative ${isActive
                     ? "bg-white/15 text-white shadow-md"
-                    : "text-blue-200 hover:bg-white/10 hover:text-white"
+                    : "text-emerald-200 hover:bg-white/10 hover:text-white"
                   }`}
               >
                 {/* Active bar indicator */}
@@ -571,7 +571,7 @@ function CdrrmoDashboard() {
                 )}
 
                 {/* Icon */}
-                <span className={`shrink-0 transition-transform duration-200 ${isActive ? "text-white" : "text-blue-300 group-hover:text-white group-hover:scale-110"}`}>
+                <span className={`shrink-0 transition-transform duration-200 ${isActive ? "text-white" : "text-emerald-300 group-hover:text-white group-hover:scale-110"}`}>
                   {item.icon}
                 </span>
 
@@ -594,7 +594,7 @@ function CdrrmoDashboard() {
         <div className="p-3 shrink-0" style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}>
           <button
             onClick={() => handleLogout()}
-            className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium text-blue-200 hover:bg-red-500/20 hover:text-red-300 transition-all text-left"
+            className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium text-emerald-200 hover:bg-red-500/20 hover:text-red-300 transition-all text-left"
           >
             <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
