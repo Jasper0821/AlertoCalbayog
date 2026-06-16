@@ -31,41 +31,46 @@ const emitReportChange = async (req, report, notificationMessage, notificationTy
 
   const userIdStr = report.userId && report.userId._id ? report.userId._id.toString() : report.userId?.toString();
   if (userIdStr && notificationMessage) {
-    // Persist the notification in the database
+    // Persist the notification in the database for the incident owner
     try {
       const saved = await Notification.create({
         userId: userIdStr,
+        recipientRole: "resident",
         reportId,
         title: "Incident Update",
         message: notificationMessage,
-        status: report.status,
-        type: notificationType
+        category: "incident",
+        type: notificationType,
+        metadata: { status: report.status }
       });
 
-      // Emit real-time notification with the persisted document _id
-      io.to(userIdStr).emit("notification", {
-        _id: saved._id.toString(),
-        title: saved.title,
-        message: saved.message,
-        reportId,
-        status: report.status,
-        type: notificationType,
-        read: false,
-        createdAt: saved.createdAt
-      });
+      io.to(userIdStr).emit("notification", saved);
     } catch (err) {
       console.error("Failed to persist notification:", err.message);
-      // Still emit the socket event even if DB save fails
       io.to(userIdStr).emit("notification", {
         title: "Incident Update",
         message: notificationMessage,
         reportId,
-        status: report.status,
         type: notificationType,
         read: false,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
       });
     }
+  }
+
+  try {
+    const adminNotification = await Notification.create({
+      recipientRole: "admin",
+      reportId,
+      title: "Incident Status Changed",
+      message: `Report ${reportId} status is now ${report.status}.`,
+      category: "incident",
+      type: notificationType,
+      metadata: { status: report.status, reportId }
+    });
+    io.to("admin").emit("notification", adminNotification);
+  } catch (err) {
+    console.error("Failed to persist admin notification:", err.message);
   }
 
   if (report.notifiedAgencies) {

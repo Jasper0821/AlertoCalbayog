@@ -51,11 +51,24 @@ function PrivateRoute({ children, allowedRoles, allowedAgency }) {
 }
 
 function PublicRoute({ children }) {
-  // Always clear stale auth data so login/register pages always render
-  localStorage.removeItem("token");
-  localStorage.removeItem("user");
-  sessionStorage.removeItem("token");
-  sessionStorage.removeItem("user");
+  useEffect(() => {
+    const clearAdminCache = () => {
+      [
+        "adminActiveNav",
+        "adminReports",
+        "adminUsers",
+        "adminNotifications",
+        "adminAuditTab",
+        "adminSessionId",
+      ].forEach((key) => localStorage.removeItem(key));
+    };
+
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    sessionStorage.removeItem("token");
+    sessionStorage.removeItem("user");
+    clearAdminCache();
+  }, []);
 
   return children;
 }

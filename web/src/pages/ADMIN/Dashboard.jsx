@@ -282,14 +282,41 @@ export default function AdminDashboard() {
   const navigate = useNavigate();
   const [activeNav, setActiveNav] = useState(() => localStorage.getItem("adminActiveNav") || "overview");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [reports, setReports] = useState([]);
-  const [users, setUsers] = useState([]);
-  const [notifications, setNotifications] = useState([]);
+  const [reports, setReports] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("adminReports")) || [];
+    } catch {
+      return [];
+    }
+  });
+  const [users, setUsers] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("adminUsers")) || [];
+    } catch {
+      return [];
+    }
+  });
+  const [notifications, setNotifications] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("adminNotifications")) || [];
+    } catch {
+      return [];
+    }
+  });
+  const [sessionId] = useState(() => {
+    let sid = localStorage.getItem("adminSessionId");
+    if (!sid) {
+      sid = `admin-session-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      localStorage.setItem("adminSessionId", sid);
+    }
+    return sid;
+  });
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [agencyFilter, setAgencyFilter] = useState("all");
   const [userForm, setUserForm] = useState(emptyUserForm);
   const [editingUserId, setEditingUserId] = useState(null);
+  const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [error, setError] = useState("");
   const [isSavingUser, setIsSavingUser] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -315,12 +342,39 @@ export default function AdminDashboard() {
 
   const fetchReports = async () => {
     const response = await api.get("/emergency");
-    setReports(Array.isArray(response.data) ? response.data : []);
+    const data = Array.isArray(response.data) ? response.data : [];
+    setReports(data);
+    localStorage.setItem("adminReports", JSON.stringify(data));
   };
 
   const fetchUsers = async () => {
     const response = await api.get("/users");
-    setUsers(Array.isArray(response.data) ? response.data : []);
+    const data = Array.isArray(response.data) ? response.data : [];
+    setUsers(data);
+    localStorage.setItem("adminUsers", JSON.stringify(data));
+  };
+
+  const fetchNotifications = async () => {
+    try {
+      const response = await api.get("/notifications/me");
+      const data = Array.isArray(response.data.notifications)
+        ? response.data.notifications
+        : response.data || [];
+      const next = data.slice(0, 20).map((item) => ({
+        id: item._id || item.id || `${Date.now()}`,
+        title: item.title || "Notification",
+        message: item.message || "You have a new notification.",
+        createdAt: item.createdAt || new Date().toISOString(),
+        read: item.read || false,
+        type: item.type || "system_event",
+        category: item.category || "system",
+        metadata: item.metadata || {},
+      }));
+      setNotifications(next);
+      localStorage.setItem("adminNotifications", JSON.stringify(next));
+    } catch (err) {
+      // preserve cached notifications if API load fails
+    }
   };
 
   const fetchAuditLogs = async ({ tab, search, dateFrom, dateTo, page } = {}) => {
@@ -353,7 +407,7 @@ export default function AdminDashboard() {
   useEffect(() => {
     const load = async () => {
       try {
-        await Promise.all([fetchReports(), fetchUsers()]);
+        await Promise.all([fetchReports(), fetchUsers(), fetchNotifications()]);
       } catch (err) {
         setError(err.response?.data?.message || "Unable to load admin data");
       }
@@ -370,6 +424,18 @@ export default function AdminDashboard() {
   }, [auditTab]);
 
   useEffect(() => {
+    localStorage.setItem("adminReports", JSON.stringify(reports));
+  }, [reports]);
+
+  useEffect(() => {
+    localStorage.setItem("adminUsers", JSON.stringify(users));
+  }, [users]);
+
+  useEffect(() => {
+    localStorage.setItem("adminNotifications", JSON.stringify(notifications));
+  }, [notifications]);
+
+  useEffect(() => {
     if (activeNav === "audit" && auditTab !== "status") {
       fetchAuditLogs();
     }
@@ -377,43 +443,59 @@ export default function AdminDashboard() {
   }, [activeNav, auditTab, auditPage]);
 
   useEffect(() => {
-    socket.connect();
-    socket.emit("joinRoom", "admin");
+    const connectSocket = async () => {
+      socket.connect();
+      socket.emit("identify", {
+        userId: storedUser.id,
+        role: "admin",
+        sessionId,
+      });
 
-    const upsertReport = (report) => {
-      setReports((prev) => prev.some((item) => item._id === report._id)
-        ? prev.map((item) => item._id === report._id ? report : item)
-        : [report, ...prev]
-      );
+      socket.on("notification", (notification) => {
+        setNotifications((prev) => {
+          const next = [
+            {
+              id: notification._id || `${Date.now()}`,
+              title: notification.title || "Notification",
+              message: notification.message || "You have a new notification.",
+              createdAt: notification.createdAt || new Date().toISOString(),
+              read: notification.read || false,
+              type: notification.type || "system_event",
+              category: notification.category || "system",
+              metadata: notification.metadata || {},
+            },
+            ...prev,
+          ].slice(0, 20);
+          localStorage.setItem("adminNotifications", JSON.stringify(next));
+          return next;
+        });
+      });
+
+      const upsertReport = (report) => {
+        setReports((prev) => prev.some((item) => item._id === report._id)
+          ? prev.map((item) => item._id === report._id ? report : item)
+          : [report, ...prev]
+        );
+      };
+
+      socket.on("newEmergencyAlert", (report) => {
+        upsertReport(report);
+      });
+
+      socket.on("reportStatusChanged", (report) => {
+        upsertReport(report);
+      });
     };
 
-    socket.on("newEmergencyAlert", (report) => {
-      upsertReport(report);
-      setNotifications((prev) => [{
-        id: report._id || Date.now(),
-        title: "New incident received",
-        message: `${TYPE_LABELS[report.emergencyType] || "Incident"} at ${getLocation(report)}`,
-        createdAt: new Date().toISOString(),
-      }, ...prev].slice(0, 20));
-    });
-
-    socket.on("reportStatusChanged", (report) => {
-      upsertReport(report);
-      setNotifications((prev) => [{
-        id: `${report._id}-${Date.now()}`,
-        title: "Incident updated",
-        message: `${getIncidentId(report, 0)} is now ${report.status}`,
-        createdAt: new Date().toISOString(),
-      }, ...prev].slice(0, 20));
-    });
+    connectSocket();
 
     return () => {
-      socket.emit("leaveRoom", "admin");
+      socket.off("notification");
       socket.off("newEmergencyAlert");
       socket.off("reportStatusChanged");
       socket.disconnect();
     };
-  }, []);
+  }, [sessionId, storedUser.id]);
 
   const responders = useMemo(() => users.filter((user) => user.role === "responder"), [users]);
 
@@ -550,9 +632,14 @@ export default function AdminDashboard() {
 
       const savedUser = response.data?.user;
       if (savedUser?._id) {
+        const mergedUser = {
+          ...savedUser,
+          visiblePassword: payload.password || savedUser.visiblePassword || "",
+        };
+
         setUsers((prev) => editingUserId
-          ? prev.map((user) => user._id === savedUser._id ? savedUser : user)
-          : [savedUser, ...prev]
+          ? prev.map((user) => user._id === mergedUser._id ? mergedUser : user)
+          : [mergedUser, ...prev]
         );
       } else {
         await fetchUsers();
@@ -560,6 +647,7 @@ export default function AdminDashboard() {
 
       setUserForm(emptyUserForm);
       setEditingUserId(null);
+      setIsUserModalOpen(false);
     } catch (err) {
       setError(err.response?.data?.message || "Unable to save user");
     } finally {
@@ -578,6 +666,21 @@ export default function AdminDashboard() {
       phoneNumber: user.phoneNumber || "",
     });
     setActiveNav("users");
+    setIsUserModalOpen(true);
+  };
+
+  const openAddUserModal = () => {
+    setEditingUserId(null);
+    setUserForm(emptyUserForm);
+    setIsUserModalOpen(true);
+    setError("");
+  };
+
+  const resetUserForm = () => {
+    setEditingUserId(null);
+    setUserForm(emptyUserForm);
+    setIsUserModalOpen(false);
+    setError("");
   };
 
   const deleteUser = async (userId) => {
@@ -593,9 +696,15 @@ export default function AdminDashboard() {
     }
   };
 
-  const resetUserForm = () => {
-    setEditingUserId(null);
-    setUserForm(emptyUserForm);
+  const clearAdminCache = () => {
+    [
+      "adminActiveNav",
+      "adminReports",
+      "adminUsers",
+      "adminNotifications",
+      "adminAuditTab",
+      "adminSessionId",
+    ].forEach((key) => localStorage.removeItem(key));
   };
 
   const refreshAdminData = async () => {
@@ -613,6 +722,9 @@ export default function AdminDashboard() {
   const logout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
+    sessionStorage.removeItem("token");
+    sessionStorage.removeItem("user");
+    clearAdminCache();
     navigate("/login");
   };
 
@@ -848,7 +960,7 @@ export default function AdminDashboard() {
 
   const renderIncidentTable = (items, compact = false) => (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[980px] text-left">
+      <table className="w-full table-auto text-left">
         <thead>
           <tr className="border-b border-slate-100 bg-slate-50 text-[10px] font-black uppercase tracking-widest text-slate-400">
             <th className="px-4 py-3">Incident</th>
@@ -956,52 +1068,26 @@ export default function AdminDashboard() {
   );
 
   const renderUsers = () => (
-    <div className="grid gap-5 xl:grid-cols-[0.45fr_0.55fr]">
-      <form onSubmit={saveUser} className="rounded-xl border border-slate-200 bg-white p-5 shadow-md shadow-slate-200/50">
-        <h2 className="text-sm font-black text-slate-900">{editingUserId ? "Edit User" : "Add User"}</h2>
-        <div className="mt-4 grid gap-3">
-          <input value={userForm.fullName} onChange={(event) => setUserForm({ ...userForm, fullName: event.target.value })} placeholder="Full name" className="rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-600/10" />
-          <input value={userForm.email} onChange={(event) => setUserForm({ ...userForm, email: event.target.value })} placeholder="Email" type="email" className="rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-600/10" />
-          <input value={userForm.password} onChange={(event) => setUserForm({ ...userForm, password: event.target.value })} placeholder={editingUserId ? "New password (optional)" : "Password"} type="password" className="rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-600/10" />
-          <div className="grid grid-cols-2 gap-3">
-            <select value={userForm.role} onChange={(event) => setUserForm({ ...userForm, role: event.target.value, agency: event.target.value === "resident" ? "NONE" : userForm.agency })} className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-600/10">
-              <option value="resident">Resident</option>
-              <option value="responder">Responder</option>
-              <option value="staff">Staff</option>
-              <option value="admin">Admin</option>
-            </select>
-            <select value={userForm.agency} onChange={(event) => setUserForm({ ...userForm, agency: event.target.value })} className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold outline-none shadow-md transition focus:border-red-500 focus:ring-2 focus:ring-red-600/10">
-              <option value="NONE">No agency</option>
-              <option value="CDRRMO">CDRRMO</option>
-              <option value="PNP">PNP</option>
-            </select>
-          </div>
-          <input value={userForm.phoneNumber} onChange={(event) => setUserForm({ ...userForm, phoneNumber: event.target.value })} placeholder="Phone number" className="rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-600/10" />
-        </div>
-        <div className="mt-4 flex gap-2">
-          <button disabled={isSavingUser} className="rounded-lg bg-red-600 px-4 py-2 text-xs font-black text-white shadow-sm transition hover:bg-red-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-slate-300 disabled:opacity-80">
-            {isSavingUser ? "Saving..." : editingUserId ? "Save Changes" : "Create User"}
-          </button>
-          {editingUserId && (
-            <button type="button" onClick={resetUserForm} className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-black text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 active:scale-[0.98]">
-              Cancel
-            </button>
-          )}
-        </div>
-      </form>
-
-      <section className="rounded-xl border border-slate-200 bg-white shadow-md shadow-slate-200/50">
-        <div className="border-b border-slate-100 px-5 py-4">
+    <div className="space-y-5">
+      <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-5 shadow-md shadow-slate-200/50 sm:flex-row sm:items-center sm:justify-between">
+        <div>
           <h2 className="text-sm font-black text-slate-900">User Directory</h2>
           <p className="text-xs text-slate-500">Manage residents, responders, staff, and administrators.</p>
         </div>
+        <button type="button" onClick={openAddUserModal} className="inline-flex items-center justify-center rounded-lg bg-red-600 px-4 py-2 text-xs font-black text-white shadow-sm transition hover:bg-red-700 active:scale-[0.98]">
+          Add User
+        </button>
+      </div>
+
+      <section className="rounded-xl border border-slate-200 bg-white shadow-md shadow-slate-200/50">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[720px] text-left">
+          <table className="w-full table-auto text-left">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50 text-[10px] font-black uppercase tracking-widest text-slate-400">
                 <th className="px-4 py-3">Name</th>
                 <th className="px-4 py-3">Role</th>
                 <th className="px-4 py-3">Agency</th>
+                <th className="px-4 py-3">Password</th>
                 <th className="px-4 py-3">Contact</th>
                 <th className="px-4 py-3">Actions</th>
               </tr>
@@ -1015,9 +1101,10 @@ export default function AdminDashboard() {
                   </td>
                   <td className="px-4 py-3 capitalize">{user.role}</td>
                   <td className="px-4 py-3">{user.agency || "NONE"}</td>
+                  <td className="px-4 py-3 break-all text-xs font-medium text-slate-700">{user.visiblePassword || "—"}</td>
                   <td className="px-4 py-3">{user.phoneNumber || "N/A"}</td>
                   <td className="px-4 py-3">
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
                       <button onClick={() => editUser(user)} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-black text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 active:scale-[0.98]">Edit</button>
                       <button onClick={() => deleteUser(user._id)} className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-black text-red-700 transition hover:border-red-300 hover:bg-red-100 active:scale-[0.98]">Remove</button>
                     </div>
@@ -1028,6 +1115,51 @@ export default function AdminDashboard() {
           </table>
         </div>
       </section>
+
+      {isUserModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 px-4 py-6">
+          <div className="w-full max-w-2xl rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl shadow-slate-900/10">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h2 className="text-lg font-black text-slate-950">{editingUserId ? "Edit User" : "Add User"}</h2>
+                <p className="mt-1 text-sm text-slate-500">Create or update dashboard user accounts.</p>
+              </div>
+              <button type="button" onClick={resetUserForm} className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-black text-slate-700 transition hover:border-slate-300 hover:bg-slate-100 active:scale-[0.98]">
+                Close
+              </button>
+            </div>
+
+            <form onSubmit={saveUser} className="mt-5 grid gap-3">
+              <input value={userForm.fullName} onChange={(event) => setUserForm({ ...userForm, fullName: event.target.value })} placeholder="Full name" className="rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-600/10" />
+              <input value={userForm.email} onChange={(event) => setUserForm({ ...userForm, email: event.target.value })} placeholder="Email" type="email" className="rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-600/10" />
+              <input value={userForm.password} onChange={(event) => setUserForm({ ...userForm, password: event.target.value })} placeholder={editingUserId ? "New password (optional)" : "Password"} type="password" className="rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-600/10" />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <select value={userForm.role} onChange={(event) => setUserForm({ ...userForm, role: event.target.value, agency: event.target.value === "resident" ? "NONE" : userForm.agency })} className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-600/10">
+                  <option value="resident">Resident</option>
+                  <option value="responder">Responder</option>
+                  <option value="staff">Staff</option>
+                  <option value="admin">Admin</option>
+                </select>
+                <select value={userForm.agency} onChange={(event) => setUserForm({ ...userForm, agency: event.target.value })} className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-600/10">
+                  <option value="NONE">No agency</option>
+                  <option value="CDRRMO">CDRRMO</option>
+                  <option value="PNP">PNP</option>
+                </select>
+              </div>
+              <input value={userForm.phoneNumber} onChange={(event) => setUserForm({ ...userForm, phoneNumber: event.target.value })} placeholder="Phone number" className="rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-600/10" />
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                <button disabled={isSavingUser} className="rounded-lg bg-red-600 px-4 py-2 text-xs font-black text-white shadow-sm transition hover:bg-red-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-slate-300 disabled:opacity-80">
+                  {isSavingUser ? "Saving..." : editingUserId ? "Save Changes" : "Create User"}
+                </button>
+                <button type="button" onClick={resetUserForm} className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-black text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 active:scale-[0.98]">
+                  Cancel
+                </button>
+              </div>
+              {error && <p className="text-sm font-bold text-red-600">{error}</p>}
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 
@@ -1146,8 +1278,8 @@ export default function AdminDashboard() {
                   );
                 } else {
                   exportCsv(
-                    [["Date/Time", "Name", "Email", "Role", "Action", "Details", "OTP Code", "IP"],
-                    ...filteredAuditLogs.map((e) => [new Date(e.createdAt).toLocaleString(), e.actorName, e.actorEmail, e.actorRole, AUDIT_ACTION_LABELS[e.action] || e.action, e.details, e.otpCode || "", e.ipAddress || ""])],
+                    [["Date/Time", "Name", "Email", "Role", "Action", "Details", "OTP Code", "Source", "IP"],
+                    ...filteredAuditLogs.map((e) => [new Date(e.createdAt).toLocaleString(), e.actorName, e.actorEmail, e.actorRole, AUDIT_ACTION_LABELS[e.action] || e.action, e.details, e.otpCode || "", e.source || "", e.ipAddress || ""])],
                     `audit-${auditTab}-${new Date().toISOString().slice(0,10)}.csv`
                   );
                 }
@@ -1207,18 +1339,18 @@ export default function AdminDashboard() {
               <h3 className="text-sm font-black text-slate-900">Incident Status Log</h3>
               <p className="mt-0.5 text-xs text-slate-500">Status updates recorded per incident. View-only.</p>
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[900px] text-left text-sm">
+            <div className="overflow-x-auto rounded-xl border border-slate-200 bg-slate-50 shadow-sm">
+              <table className="w-full table-auto text-left text-sm">
                 <thead>
                   <tr className="border-b border-slate-100 bg-slate-50 text-[11px] font-black uppercase tracking-widest text-slate-400">
-                    <th className="px-5 py-3">Incident ID</th>
-                    <th className="px-5 py-3">Type</th>
-                    <th className="px-5 py-3">Agency</th>
-                    <th className="px-5 py-3">Location</th>
-                    <th className="px-5 py-3">Status Change</th>
-                    <th className="px-5 py-3">Actor</th>
-                    <th className="px-5 py-3">Timestamp</th>
-                    <th className="px-5 py-3">Details</th>
+                    <th className="px-3 py-2">Incident</th>
+                    <th className="px-3 py-2">Type</th>
+                    <th className="px-3 py-2">Agency</th>
+                    <th className="px-3 py-2">Location</th>
+                    <th className="px-3 py-2">Status</th>
+                    <th className="px-3 py-2">Actor</th>
+                    <th className="px-3 py-2">When</th>
+                    <th className="px-3 py-2">Details</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
@@ -1229,13 +1361,13 @@ export default function AdminDashboard() {
                     const toInfo = getStatusInfo(entry.toStatus);
                     return (
                       <tr key={idx} className="hover:bg-slate-50/60 transition-colors">
-                        <td className="px-5 py-3 font-mono text-xs font-bold text-slate-900">{entry.incidentId}</td>
-                        <td className="px-5 py-3">
+                        <td className="px-3 py-2 font-mono text-xs font-bold text-slate-900">{entry.incidentId}</td>
+                        <td className="px-3 py-2">
                           <span className="capitalize text-sm font-semibold text-slate-700">{entry.reportType || "—"}</span>
                         </td>
-                        <td className="px-5 py-3 text-xs font-bold text-slate-600">{entry.agency || "—"}</td>
-                        <td className="px-5 py-3 max-w-[160px]"><p className="truncate text-xs text-slate-600">{entry.location || "—"}</p></td>
-                        <td className="px-5 py-3">
+                        <td className="px-3 py-2 text-xs font-bold text-slate-600">{entry.agency || "—"}</td>
+                        <td className="px-3 py-2 max-w-[140px]"><p className="truncate text-xs text-slate-600">{entry.location || "—"}</p></td>
+                        <td className="px-3 py-2">
                           {entry.fromStatus && entry.toStatus ? (
                             <div className="flex items-center gap-1.5">
                               <span className={`rounded px-2 py-0.5 text-[10px] font-black uppercase ${fromInfo.bg} ${fromInfo.text}`}>{entry.fromStatus}</span>
@@ -1246,13 +1378,13 @@ export default function AdminDashboard() {
                             <span className="text-xs text-slate-400">{entry.action}</span>
                           )}
                         </td>
-                        <td className="px-5 py-3">
+                        <td className="px-3 py-2">
                           <p className="text-xs font-bold text-slate-700">{entry.actorName || "System"}</p>
                           <p className="text-[10px] font-medium capitalize text-slate-400">{entry.actorRole || ""}</p>
                         </td>
-                        <td className="px-5 py-3 whitespace-nowrap text-xs text-slate-500">{new Date(entry.createdAt).toLocaleString()}</td>
-                        <td className="px-5 py-3">
-                          <button onClick={() => setAuditDetailEntry(entry)} className="rounded-lg border border-slate-200 bg-white px-3 py-1 text-[11px] font-bold text-slate-600 transition hover:bg-slate-50">
+                        <td className="px-3 py-2 text-xs text-slate-500">{new Date(entry.createdAt).toLocaleString()}</td>
+                        <td className="px-3 py-2">
+                          <button onClick={() => setAuditDetailEntry(entry)} className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-600 transition hover:bg-slate-50">
                             View
                           </button>
                         </td>
@@ -1285,39 +1417,39 @@ export default function AdminDashboard() {
             {auditLoading ? (
               <div className="flex items-center justify-center py-16 text-sm text-slate-400">Loading activity logs...</div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[900px] text-left text-sm">
+              <div className="overflow-x-auto rounded-xl border border-slate-200 bg-slate-50">
+                <table className="w-full table-auto text-left text-sm">
                   <thead>
                     <tr className="border-b border-slate-100 bg-slate-50 text-[11px] font-black uppercase tracking-widest text-slate-400">
-                      <th className="px-5 py-3">Date & Time</th>
-                      <th className="px-5 py-3">Name</th>
-                      <th className="px-5 py-3">Email</th>
-                      <th className="px-5 py-3">Role</th>
-                      <th className="px-5 py-3">Action</th>
-                      <th className="px-5 py-3">Details</th>
-                      <th className="px-5 py-3">IP Address</th>
-                      <th className="px-5 py-3"></th>
+                      <th className="px-4 py-3">Date</th>
+                      <th className="px-4 py-3">Name</th>
+                      <th className="px-4 py-3">Email</th>
+                      <th className="px-4 py-3">Role</th>
+                      <th className="px-4 py-3">Action</th>
+                      <th className="px-4 py-3">Details</th>
+                      <th className="px-4 py-3">IP</th>
+                      <th className="px-4 py-3"></th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
                     {actLogs.length === 0 ? (
-                      <tr><td colSpan={8} className="px-5 py-10 text-center text-sm text-slate-400">No user activity logs found.</td></tr>
+                      <tr><td colSpan={8} className="px-4 py-8 text-center text-sm text-slate-400">No user activity logs found.</td></tr>
                     ) : actLogs.map((log, idx) => {
                       const style = AUDIT_ACTION_STYLES[log.action] || { bg: "bg-slate-50", text: "text-slate-600", dot: "bg-slate-400" };
                       return (
                         <tr key={idx} className="hover:bg-slate-50/60 transition-colors">
-                          <td className="px-5 py-3 whitespace-nowrap text-xs text-slate-500">{new Date(log.createdAt).toLocaleString()}</td>
-                          <td className="px-5 py-3 text-xs font-bold text-slate-800">{log.actorName || "—"}</td>
-                          <td className="px-5 py-3 text-xs text-slate-600">{log.actorEmail || "—"}</td>
-                          <td className="px-5 py-3 text-xs font-bold capitalize text-slate-500">{log.actorRole || "—"}</td>
-                          <td className="px-5 py-3">
+                          <td className="px-4 py-3 text-xs text-slate-500">{new Date(log.createdAt).toLocaleString()}</td>
+                          <td className="px-4 py-3 text-xs font-bold text-slate-800">{log.actorName || "—"}</td>
+                          <td className="px-4 py-3 max-w-[140px] truncate text-xs text-slate-600">{log.actorEmail || "—"}</td>
+                          <td className="px-4 py-3 max-w-[90px] truncate text-xs font-bold capitalize text-slate-500">{log.actorRole || "—"}</td>
+                          <td className="px-4 py-3">
                             <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-black ${style.bg} ${style.text}`}>
                               <span className={`h-1.5 w-1.5 rounded-full ${style.dot}`} />
                               {AUDIT_ACTION_LABELS[log.action] || log.action}
                             </span>
                           </td>
-                          <td className="px-5 py-3 max-w-[220px]"><p className="truncate text-xs text-slate-600">{log.details || "—"}</p></td>
-                          <td className="px-5 py-3 text-xs font-mono text-slate-400">{log.ipAddress || "—"}</td>
+                          <td className="px-4 py-3 max-w-[160px] truncate text-xs text-slate-600">{log.details || "—"}</td>
+                          <td className="px-4 py-3 max-w-[110px] truncate text-xs font-mono text-slate-400">{log.ipAddress || "—"}</td>
                           <td className="px-5 py-3">
                             <button onClick={() => setAuditDetailEntry(log)} className="rounded-lg border border-slate-200 bg-white px-3 py-1 text-[11px] font-bold text-slate-600 transition hover:bg-slate-50">
                               View
@@ -1356,48 +1488,56 @@ export default function AdminDashboard() {
             {auditLoading ? (
               <div className="flex items-center justify-center py-16 text-sm text-slate-400">Loading security logs...</div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[1000px] text-left text-sm">
+              <div className="overflow-x-auto rounded-xl border border-slate-200 bg-slate-50">
+                <table className="w-full table-fixed text-left text-sm">
+                  <colgroup>
+                    <col className="w-[160px]" />
+                    <col className="w-[120px]" />
+                    <col className="w-[170px]" />
+                    <col className="w-[90px]" />
+                    <col className="w-[110px]" />
+                    <col className="w-[120px]" />
+                    <col className="w-[220px]" />
+                    <col className="w-[80px]" />
+                  </colgroup>
                   <thead>
                     <tr className="border-b border-slate-100 bg-slate-50 text-[11px] font-black uppercase tracking-widest text-slate-400">
-                      <th className="px-5 py-3">Date & Time</th>
-                      <th className="px-5 py-3">Name</th>
-                      <th className="px-5 py-3">Email Sent To</th>
-                      <th className="px-5 py-3">Role</th>
-                      <th className="px-5 py-3">Event</th>
-                      <th className="px-5 py-3">OTP Code</th>
-                      <th className="px-5 py-3">OTP Verified At</th>
-                      <th className="px-5 py-3">Details</th>
-                      <th className="px-5 py-3"></th>
+                      <th className="px-3 py-2">Date</th>
+                      <th className="px-3 py-2">Name</th>
+                      <th className="px-3 py-2">Email</th>
+                      <th className="px-3 py-2">Role</th>
+                      <th className="px-3 py-2">Action</th>
+                      <th className="px-3 py-2">OTP</th>
+                      <th className="px-3 py-2">Details</th>
+                      <th className="px-3 py-2"></th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
                     {pwdLogs.length === 0 ? (
-                      <tr><td colSpan={9} className="px-5 py-10 text-center text-sm text-slate-400">No password security events recorded.</td></tr>
+                      <tr><td colSpan={9} className="px-4 py-8 text-center text-sm text-slate-400">No password security events recorded.</td></tr>
                     ) : pwdLogs.map((log, idx) => {
                       const style = AUDIT_ACTION_STYLES[log.action] || { bg: "bg-slate-50", text: "text-slate-600", dot: "bg-slate-400" };
                       return (
                         <tr key={idx} className="hover:bg-slate-50/60 transition-colors">
-                          <td className="px-5 py-3 whitespace-nowrap text-xs text-slate-500">{new Date(log.createdAt).toLocaleString()}</td>
-                          <td className="px-5 py-3 text-xs font-bold text-slate-800">{log.actorName || "—"}</td>
-                          <td className="px-5 py-3 text-xs text-blue-600 font-medium">{log.actorEmail || "—"}</td>
-                          <td className="px-5 py-3 text-xs font-bold capitalize text-slate-500">{log.actorRole || "—"}</td>
-                          <td className="px-5 py-3">
+                          <td className="px-4 py-3 text-xs text-slate-500 max-w-[120px] truncate">{new Date(log.createdAt).toLocaleString()}</td>
+                          <td className="px-4 py-3 text-xs font-bold text-slate-800 max-w-[120px] truncate">{log.actorName || "—"}</td>
+                          <td className="px-4 py-3 max-w-[150px] truncate text-xs text-blue-600 font-medium">{log.actorEmail || "—"}</td>
+                          <td className="px-4 py-3 max-w-[90px] truncate text-xs font-bold capitalize text-slate-500">{log.actorRole || "—"}</td>
+                          <td className="px-4 py-3 max-w-[130px]">
                             <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-black ${style.bg} ${style.text}`}>
                               <span className={`h-1.5 w-1.5 rounded-full ${style.dot}`} />
                               {AUDIT_ACTION_LABELS[log.action] || log.action}
                             </span>
                           </td>
-                          <td className="px-5 py-3">
+                          <td className="px-4 py-3 max-w-[110px] truncate text-xs">
                             {log.otpCode ? (
-                              <span className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1 font-mono text-sm font-black tracking-widest text-slate-800">{log.otpCode}</span>
-                            ) : <span className="text-xs text-slate-300">N/A</span>}
+                              <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-black text-slate-800 tracking-[0.08em]">{log.otpCode}</span>
+                            ) : (
+                              <span className="text-[11px] text-slate-300">N/A</span>
+                            )}
                           </td>
-                          <td className="px-5 py-3 whitespace-nowrap text-xs text-slate-500">
-                            {log.otpVerifiedAt ? new Date(log.otpVerifiedAt).toLocaleString() : <span className="text-slate-300">—</span>}
-                          </td>
-                          <td className="px-5 py-3 max-w-[200px]"><p className="truncate text-xs text-slate-600">{log.details || "—"}</p></td>
-                          <td className="px-5 py-3">
+                          <td className="px-4 py-3 max-w-[220px] truncate text-xs text-slate-600">{log.details || "—"}</td>
+                          <td className="px-3 py-2">
                             <button onClick={() => setAuditDetailEntry(log)} className="rounded-lg border border-slate-200 bg-white px-3 py-1 text-[11px] font-bold text-slate-600 transition hover:bg-slate-50">
                               View
                             </button>
@@ -1443,6 +1583,8 @@ export default function AdminDashboard() {
                   ["From Status", auditDetailEntry.fromStatus || "—"],
                   ["To Status", auditDetailEntry.toStatus || "—"],
                   ["OTP Code", auditDetailEntry.otpCode || "—"],
+                  ["Source", auditDetailEntry.source || "web"],
+                  ["User Agent", auditDetailEntry.userAgent || "—"],
                   ["OTP Verified At", auditDetailEntry.otpVerifiedAt ? new Date(auditDetailEntry.otpVerifiedAt).toLocaleString() : "—"],
                   ["IP Address", auditDetailEntry.ipAddress || "—"],
                   ["Details", auditDetailEntry.details || auditDetailEntry.message || "—"],

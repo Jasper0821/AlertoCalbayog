@@ -15,10 +15,22 @@ function Login() {
   const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
+    const clearAdminCache = () => {
+      [
+        "adminActiveNav",
+        "adminReports",
+        "adminUsers",
+        "adminNotifications",
+        "adminAuditTab",
+        "adminSessionId",
+      ].forEach((key) => localStorage.removeItem(key));
+    };
+
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     sessionStorage.removeItem("token");
     sessionStorage.removeItem("user");
+    clearAdminCache();
   }, []);
 
 

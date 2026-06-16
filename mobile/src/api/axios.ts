@@ -15,7 +15,10 @@ const getBackendHost = () => {
 export const backendHost = getBackendHost();
 
 const api = axios.create({
-    baseURL: `http://${backendHost}:5000/api`
+    baseURL: `http://${backendHost}:5000/api`,
+    headers: {
+      "X-App-Source": "mobile",
+    },
 });
 
 export default api;

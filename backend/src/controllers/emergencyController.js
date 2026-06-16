@@ -1,4 +1,5 @@
 const EmergencyReport = require("../models/EmergencyReport");
+const Notification = require("../models/Notification");
 const mapAgencies = require("../utils/agencyMapper");
 
 const cleanText = (value = "") =>
@@ -121,6 +122,24 @@ exports.createEmergencyReport = async (req, res) => {
     });
 
     io.to("admin").emit("newEmergencyAlert", populatedReport);
+
+    try {
+      const adminNotification = await Notification.create({
+        recipientRole: "admin",
+        reportId: populatedReport._id,
+        title: "New incident reported",
+        message: `A new ${populatedReport.emergencyType || "incident"} report has been submitted by ${populatedReport.userId?.fullName || "a resident"}.`,
+        category: "incident",
+        type: "system_event",
+        metadata: {
+          emergencyType: populatedReport.emergencyType,
+          location: populatedReport.location,
+        },
+      });
+      io.to("admin").emit("notification", adminNotification);
+    } catch (err) {
+      console.error("Failed to persist admin notification:", err.message);
+    }
 
     res.status(201).json({
       message: "Emergency report created successfully",

@@ -1,6 +1,12 @@
 const nodemailer = require("nodemailer");
 
+let transporterInstance = null;
+
 async function createTransporter() {
+  if (transporterInstance) {
+    return transporterInstance;
+  }
+
   const gmailUser = process.env.GMAIL_USER?.trim();
   const gmailPass = process.env.GMAIL_APP_PASS?.replace(/\s+/g, "").trim();
 
@@ -11,40 +17,44 @@ async function createTransporter() {
     gmailPass !== "your_16_char_app_password" &&
     gmailPass !== ""
   ) {
-    return nodemailer.createTransport({
-      host: "smtp.gmail.com",
-      port: 465,
+    transporterInstance = nodemailer.createTransport({
+      service: "gmail",
       secure: true,
       auth: {
         user: gmailUser,
         pass: gmailPass,
       },
+      authMethod: "LOGIN",
+      tls: {
+        rejectUnauthorized: false,
+      },
+      logger: false,
+      debug: false,
     });
+
+    await transporterInstance.verify();
+    console.log("\n📧  [Mailer] Gmail SMTP verified and ready to send emails.");
+    return transporterInstance;
   }
 
-  const testAccount = await nodemailer.createTestAccount();
-  console.log("\n📧  [Mailer] No Gmail credentials found — using Ethereal test SMTP.");
-  console.log(`    User: ${testAccount.user}`);
-  console.log(`    Pass: ${testAccount.pass}\n`);
-
-  return nodemailer.createTransport({
-    host: "smtp.ethereal.email",
-    port: 587,
-    secure: false,
-    auth: {
-      user: testAccount.user,
-      pass: testAccount.pass,
-    },
-  });
+  throw new Error("Gmail SMTP credentials are not configured or invalid. Set GMAIL_USER and GMAIL_APP_PASS in backend/.env.");
 }
 
 async function sendOtpEmail(toEmail, otpCode) {
-  let transporter = await createTransporter();
+  const recipient = toEmail?.toString().trim().toLowerCase();
+  if (!recipient) {
+    throw new Error("Invalid recipient email address.");
+  }
+
+  const transporter = await createTransporter();
+  const fromAddress = process.env.GMAIL_USER?.trim() || "noreply@alertocalbayog.local";
 
   const mailOptions = {
-    from: `"AlertoCalbayog" <${process.env.GMAIL_USER?.trim() || "noreply@alertocalbayog.local"}>`,
-    to: toEmail,
-    subject: "🔐 Your AlertoCalbayog Password Reset Code",
+    from: `"AlertoCalbayog" <${fromAddress}>`,
+    to: recipient,
+    replyTo: fromAddress,
+    subject: "🔐 Your AlerteCalbayog Password Reset Code",
+    text: `Your password reset code is: ${otpCode}\n\nThis code expires in 5 minutes. If you did not request a password reset, please ignore this email.`,
     html: `
       <div style="font-family:'Segoe UI',Arial,sans-serif;max-width:520px;margin:0 auto;background:#f4f7fc;padding:32px 16px;">
         <div style="background:#fff;border-radius:16px;padding:36px 32px;box-shadow:0 4px 24px rgba(0,0,0,0.07);">
@@ -76,34 +86,36 @@ async function sendOtpEmail(toEmail, otpCode) {
         </div>
       </div>
     `,
+    headers: {
+      "X-Mailer": "AlertoCalbayog Mailer",
+    },
   };
 
   let info;
   try {
     info = await transporter.sendMail(mailOptions);
   } catch (err) {
-    if (err.code === "EAUTH") {
-      console.warn("\n⚠️  [Mailer] Gmail authentication failed — falling back to Ethereal test SMTP.");
-      const testAccount = await nodemailer.createTestAccount();
-      console.log(`    Ethereal User: ${testAccount.user}`);
-      transporter = nodemailer.createTransport({
-        host: "smtp.ethereal.email",
-        port: 587,
-        secure: false,
-        auth: { user: testAccount.user, pass: testAccount.pass },
-      });
-      info = await transporter.sendMail(mailOptions);
-    } else {
-      throw err;
-    }
+    console.error("\n⚠️  [Mailer] Failed to send OTP email to", recipient, "-", err.message || err);
+    throw err;
   }
 
-  console.log(`\n✅  [OTP] Code for ${toEmail}: ${otpCode}`);
+  if (info.rejected?.length) {
+    console.error(`\n⚠️  [Mailer] SMTP rejected recipient(s): ${info.rejected.join(", ")}`);
+    throw new Error(`Failed to deliver OTP email to ${recipient}.`);
+  }
+
+  console.log(`\n✅  [OTP] Code for ${recipient}: ${otpCode}`);
+  console.log(`   MessageId: ${info.messageId}`);
+  console.log(`   Accepted: ${JSON.stringify(info.accepted)}`);
+  console.log(`   Rejected: ${JSON.stringify(info.rejected)}`);
+  console.log(`   Response: ${info.response}`);
 
   const previewUrl = nodemailer.getTestMessageUrl(info);
   if (previewUrl) {
     console.log(`📬  [Ethereal Preview] View email at: ${previewUrl}\n`);
   }
+
+  return info;
 }
 
 module.exports = { sendOtpEmail };

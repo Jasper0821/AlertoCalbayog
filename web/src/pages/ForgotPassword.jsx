@@ -48,7 +48,7 @@ function ForgotPassword() {
               Password Recovery
             </h1>
             <p className="text-[13px] text-slate-500 mt-2 leading-relaxed">
-              Enter your registered agency email and we'll send a 6-digit OTP to reset your password.
+              Enter your registered email and we'll send a 6-digit OTP to reset your password.
             </p>
           </div>
 
@@ -94,7 +94,7 @@ function ForgotPassword() {
                     name="email"
                     type="email"
                     autoComplete="email"
-                    placeholder="agency-email@calbayog.gov.ph"
+                    placeholder="your.email@example.com"
                     value={email}
                     onChange={(e) => { setEmail(e.target.value); setError(""); }}
                     required

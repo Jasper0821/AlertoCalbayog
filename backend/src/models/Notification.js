@@ -5,13 +5,20 @@ const notificationSchema = new mongoose.Schema(
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: true,
+      default: null,
+      index: true
+    },
+    recipientRole: {
+      type: String,
+      enum: ["admin", "staff", "responder", "resident", "all"],
+      default: "resident",
       index: true
     },
     reportId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "EmergencyReport",
-      required: true
+      default: null,
+      index: true
     },
     title: {
       type: String,
@@ -21,18 +28,27 @@ const notificationSchema = new mongoose.Schema(
       type: String,
       required: true
     },
-    status: {
+    category: {
       type: String,
-      default: ""
+      default: "system"
     },
     type: {
       type: String,
-      enum: ["status_update", "responder_assigned"],
-      default: "status_update"
+      enum: ["status_update", "responder_assigned", "user_event", "system_event", "message", "audit"],
+      default: "system_event"
+    },
+    link: {
+      type: String,
+      default: ""
+    },
+    metadata: {
+      type: mongoose.Schema.Types.Mixed,
+      default: {}
     },
     read: {
       type: Boolean,
-      default: false
+      default: false,
+      index: true
     }
   },
   { timestamps: true }

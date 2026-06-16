@@ -9,10 +9,23 @@ function getIp(req) {
   );
 }
 
+function getSource(req) {
+  const appSource = req.headers["x-app-source"] || req.headers["x-source"];
+  if (appSource) return appSource;
+  const ua = (req.headers["user-agent"] || "").toLowerCase();
+  if (ua.includes("android") || ua.includes("iphone") || ua.includes("ipad") || ua.includes("mobile")) {
+    return "mobile";
+  }
+  if (ua.includes("postman") || ua.includes("insomnia")) {
+    return "api-client";
+  }
+  return "web";
+}
+
 // POST /api/audit — create a log entry (called internally or from frontend via auth)
 exports.createLog = async (req, res) => {
   try {
-    const { category, action, actorId, actorName, actorEmail, actorRole, otpCode, otpVerifiedAt, details } = req.body;
+    const { category, action, actorId, actorName, actorEmail, actorRole, otpCode, otpVerifiedAt, details, source } = req.body;
     const log = await AuditLog.create({
       category,
       action,
@@ -23,6 +36,8 @@ exports.createLog = async (req, res) => {
       otpCode: otpCode || "",
       otpVerifiedAt: otpVerifiedAt || null,
       details: details || "",
+      source: source || getSource(req),
+      userAgent: req.headers["user-agent"] || "",
       ipAddress: getIp(req),
     });
     res.status(201).json(log);
