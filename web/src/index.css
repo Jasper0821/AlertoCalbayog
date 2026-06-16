@@ -10,6 +10,12 @@
   .dark body {
     @apply bg-slate-950 text-slate-100 placeholder:text-slate-600;
   }
+
+  /* Hide native MS Edge reveal eye and clear icons */
+  input::-ms-reveal,
+  input::-ms-clear {
+    display: none;
+  }
 }
 
 @layer components {

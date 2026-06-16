@@ -81,7 +81,7 @@ function Login() {
               Alerto Calbayog
             </h2>
             <p className="text-[13px] text-slate-500 font-medium">
-              Emergency Responder Portal
+              Emergency Response System
             </p>
           </div>
 
@@ -104,7 +104,6 @@ function Login() {
                   id="email"
                   name="email"
                   type="email"
-                  autoComplete="email"
                   placeholder="Please enter your email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -137,8 +136,7 @@ function Login() {
                   id="password"
                   name="password"
                   type={showPassword ? "text" : "password"}
-                  autoComplete="current-password"
-                  placeholder="••••••••"
+                  placeholder="******"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
