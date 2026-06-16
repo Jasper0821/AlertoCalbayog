@@ -15,8 +15,21 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import {
+  DashboardIcon as LayoutDashboard,
+  ReportIcon as AlertTriangle,
+  AnalyticsIcon as BarChart2,
+  UsersIcon as Users,
+  AuditIcon as ClipboardList,
+  SettingsIcon as Settings,
+  BellIcon as Bell,
+  SearchIcon as Search,
+  LogoutIcon as LogOut,
+  MenuIcon as Menu
+} from "./icons.jsx";
 import api from "../../api/axios.js";
 import socket from "../../api/socket.js";
+import { getValidCalbayogBarangay } from "../../utils/barangays.js";
 
 const STATUS_OPTIONS = [
   { value: "pending", label: "Pending" },
@@ -76,13 +89,12 @@ const CATEGORY_COLORS = {
 const PIE_COLORS = ["#f59e0b", "#0d9488", "#2563eb", "#059669", "#64748b", "#4f46e5"];
 
 const NAV = [
-  { id: "overview", label: "Overview" },
-  { id: "incidents", label: "Incidents" },
-  { id: "analytics", label: "Analytics" },
-  { id: "users", label: "Users" },
-  { id: "notifications", label: "Notifications" },
-  { id: "audit", label: "Audit Trail" },
-  { id: "settings", label: "Settings" },
+  { id: "overview", label: "Overview", icon: LayoutDashboard },
+  { id: "incidents", label: "Incidents", icon: AlertTriangle },
+  { id: "analytics", label: "Analytics", icon: BarChart2 },
+  { id: "users", label: "Users", icon: Users },
+  { id: "audit", label: "Audit Trail", icon: ClipboardList },
+  { id: "settings", label: "Settings", icon: Settings },
 ];
 
 const emptyUserForm = {
@@ -120,13 +132,15 @@ function normalizeStatus(status) {
 }
 
 function getBarangay(report) {
-  if (report.location?.barangay) return report.location.barangay;
-  if (typeof report.location === "string" && report.location.trim()) return report.location.trim();
-  if (report.location?.name) {
-    const barangayMatch = report.location.name.match(/(?:brgy\.?|barangay)\s*([^,]+)/i);
-    if (barangayMatch?.[1]) return barangayMatch[1].trim();
+  let locationStr = "Unspecified";
+  if (report.location?.barangay) {
+    locationStr = report.location.barangay;
+  } else if (typeof report.location === "string" && report.location.trim()) {
+    locationStr = report.location.trim();
+  } else if (report.location?.name) {
+    locationStr = report.location.name;
   }
-  return "Unspecified";
+  return getValidCalbayogBarangay(locationStr);
 }
 
 function addCount(map, key) {
@@ -256,16 +270,17 @@ function CsvExportButton({ reports }) {
   return (
     <button
       onClick={exportCsv}
-      className="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 active:scale-[0.98]"
+      className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-500 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-600 active:scale-[0.98]"
     >
-      Export CSV
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+      Export
     </button>
   );
 }
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
-  const [activeNav, setActiveNav] = useState("overview");
+  const [activeNav, setActiveNav] = useState(() => localStorage.getItem("adminActiveNav") || "overview");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [reports, setReports] = useState([]);
   const [users, setUsers] = useState([]);
@@ -279,6 +294,16 @@ export default function AdminDashboard() {
   const [isSavingUser, setIsSavingUser] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [savingReportId, setSavingReportId] = useState("");
+  // Audit Trail state
+  const [auditLogs, setAuditLogs] = useState([]);
+  const [auditTab, setAuditTab] = useState(() => localStorage.getItem("adminAuditTab") || "status"); // "status" | "user_activity" | "password_security"
+  const [auditSearch, setAuditSearch] = useState("");
+  const [auditDateFrom, setAuditDateFrom] = useState("");
+  const [auditDateTo, setAuditDateTo] = useState("");
+  const [auditPage, setAuditPage] = useState(1);
+  const [auditTotal, setAuditTotal] = useState(0);
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [auditDetailEntry, setAuditDetailEntry] = useState(null);
 
   const storedUser = (() => {
     try {
@@ -298,6 +323,33 @@ export default function AdminDashboard() {
     setUsers(Array.isArray(response.data) ? response.data : []);
   };
 
+  const fetchAuditLogs = async ({ tab, search, dateFrom, dateTo, page } = {}) => {
+    setAuditLoading(true);
+    try {
+      const params = new URLSearchParams();
+      const activeTab = tab ?? auditTab;
+      if (activeTab === "status") {
+        // status tab reads from incident actionLog (existing auditEntries) — no API call needed
+        setAuditLoading(false);
+        return;
+      }
+      if (activeTab === "user_activity") params.set("category", "user_activity");
+      if (activeTab === "password_security") params.set("category", "password_security");
+      if (search ?? auditSearch) params.set("search", search ?? auditSearch);
+      if (dateFrom ?? auditDateFrom) params.set("startDate", dateFrom ?? auditDateFrom);
+      if (dateTo ?? auditDateTo) params.set("endDate", dateTo ?? auditDateTo);
+      params.set("page", page ?? auditPage);
+      params.set("limit", "20");
+      const res = await api.get(`/audit?${params.toString()}`);
+      setAuditLogs(res.data.logs || []);
+      setAuditTotal(res.data.total || 0);
+    } catch {
+      setAuditLogs([]);
+    } finally {
+      setAuditLoading(false);
+    }
+  };
+
   useEffect(() => {
     const load = async () => {
       try {
@@ -308,6 +360,21 @@ export default function AdminDashboard() {
     };
     load();
   }, []);
+
+  useEffect(() => {
+    localStorage.setItem("adminActiveNav", activeNav);
+  }, [activeNav]);
+
+  useEffect(() => {
+    localStorage.setItem("adminAuditTab", auditTab);
+  }, [auditTab]);
+
+  useEffect(() => {
+    if (activeNav === "audit" && auditTab !== "status") {
+      fetchAuditLogs();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeNav, auditTab, auditPage]);
 
   useEffect(() => {
     socket.connect();
@@ -412,7 +479,8 @@ export default function AdminDashboard() {
       const type = TYPE_LABELS[(report.emergencyType || "others").toLowerCase()] || "Others";
       addCount(categoryMap, type);
       addCount(statusMap, normalizeStatus(report.status));
-      addCount(barangayMap, getBarangay(report));
+      const bgy = getBarangay(report);
+      if (bgy) addCount(barangayMap, bgy);
     });
 
     return {
@@ -549,24 +617,31 @@ export default function AdminDashboard() {
   };
 
   const statCards = [
-    { label: "Total Incidents", value: stats.total, sub: "All submitted reports", color: "text-slate-950", rail: "bg-slate-900" },
-    { label: "Pending", value: stats.pending, sub: "Needs verification", color: "text-amber-700", rail: "bg-amber-500" },
-    { label: "Verified", value: stats.verified, sub: "Validated reports", color: "text-teal-700", rail: "bg-teal-500" },
-    { label: "Acknowledged", value: stats.responding, sub: "Responding or active", color: "text-blue-700", rail: "bg-blue-500" },
-    { label: "Resolved", value: stats.resolved, sub: "Closed response loop", color: "text-emerald-700", rail: "bg-emerald-500" },
-    { label: "Avg Response", value: stats.avgResponse, sub: stats.avgResponseRaw === null ? "Based on action logs" : "First response action", color: "text-slate-950", rail: "bg-red-600" },
+    { label: "Total Incidents", value: stats.total, sub: "All submitted reports", bg: "bg-emerald-50", text: "text-emerald-500", icon: LayoutDashboard },
+    { label: "Pending", value: stats.pending, sub: "Needs verification", bg: "bg-teal-50", text: "text-teal-500", icon: AlertTriangle },
+    { label: "Verified", value: stats.verified, sub: "Validated reports", bg: "bg-blue-50", text: "text-blue-500", icon: ClipboardList },
+    { label: "Resolved", value: stats.resolved, sub: "Closed response loop", bg: "bg-indigo-50", text: "text-indigo-500", icon: Settings },
   ];
 
   const renderStatCards = () => (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-6">
-      {statCards.map((stat) => (
-        <div key={stat.label} className="group relative overflow-hidden rounded-xl border border-slate-200 bg-white p-4 shadow-sm shadow-slate-200/70 transition hover:-translate-y-0.5 hover:shadow-md">
-          <div className={`absolute inset-x-0 top-0 h-1 ${stat.rail}`} />
-          <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">{stat.label}</p>
-          <p className={`mt-3 text-3xl font-black tracking-tight ${stat.color}`}>{stat.value}</p>
-          <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">{stat.sub}</p>
-        </div>
-      ))}
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      {statCards.map((stat) => {
+        const Icon = stat.icon;
+        return (
+          <div key={stat.label} className="flex items-center gap-4 rounded-xl border border-slate-100 bg-white p-5 shadow-sm shadow-slate-200/50">
+            <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl ${stat.bg} ${stat.text}`}>
+              <Icon className="h-6 w-6" />
+            </div>
+            <div>
+              <p className="text-[11px] font-black uppercase tracking-widest text-slate-400">{stat.label}</p>
+              <div className="mt-1 flex items-baseline gap-2">
+                <p className="text-3xl font-black tracking-tight text-slate-900">{stat.value}</p>
+              </div>
+              <p className="mt-0.5 text-[10px] font-bold text-slate-400">{stat.sub}</p>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 
@@ -581,8 +656,6 @@ export default function AdminDashboard() {
           Database/API data
         </div>
       </div>
-
-      {renderStatCards()}
 
       {!analyticsData.hasData ? (
         <EmptyAnalytics />
@@ -667,54 +740,109 @@ export default function AdminDashboard() {
 
   const renderOverview = () => (
     <div className="space-y-6">
-      <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm shadow-slate-200/70">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-widest text-red-600">Admin Command Center</p>
-            <h1 className="mt-1 text-2xl font-black tracking-tight text-slate-950">Incident Operations Dashboard</h1>
-            <p className="mt-1 max-w-3xl text-sm font-medium leading-6 text-slate-500">
-              Monitor live reports, review operational load, and coordinate status updates from one official response view.
-            </p>
+      <section className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between py-2">
+        <div>
+          <h1 className="text-2xl font-black tracking-tight text-slate-900 flex items-center gap-2">
+            Hello {storedUser.fullName || "Admin"}
+          </h1>
+          <p className="mt-1 max-w-2xl text-sm font-medium text-slate-500">
+            Maintain your situational awareness to achieve a resilient community environment.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2 rounded-lg border border-slate-100 bg-white px-4 py-2 text-sm font-bold text-slate-600 shadow-sm">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 text-slate-400"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
+            Today, {new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date())}
           </div>
-          <div className="grid grid-cols-2 gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 text-center sm:min-w-[280px]">
-            <div>
-              <p className="text-2xl font-black text-slate-950">{stats.open}</p>
-              <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Open</p>
-            </div>
-            <div>
-              <p className="text-2xl font-black text-red-600">{notifications.length}</p>
-              <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Live Alerts</p>
-            </div>
-          </div>
+          <CsvExportButton reports={filteredReports} />
         </div>
       </section>
 
-      {renderAnalytics()}
+      {renderStatCards()}
 
-      <div className="grid gap-5 xl:grid-cols-[1.4fr_0.6fr]">
-        <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm shadow-slate-200/70">
-          <div className="border-b border-slate-100 px-5 py-4">
-            <h2 className="text-sm font-black text-slate-900">Priority Incident Control</h2>
-            <p className="mt-1 text-xs font-medium text-slate-500">Recent reports can still be updated and assigned from this dashboard view.</p>
-          </div>
-          {renderIncidentTable(filteredReports.slice(0, 6), true)}
-        </section>
-
-        <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm shadow-slate-200/70">
-          <h2 className="text-sm font-black text-slate-900">Live Notifications</h2>
-          <p className="mt-1 text-xs font-medium text-slate-500">Realtime admin alerts during this session.</p>
-          <div className="mt-4 space-y-3">
-            {notifications.length === 0 ? (
-              <p className="rounded-lg bg-slate-50 p-4 text-sm font-semibold text-slate-500">No live notifications yet.</p>
-            ) : notifications.slice(0, 5).map((item) => (
-              <div key={item.id} className="rounded-lg border border-slate-100 bg-slate-50 p-3 transition hover:border-slate-200 hover:bg-white">
-                <p className="text-xs font-black text-slate-900">{item.title}</p>
-                <p className="mt-1 text-xs font-medium text-slate-500">{item.message}</p>
+      {!analyticsData.hasData ? (
+        <EmptyAnalytics />
+      ) : (
+        <>
+          <div className="grid gap-5 xl:grid-cols-[1.4fr_0.6fr]">
+            <AnalyticsCard title="Incident Trending" subtitle="Reports created during the latest six-month window">
+              <div className="h-72">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={analyticsData.trend} margin={{ top: 12, right: 18, left: -18, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 12, fontWeight: 700 }} />
+                    <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 12, fontWeight: 700 }} />
+                    <Tooltip content={<ChartTooltip />} />
+                    <Line type="monotone" dataKey="incidents" stroke="#10b981" strokeWidth={3} dot={{ r: 4, fill: "#10b981" }} activeDot={{ r: 6 }} />
+                  </LineChart>
+                </ResponsiveContainer>
               </div>
-            ))}
+            </AnalyticsCard>
+
+            <AnalyticsCard title="Agency Categories" subtitle="Emergency type volume across all agencies">
+              <div className="h-72">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={analyticsData.categories} margin={{ top: 12, right: 16, left: -18, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 12, fontWeight: 700 }} />
+                    <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 12, fontWeight: 700 }} />
+                    <Tooltip content={<ChartTooltip />} />
+                    <Bar dataKey="value" radius={[8, 8, 0, 0]}>
+                      {analyticsData.categories.map((entry) => (
+                        <Cell key={entry.name} fill={entry.fill || "#10b981"} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </AnalyticsCard>
           </div>
-        </section>
-      </div>
+
+          <div className="grid gap-5 xl:grid-cols-[0.6fr_1.4fr]">
+            <AnalyticsCard title="Incident Analysis" subtitle="Current operational state of all reports">
+              <div className="h-72">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={analyticsData.statuses}
+                      dataKey="value"
+                      nameKey="name"
+                      innerRadius={58}
+                      outerRadius={92}
+                      paddingAngle={3}
+                    >
+                      {analyticsData.statuses.map((entry, index) => (
+                        <Cell key={entry.name} fill={entry.fill || PIE_COLORS[index % PIE_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip content={<ChartTooltip />} />
+                    <Legend iconType="circle" formatter={(value) => <span className="text-xs font-bold text-slate-600">{value}</span>} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </AnalyticsCard>
+
+            <section className="overflow-hidden rounded-xl border border-slate-100 bg-white shadow-sm shadow-slate-200/50">
+              <div className="border-b border-slate-100 px-5 py-4 flex justify-between items-center">
+                <div>
+                  <h2 className="text-sm font-black text-slate-900">Incident Scorecard</h2>
+                  <p className="mt-1 text-xs font-medium text-slate-500">Recent reports and assignments.</p>
+                </div>
+                <div className="flex gap-2 items-center">
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                    <input placeholder="Search..." className="w-32 rounded-lg border border-slate-200 bg-slate-50 py-1.5 pl-8 pr-3 text-xs outline-none focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-600/10" />
+                  </div>
+                  <button onClick={() => setActiveNav("incidents")} className="rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-emerald-600">
+                    View All
+                  </button>
+                </div>
+              </div>
+              {renderIncidentTable(filteredReports.slice(0, 5), true)}
+            </section>
+          </div>
+        </>
+      )}
     </div>
   );
 
@@ -773,19 +901,17 @@ export default function AdminDashboard() {
                   </div>
                 </td>
                 <td className="px-4 py-3">
-                  <select
-                    value={report.assignedResponder?._id || ""}
-                    disabled={savingReportId === report._id || availableResponders.length === 0}
-                    onChange={(event) => assignResponder(report._id, event.target.value)}
-                    className="w-full min-w-[180px] rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-700 outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-600/10 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
-                  >
-                    <option value="">{availableResponders.length ? "Assign responder" : "No responder available"}</option>
-                    {availableResponders.map((responder) => (
-                      <option key={responder._id} value={responder._id}>
-                        {responder.fullName} - {responder.agency}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="flex items-center">
+                    {report.assignedResponder ? (
+                      <span className="rounded-lg bg-slate-50 border border-slate-100 px-3 py-1.5 text-[11px] font-bold text-slate-700">
+                        {report.assignedResponder.fullName}
+                      </span>
+                    ) : (
+                      <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">
+                        Unassigned
+                      </span>
+                    )}
+                  </div>
                 </td>
                 <td className="px-4 py-3">
                   <p className="text-xs font-bold text-slate-700">
@@ -806,7 +932,7 @@ export default function AdminDashboard() {
   );
 
   const renderIncidents = () => (
-    <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
+    <section className="rounded-xl border border-slate-200 bg-white shadow-md shadow-slate-200/50">
       <div className="flex flex-col gap-3 border-b border-slate-100 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h2 className="text-sm font-black text-slate-900">Incident Management</h2>
@@ -817,9 +943,8 @@ export default function AdminDashboard() {
             <option value="all">All statuses</option>
             {STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select>
-          <select value={agencyFilter} onChange={(event) => setAgencyFilter(event.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 outline-none transition hover:border-slate-300 focus:border-red-500 focus:ring-2 focus:ring-red-600/10">
+          <select value={agencyFilter} onChange={(event) => setAgencyFilter(event.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 outline-none shadow-md transition hover:border-slate-300 focus:border-red-500 focus:ring-2 focus:ring-red-600/10">
             <option value="all">All agencies</option>
-            <option value="BFP">BFP</option>
             <option value="CDRRMO">CDRRMO</option>
             <option value="PNP">PNP</option>
           </select>
@@ -832,7 +957,7 @@ export default function AdminDashboard() {
 
   const renderUsers = () => (
     <div className="grid gap-5 xl:grid-cols-[0.45fr_0.55fr]">
-      <form onSubmit={saveUser} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <form onSubmit={saveUser} className="rounded-xl border border-slate-200 bg-white p-5 shadow-md shadow-slate-200/50">
         <h2 className="text-sm font-black text-slate-900">{editingUserId ? "Edit User" : "Add User"}</h2>
         <div className="mt-4 grid gap-3">
           <input value={userForm.fullName} onChange={(event) => setUserForm({ ...userForm, fullName: event.target.value })} placeholder="Full name" className="rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-600/10" />
@@ -845,9 +970,8 @@ export default function AdminDashboard() {
               <option value="staff">Staff</option>
               <option value="admin">Admin</option>
             </select>
-            <select value={userForm.agency} onChange={(event) => setUserForm({ ...userForm, agency: event.target.value })} className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-600/10">
+            <select value={userForm.agency} onChange={(event) => setUserForm({ ...userForm, agency: event.target.value })} className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold outline-none shadow-md transition focus:border-red-500 focus:ring-2 focus:ring-red-600/10">
               <option value="NONE">No agency</option>
-              <option value="BFP">BFP</option>
               <option value="CDRRMO">CDRRMO</option>
               <option value="PNP">PNP</option>
             </select>
@@ -866,7 +990,7 @@ export default function AdminDashboard() {
         </div>
       </form>
 
-      <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
+      <section className="rounded-xl border border-slate-200 bg-white shadow-md shadow-slate-200/50">
         <div className="border-b border-slate-100 px-5 py-4">
           <h2 className="text-sm font-black text-slate-900">User Directory</h2>
           <p className="text-xs text-slate-500">Manage residents, responders, staff, and administrators.</p>
@@ -908,7 +1032,7 @@ export default function AdminDashboard() {
   );
 
   const renderNotifications = () => (
-    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-md shadow-slate-200/50">
       <h2 className="text-sm font-black text-slate-900">Notification Center</h2>
       <p className="mt-1 text-xs text-slate-500">Resident and responder notifications are sent automatically when incidents are verified, activated, resolved, or assigned.</p>
       <div className="mt-5 space-y-3">
@@ -925,28 +1049,421 @@ export default function AdminDashboard() {
     </section>
   );
 
-  const renderAudit = () => (
-    <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
-      <div className="border-b border-slate-100 px-5 py-4">
-        <h2 className="text-sm font-black text-slate-900">Action Audit Trail</h2>
-        <p className="text-xs text-slate-500">Status changes and responder assignments are logged per incident.</p>
-      </div>
-      <div className="divide-y divide-slate-100">
-        {auditEntries.length === 0 ? (
-          <p className="p-6 text-center text-sm font-semibold text-slate-400">No logged actions yet.</p>
-        ) : auditEntries.map((entry, index) => (
-          <div key={`${entry.incidentId}-${entry.createdAt}-${index}`} className="grid gap-2 px-5 py-4 text-sm md:grid-cols-[160px_1fr_180px]">
-            <p className="font-mono text-xs font-black text-slate-900">{entry.incidentId}</p>
-            <div>
-              <p className="font-bold text-slate-800">{entry.message || entry.action}</p>
-              <p className="text-xs text-slate-500">By {entry.actorName || "System"} ({entry.actorRole || "n/a"})</p>
-            </div>
-            <p className="text-xs font-semibold text-slate-400 md:text-right">{new Date(entry.createdAt).toLocaleString()}</p>
+  const renderAudit = () => {
+    const AUDIT_ACTION_LABELS = {
+      login_success: "Login Successful",
+      login_failed: "Login Failed",
+      otp_sent: "OTP Code Sent",
+      otp_verified: "OTP Verified",
+      otp_failed: "OTP Verification Failed",
+      password_reset: "Password Reset",
+      password_changed: "Password Changed",
+    };
+
+    const AUDIT_ACTION_STYLES = {
+      login_success: { bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200", dot: "bg-emerald-500" },
+      login_failed: { bg: "bg-red-50", text: "text-red-700", border: "border-red-200", dot: "bg-red-500" },
+      otp_sent: { bg: "bg-blue-50", text: "text-blue-700", border: "border-blue-200", dot: "bg-blue-500" },
+      otp_verified: { bg: "bg-teal-50", text: "text-teal-700", border: "border-teal-200", dot: "bg-teal-500" },
+      otp_failed: { bg: "bg-amber-50", text: "text-amber-700", border: "border-amber-200", dot: "bg-amber-500" },
+      password_reset: { bg: "bg-indigo-50", text: "text-indigo-700", border: "border-indigo-200", dot: "bg-indigo-500" },
+      password_changed: { bg: "bg-purple-50", text: "text-purple-700", border: "border-purple-200", dot: "bg-purple-500" },
+    };
+
+    const exportCsv = (rows, filename) => {
+      const csv = rows.map((row) => row.map((c) => `"${String(c).replaceAll('"', '""')}"`).join(",")).join("\n");
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      link.click();
+      URL.revokeObjectURL(url);
+    };
+
+    // ── STATUS TAB ─────────────────────────────────────────────────────────────
+    const auditEntries = reports.flatMap((report, reportIndex) =>
+      (report.actionLog || []).map((entry) => ({
+        ...entry,
+        incidentId: getIncidentId(report, reportIndex),
+        reportType: report.emergencyType,
+        agency: (report.notifiedAgencies || []).join(", "),
+        location: getLocation(report),
+        reportCreatedAt: report.createdAt,
+        currentStatus: report.status,
+      }))
+    ).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    const filteredAuditEntries = auditEntries.filter((e) => {
+      const q = auditSearch.toLowerCase();
+      if (!q) return true;
+      return [e.incidentId, e.reportType, e.agency, e.location, e.actorName, e.message, e.action].join(" ").toLowerCase().includes(q);
+    }).filter((e) => {
+      if (!auditDateFrom && !auditDateTo) return true;
+      const d = new Date(e.createdAt);
+      if (auditDateFrom && d < new Date(auditDateFrom)) return false;
+      if (auditDateTo) { const end = new Date(auditDateTo); end.setHours(23,59,59); if (d > end) return false; }
+      return true;
+    });
+
+    const AUDIT_PAGE_SIZE = 20;
+    const statusPageCount = Math.ceil(filteredAuditEntries.length / AUDIT_PAGE_SIZE);
+    const paginatedEntries = filteredAuditEntries.slice((auditPage - 1) * AUDIT_PAGE_SIZE, auditPage * AUDIT_PAGE_SIZE);
+
+    // ── USER ACTIVITY + PASSWORD SECURITY tabs ─────────────────────────────────
+    const filteredAuditLogs = auditLogs.filter((e) => {
+      const q = auditSearch.toLowerCase();
+      if (!q) return true;
+      return [e.actorName, e.actorEmail, e.actorRole, e.action, e.details].join(" ").toLowerCase().includes(q);
+    });
+
+    const logPageCount = Math.ceil(auditTotal / 20);
+
+    const pwdLogs = auditTab === "password_security" ? filteredAuditLogs : [];
+    const actLogs = auditTab === "user_activity" ? filteredAuditLogs : [];
+
+    const handleAuditSearch = () => {
+      setAuditPage(1);
+      fetchAuditLogs({ page: 1 });
+    };
+
+    return (
+      <div className="space-y-5">
+        {/* Header */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-xl font-black tracking-tight text-slate-900">Audit Trail</h2>
+            <p className="mt-0.5 text-sm text-slate-500">Monitor, transparency, and accountability. All records are read-only.</p>
           </div>
-        ))}
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => {
+                if (auditTab === "status") {
+                  exportCsv(
+                    [["Incident ID", "Type", "Agency", "Location", "Action", "Actor", "Role", "Status", "Timestamp"],
+                    ...filteredAuditEntries.map((e) => [e.incidentId, e.reportType || "", e.agency || "", e.location || "", e.message || e.action, e.actorName || "System", e.actorRole || "", e.toStatus || "", new Date(e.createdAt).toLocaleString()])],
+                    `audit-status-${new Date().toISOString().slice(0,10)}.csv`
+                  );
+                } else {
+                  exportCsv(
+                    [["Date/Time", "Name", "Email", "Role", "Action", "Details", "OTP Code", "IP"],
+                    ...filteredAuditLogs.map((e) => [new Date(e.createdAt).toLocaleString(), e.actorName, e.actorEmail, e.actorRole, AUDIT_ACTION_LABELS[e.action] || e.action, e.details, e.otpCode || "", e.ipAddress || ""])],
+                    `audit-${auditTab}-${new Date().toISOString().slice(0,10)}.csv`
+                  );
+                }
+              }}
+              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-slate-50"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+              Export CSV
+            </button>
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1 w-fit">
+          {[
+            { id: "status", label: "Status" },
+            { id: "user_activity", label: "User Activity" },
+            { id: "password_security", label: "Password Security" },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => { setAuditTab(tab.id); setAuditPage(1); setAuditSearch(""); }}
+              className={`rounded-lg px-5 py-2 text-sm font-bold transition-all ${auditTab === tab.id ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Filter bar */}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative flex-1 min-w-[200px] max-w-sm">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input
+              value={auditSearch}
+              onChange={(e) => setAuditSearch(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleAuditSearch()}
+              placeholder={auditTab === "status" ? "Search incident, agency, actor..." : "Search name, email, action..."}
+              className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10"
+            />
+          </div>
+          <input type="date" value={auditDateFrom} onChange={(e) => setAuditDateFrom(e.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10" />
+          <span className="text-xs text-slate-400">to</span>
+          <input type="date" value={auditDateTo} onChange={(e) => setAuditDateTo(e.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10" />
+          <button onClick={handleAuditSearch} className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-bold text-white transition hover:bg-slate-700">
+            Filter
+          </button>
+          <button onClick={() => { setAuditSearch(""); setAuditDateFrom(""); setAuditDateTo(""); setAuditPage(1); }} className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-500 transition hover:bg-slate-50">
+            Clear
+          </button>
+        </div>
+
+        {/* ── STATUS TAB ───────────────────────────────────────────────────── */}
+        {auditTab === "status" && (
+          <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-md shadow-slate-200/50">
+            <div className="border-b border-slate-100 px-5 py-4">
+              <h3 className="text-sm font-black text-slate-900">Incident Status Log</h3>
+              <p className="mt-0.5 text-xs text-slate-500">Status updates recorded per incident. View-only.</p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[900px] text-left text-sm">
+                <thead>
+                  <tr className="border-b border-slate-100 bg-slate-50 text-[11px] font-black uppercase tracking-widest text-slate-400">
+                    <th className="px-5 py-3">Incident ID</th>
+                    <th className="px-5 py-3">Type</th>
+                    <th className="px-5 py-3">Agency</th>
+                    <th className="px-5 py-3">Location</th>
+                    <th className="px-5 py-3">Status Change</th>
+                    <th className="px-5 py-3">Actor</th>
+                    <th className="px-5 py-3">Timestamp</th>
+                    <th className="px-5 py-3">Details</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {paginatedEntries.length === 0 ? (
+                    <tr><td colSpan={8} className="px-5 py-10 text-center text-sm text-slate-400">No status log entries found.</td></tr>
+                  ) : paginatedEntries.map((entry, idx) => {
+                    const fromInfo = getStatusInfo(entry.fromStatus);
+                    const toInfo = getStatusInfo(entry.toStatus);
+                    return (
+                      <tr key={idx} className="hover:bg-slate-50/60 transition-colors">
+                        <td className="px-5 py-3 font-mono text-xs font-bold text-slate-900">{entry.incidentId}</td>
+                        <td className="px-5 py-3">
+                          <span className="capitalize text-sm font-semibold text-slate-700">{entry.reportType || "—"}</span>
+                        </td>
+                        <td className="px-5 py-3 text-xs font-bold text-slate-600">{entry.agency || "—"}</td>
+                        <td className="px-5 py-3 max-w-[160px]"><p className="truncate text-xs text-slate-600">{entry.location || "—"}</p></td>
+                        <td className="px-5 py-3">
+                          {entry.fromStatus && entry.toStatus ? (
+                            <div className="flex items-center gap-1.5">
+                              <span className={`rounded px-2 py-0.5 text-[10px] font-black uppercase ${fromInfo.bg} ${fromInfo.text}`}>{entry.fromStatus}</span>
+                              <svg className="h-3 w-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/></svg>
+                              <span className={`rounded px-2 py-0.5 text-[10px] font-black uppercase ${toInfo.bg} ${toInfo.text}`}>{entry.toStatus}</span>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-slate-400">{entry.action}</span>
+                          )}
+                        </td>
+                        <td className="px-5 py-3">
+                          <p className="text-xs font-bold text-slate-700">{entry.actorName || "System"}</p>
+                          <p className="text-[10px] font-medium capitalize text-slate-400">{entry.actorRole || ""}</p>
+                        </td>
+                        <td className="px-5 py-3 whitespace-nowrap text-xs text-slate-500">{new Date(entry.createdAt).toLocaleString()}</td>
+                        <td className="px-5 py-3">
+                          <button onClick={() => setAuditDetailEntry(entry)} className="rounded-lg border border-slate-200 bg-white px-3 py-1 text-[11px] font-bold text-slate-600 transition hover:bg-slate-50">
+                            View
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            {statusPageCount > 1 && (
+              <div className="flex items-center justify-between border-t border-slate-100 px-5 py-3">
+                <p className="text-xs text-slate-500">Showing {Math.min((auditPage - 1) * AUDIT_PAGE_SIZE + 1, filteredAuditEntries.length)}–{Math.min(auditPage * AUDIT_PAGE_SIZE, filteredAuditEntries.length)} of {filteredAuditEntries.length}</p>
+                <div className="flex gap-1">
+                  {Array.from({ length: statusPageCount }, (_, i) => i + 1).map((p) => (
+                    <button key={p} onClick={() => setAuditPage(p)} className={`h-7 w-7 rounded text-xs font-bold ${auditPage === p ? "bg-slate-900 text-white" : "border border-slate-200 text-slate-600 hover:bg-slate-50"}`}>{p}</button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* ── USER ACTIVITY TAB ───────────────────────────────────────────────── */}
+        {auditTab === "user_activity" && (
+          <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-md shadow-slate-200/50">
+            <div className="border-b border-slate-100 px-5 py-4">
+              <h3 className="text-sm font-black text-slate-900">User Account Activity</h3>
+              <p className="mt-0.5 text-xs text-slate-500">Login attempts, profile updates, account changes. View-only.</p>
+            </div>
+            {auditLoading ? (
+              <div className="flex items-center justify-center py-16 text-sm text-slate-400">Loading activity logs...</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[900px] text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-100 bg-slate-50 text-[11px] font-black uppercase tracking-widest text-slate-400">
+                      <th className="px-5 py-3">Date & Time</th>
+                      <th className="px-5 py-3">Name</th>
+                      <th className="px-5 py-3">Email</th>
+                      <th className="px-5 py-3">Role</th>
+                      <th className="px-5 py-3">Action</th>
+                      <th className="px-5 py-3">Details</th>
+                      <th className="px-5 py-3">IP Address</th>
+                      <th className="px-5 py-3"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {actLogs.length === 0 ? (
+                      <tr><td colSpan={8} className="px-5 py-10 text-center text-sm text-slate-400">No user activity logs found.</td></tr>
+                    ) : actLogs.map((log, idx) => {
+                      const style = AUDIT_ACTION_STYLES[log.action] || { bg: "bg-slate-50", text: "text-slate-600", dot: "bg-slate-400" };
+                      return (
+                        <tr key={idx} className="hover:bg-slate-50/60 transition-colors">
+                          <td className="px-5 py-3 whitespace-nowrap text-xs text-slate-500">{new Date(log.createdAt).toLocaleString()}</td>
+                          <td className="px-5 py-3 text-xs font-bold text-slate-800">{log.actorName || "—"}</td>
+                          <td className="px-5 py-3 text-xs text-slate-600">{log.actorEmail || "—"}</td>
+                          <td className="px-5 py-3 text-xs font-bold capitalize text-slate-500">{log.actorRole || "—"}</td>
+                          <td className="px-5 py-3">
+                            <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-black ${style.bg} ${style.text}`}>
+                              <span className={`h-1.5 w-1.5 rounded-full ${style.dot}`} />
+                              {AUDIT_ACTION_LABELS[log.action] || log.action}
+                            </span>
+                          </td>
+                          <td className="px-5 py-3 max-w-[220px]"><p className="truncate text-xs text-slate-600">{log.details || "—"}</p></td>
+                          <td className="px-5 py-3 text-xs font-mono text-slate-400">{log.ipAddress || "—"}</td>
+                          <td className="px-5 py-3">
+                            <button onClick={() => setAuditDetailEntry(log)} className="rounded-lg border border-slate-200 bg-white px-3 py-1 text-[11px] font-bold text-slate-600 transition hover:bg-slate-50">
+                              View
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            {logPageCount > 1 && (
+              <div className="flex items-center justify-between border-t border-slate-100 px-5 py-3">
+                <p className="text-xs text-slate-500">Page {auditPage} of {logPageCount} — {auditTotal} total records</p>
+                <div className="flex gap-1">
+                  {Array.from({ length: Math.min(logPageCount, 8) }, (_, i) => i + 1).map((p) => (
+                    <button key={p} onClick={() => setAuditPage(p)} className={`h-7 w-7 rounded text-xs font-bold ${auditPage === p ? "bg-slate-900 text-white" : "border border-slate-200 text-slate-600 hover:bg-slate-50"}`}>{p}</button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* ── PASSWORD SECURITY TAB ────────────────────────────────────────────── */}
+        {auditTab === "password_security" && (
+          <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-md shadow-slate-200/50">
+            <div className="border-b border-slate-100 px-5 py-4 flex items-start justify-between">
+              <div>
+                <h3 className="text-sm font-black text-slate-900">Password Security Activity</h3>
+                <p className="mt-0.5 text-xs text-slate-500">OTP requests, verifications, and password resets. Read-only security log.</p>
+              </div>
+              <span className="rounded-full bg-red-50 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-red-600 border border-red-100">Sensitive</span>
+            </div>
+            {auditLoading ? (
+              <div className="flex items-center justify-center py-16 text-sm text-slate-400">Loading security logs...</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[1000px] text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-100 bg-slate-50 text-[11px] font-black uppercase tracking-widest text-slate-400">
+                      <th className="px-5 py-3">Date & Time</th>
+                      <th className="px-5 py-3">Name</th>
+                      <th className="px-5 py-3">Email Sent To</th>
+                      <th className="px-5 py-3">Role</th>
+                      <th className="px-5 py-3">Event</th>
+                      <th className="px-5 py-3">OTP Code</th>
+                      <th className="px-5 py-3">OTP Verified At</th>
+                      <th className="px-5 py-3">Details</th>
+                      <th className="px-5 py-3"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {pwdLogs.length === 0 ? (
+                      <tr><td colSpan={9} className="px-5 py-10 text-center text-sm text-slate-400">No password security events recorded.</td></tr>
+                    ) : pwdLogs.map((log, idx) => {
+                      const style = AUDIT_ACTION_STYLES[log.action] || { bg: "bg-slate-50", text: "text-slate-600", dot: "bg-slate-400" };
+                      return (
+                        <tr key={idx} className="hover:bg-slate-50/60 transition-colors">
+                          <td className="px-5 py-3 whitespace-nowrap text-xs text-slate-500">{new Date(log.createdAt).toLocaleString()}</td>
+                          <td className="px-5 py-3 text-xs font-bold text-slate-800">{log.actorName || "—"}</td>
+                          <td className="px-5 py-3 text-xs text-blue-600 font-medium">{log.actorEmail || "—"}</td>
+                          <td className="px-5 py-3 text-xs font-bold capitalize text-slate-500">{log.actorRole || "—"}</td>
+                          <td className="px-5 py-3">
+                            <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-black ${style.bg} ${style.text}`}>
+                              <span className={`h-1.5 w-1.5 rounded-full ${style.dot}`} />
+                              {AUDIT_ACTION_LABELS[log.action] || log.action}
+                            </span>
+                          </td>
+                          <td className="px-5 py-3">
+                            {log.otpCode ? (
+                              <span className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1 font-mono text-sm font-black tracking-widest text-slate-800">{log.otpCode}</span>
+                            ) : <span className="text-xs text-slate-300">N/A</span>}
+                          </td>
+                          <td className="px-5 py-3 whitespace-nowrap text-xs text-slate-500">
+                            {log.otpVerifiedAt ? new Date(log.otpVerifiedAt).toLocaleString() : <span className="text-slate-300">—</span>}
+                          </td>
+                          <td className="px-5 py-3 max-w-[200px]"><p className="truncate text-xs text-slate-600">{log.details || "—"}</p></td>
+                          <td className="px-5 py-3">
+                            <button onClick={() => setAuditDetailEntry(log)} className="rounded-lg border border-slate-200 bg-white px-3 py-1 text-[11px] font-bold text-slate-600 transition hover:bg-slate-50">
+                              View
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            {logPageCount > 1 && (
+              <div className="flex items-center justify-between border-t border-slate-100 px-5 py-3">
+                <p className="text-xs text-slate-500">Page {auditPage} of {logPageCount} — {auditTotal} total records</p>
+                <div className="flex gap-1">
+                  {Array.from({ length: Math.min(logPageCount, 8) }, (_, i) => i + 1).map((p) => (
+                    <button key={p} onClick={() => setAuditPage(p)} className={`h-7 w-7 rounded text-xs font-bold ${auditPage === p ? "bg-slate-900 text-white" : "border border-slate-200 text-slate-600 hover:bg-slate-50"}`}>{p}</button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* Detail Modal */}
+        {auditDetailEntry && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 px-4" onClick={() => setAuditDetailEntry(null)}>
+            <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+                <h3 className="text-sm font-black text-slate-900">Log Entry Details</h3>
+                <button onClick={() => setAuditDetailEntry(null)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-50 hover:text-slate-700">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+              </div>
+              <div className="divide-y divide-slate-50 px-6 py-4 space-y-0">
+                {[
+                  ["Timestamp", auditDetailEntry.createdAt ? new Date(auditDetailEntry.createdAt).toLocaleString() : "—"],
+                  ["Actor", auditDetailEntry.actorName || "System"],
+                  ["Email", auditDetailEntry.actorEmail || "—"],
+                  ["Role", auditDetailEntry.actorRole || "—"],
+                  ["Action", AUDIT_ACTION_LABELS[auditDetailEntry.action] || auditDetailEntry.action || "—"],
+                  ["Incident ID", auditDetailEntry.incidentId || "—"],
+                  ["From Status", auditDetailEntry.fromStatus || "—"],
+                  ["To Status", auditDetailEntry.toStatus || "—"],
+                  ["OTP Code", auditDetailEntry.otpCode || "—"],
+                  ["OTP Verified At", auditDetailEntry.otpVerifiedAt ? new Date(auditDetailEntry.otpVerifiedAt).toLocaleString() : "—"],
+                  ["IP Address", auditDetailEntry.ipAddress || "—"],
+                  ["Details", auditDetailEntry.details || auditDetailEntry.message || "—"],
+                ].map(([label, value]) => value !== "—" && (
+                  <div key={label} className="flex justify-between gap-4 py-2.5">
+                    <span className="text-xs font-black uppercase tracking-widest text-slate-400 shrink-0">{label}</span>
+                    <span className="text-xs font-semibold text-slate-700 text-right">{value}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="border-t border-slate-100 px-6 py-4">
+                <button onClick={() => setAuditDetailEntry(null)} className="w-full rounded-lg bg-slate-900 py-2.5 text-sm font-bold text-white transition hover:bg-slate-700">
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
-    </section>
-  );
+    );
+  };
 
   const renderSettings = () => {
     const apiBase = import.meta.env.VITE_API_URL || "http://localhost:5000";
@@ -969,7 +1486,7 @@ export default function AdminDashboard() {
 
     return (
       <div className="space-y-5">
-        <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm shadow-slate-200/70">
+        <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-md shadow-slate-200/70">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <p className="text-[10px] font-black uppercase tracking-widest text-red-600">Admin Settings</p>
@@ -1003,7 +1520,7 @@ export default function AdminDashboard() {
         </div>
 
         <div className="grid gap-5 xl:grid-cols-[0.95fr_1.05fr]">
-          <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm shadow-slate-200/70">
+          <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-md shadow-slate-200/70">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h3 className="text-sm font-black text-slate-900">Access Control</h3>
@@ -1038,7 +1555,7 @@ export default function AdminDashboard() {
             </div>
           </section>
 
-          <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm shadow-slate-200/70">
+          <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-md shadow-slate-200/70">
             <h3 className="text-sm font-black text-slate-900">Incident Workflow</h3>
             <p className="mt-1 text-xs font-medium text-slate-500">Official status path used by the admin and agency dashboards.</p>
 
@@ -1062,7 +1579,7 @@ export default function AdminDashboard() {
           </section>
         </div>
 
-        <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm shadow-slate-200/70">
+        <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-md shadow-slate-200/70">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <h3 className="text-sm font-black text-slate-900">Maintenance Shortcuts</h3>
@@ -1108,64 +1625,91 @@ export default function AdminDashboard() {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-100 text-slate-900">
+    <div className="flex h-screen overflow-hidden bg-slate-50 text-slate-900">
       {isSidebarOpen && (
         <button className="fixed inset-0 z-40 bg-slate-950/40 lg:hidden" onClick={() => setIsSidebarOpen(false)} aria-label="Close menu" />
       )}
 
-      <aside className={`fixed inset-y-0 left-0 z-50 flex w-64 flex-col bg-slate-950 text-white transition-transform lg:static lg:translate-x-0 ${isSidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
-        <div className="flex h-16 items-center gap-3 border-b border-white/10 px-5">
-          <img src="/logo.png" alt="Alerto Calbayog" className="h-9 w-9 object-contain" />
-          <div>
-            <p className="text-sm font-black">Alerto Calbayog</p>
-            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Admin Console</p>
+      <aside className={`fixed inset-y-0 left-0 z-50 flex flex-col overflow-hidden bg-[#052e16] text-white border-r border-emerald-900 transition-all duration-300 lg:static lg:translate-x-0 ${isSidebarOpen ? "w-64 translate-x-0" : "w-64 -translate-x-full lg:translate-x-0 shadow-xl lg:shadow-none"}`}>
+        <div className="flex h-20 shrink-0 items-center gap-4 px-5 border-b border-emerald-800/50">
+          <img src="/logo.png" alt="Alerto Calbayog" className="h-10 w-10 shrink-0 object-contain" />
+          <div className="flex flex-col whitespace-nowrap">
+            <p className="text-base font-black tracking-tight text-white">Alerto Calbayog</p>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-200/80">Admin Console</p>
           </div>
         </div>
 
-        <nav className="flex-1 space-y-1 overflow-y-auto p-3">
-          {NAV.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => {
-                setActiveNav(item.id);
-                setIsSidebarOpen(false);
-              }}
-              className={`w-full rounded-lg px-3 py-2.5 text-left text-sm font-bold transition ${activeNav === item.id ? "bg-white text-slate-950" : "text-slate-300 hover:bg-white/10 hover:text-white"}`}
-            >
-              {item.label}
-            </button>
-          ))}
+        <nav className="flex-1 space-y-1.5 overflow-y-auto overflow-x-hidden p-3 mt-2">
+          <p className="px-3 mb-3 text-[10px] font-black uppercase tracking-widest text-emerald-400/80">Menu</p>
+          {NAV.map((item) => {
+            const Icon = item.icon;
+            const isActive = activeNav === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => {
+                  setActiveNav(item.id);
+                  if (window.innerWidth < 1024) setIsSidebarOpen(false);
+                }}
+                className={`relative flex w-full items-center gap-4 rounded-xl px-3 py-3 text-left text-sm font-bold transition-all duration-200 ${isActive ? "bg-emerald-900 text-white shadow-sm shadow-emerald-900/50" : "text-emerald-100/70 hover:bg-emerald-900/50 hover:text-white"}`}
+              >
+                {isActive && <div className="absolute left-0 top-1/2 h-1/2 w-1 -translate-y-1/2 rounded-r-full bg-emerald-400" />}
+                <Icon className={`h-5 w-5 shrink-0 ${isActive ? "text-white" : "text-emerald-400/70"}`} />
+                <span className="whitespace-nowrap">{item.label}</span>
+              </button>
+            );
+          })}
         </nav>
 
-        <div className="border-t border-white/10 p-3">
-          <div className="rounded-lg bg-white/10 p-3">
-            <p className="text-xs font-black">{storedUser.fullName || "Admin"}</p>
-            <p className="text-[10px] uppercase tracking-widest text-slate-400">Full access</p>
-          </div>
-          <button onClick={logout} className="mt-2 w-full rounded-lg px-3 py-2.5 text-left text-sm font-bold text-slate-300 transition hover:bg-red-500/20 hover:text-red-200">
-            Logout
+        <div className="p-4 border-t border-emerald-800/50">
+          <button onClick={logout} className="flex w-full items-center gap-4 rounded-xl px-3 py-3 text-left text-sm font-bold text-emerald-100/70 transition-colors hover:bg-red-500/10 hover:text-red-400 group">
+            <LogOut className="h-5 w-5 shrink-0 text-emerald-400/70 group-hover:text-red-400" />
+            <span className="whitespace-nowrap">Logout</span>
           </button>
         </div>
       </aside>
 
       <main className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-16 items-center gap-3 border-b border-slate-200 bg-white px-4 lg:px-6">
-          <button onClick={() => setIsSidebarOpen(true)} className="rounded-lg border border-slate-200 p-2 lg:hidden" aria-label="Open menu">
-            <span className="block h-0.5 w-5 bg-slate-700" />
-            <span className="mt-1 block h-0.5 w-5 bg-slate-700" />
-            <span className="mt-1 block h-0.5 w-5 bg-slate-700" />
-          </button>
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-black text-slate-900">{NAV.find((item) => item.id === activeNav)?.label}</p>
-            <p className="text-xs text-slate-500">Manage incidents, responders, residents, notifications, and system settings.</p>
+        <header className="flex h-20 shrink-0 items-center justify-between gap-4 bg-white px-4 lg:px-8 border-b border-slate-100">
+          <div className="flex items-center gap-4">
+            <button onClick={() => setIsSidebarOpen(true)} className="shrink-0 rounded-lg p-2 lg:hidden hover:bg-slate-50" aria-label="Open menu">
+              <Menu className="h-5 w-5 text-slate-700" />
+            </button>
+            <h1 className="text-xl font-black text-slate-900 hidden sm:block">
+              {NAV.find((item) => item.id === activeNav)?.label || "Dashboard"} Overview
+            </h1>
           </div>
-          <div className="hidden w-full max-w-sm sm:block">
-            <input
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Search incidents, reporter, location..."
-              className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-slate-900"
-            />
+
+          <div className="flex flex-1 items-center justify-end gap-6">
+            <div className="hidden max-w-sm flex-1 sm:block">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <input
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="Search..."
+                  className="w-full rounded-lg bg-slate-50 py-2.5 pl-10 pr-4 text-sm font-medium outline-none transition focus:bg-white focus:ring-2 focus:ring-emerald-500/20 border border-slate-100"
+                />
+              </div>
+            </div>
+            
+            <div className="flex shrink-0 items-center gap-5">
+              <button onClick={() => setActiveNav("notifications")} className="relative rounded-lg bg-slate-50 p-2.5 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 border border-slate-100">
+                <Bell className="h-5 w-5" />
+                {notifications.length > 0 && (
+                  <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-red-500 ring-2 ring-slate-50" />
+                )}
+              </button>
+              <div className="flex items-center gap-3 border-l border-slate-100 pl-5">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-sm font-bold text-emerald-700">
+                  {storedUser.fullName?.charAt(0) || "A"}
+                </div>
+                <div className="hidden flex-col sm:flex">
+                  <p className="text-sm font-black text-slate-900">{storedUser.fullName || "Robert Burner"}</p>
+                  <p className="text-[10px] font-bold text-slate-500">{storedUser.email || "robert.burner@gmail.com"}</p>
+                </div>
+              </div>
+            </div>
           </div>
         </header>
 

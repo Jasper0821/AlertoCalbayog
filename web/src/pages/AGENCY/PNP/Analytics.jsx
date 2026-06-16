@@ -1,4 +1,7 @@
 import { useState, useEffect } from "react";
+import { BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+
+import { getValidCalbayogBarangay } from "../../../utils/barangays.js";
 
 export default function Analytics({ reports = [] }) {
   const [animate, setAnimate] = useState(false);
@@ -22,8 +25,11 @@ export default function Analytics({ reports = [] }) {
   // Barangay data
   const barangayMap = {};
   safeReports.forEach(r => {
-    const bgy = r.location?.barangay || (typeof r.location === "string" ? r.location : "Unknown");
-    barangayMap[bgy] = (barangayMap[bgy] || 0) + 1;
+    const rawLoc = r.location?.barangay || (typeof r.location === "string" ? r.location : r.location?.name || "");
+    const bgy = getValidCalbayogBarangay(rawLoc);
+    if (bgy) {
+      barangayMap[bgy] = (barangayMap[bgy] || 0) + 1;
+    }
   });
   const barangayData = Object.entries(barangayMap)
     .map(([name, count]) => ({ name, count }))
@@ -257,44 +263,35 @@ export default function Analytics({ reports = [] }) {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
         
         {/* 4. Horizontal Bar Chart (Top Barangays) */}
-        <div className="lg:col-span-6 bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-slate-100">
+        <div className="lg:col-span-6 bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-slate-100 flex flex-col">
           <div className="flex items-center justify-between mb-8">
             <div className="flex items-center gap-2">
-              <h3 className="text-base font-bold text-slate-800">{barangayData.length} Barangays</h3>
-              <span className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-wider">({total} Incidents)</span>
+              <h3 className="text-base font-bold text-slate-800">Incidents by Barangay / Location</h3>
             </div>
             <span className="text-[10px] font-bold text-slate-500 cursor-pointer flex items-center gap-1 uppercase tracking-wider">Last 7 days <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m6 9 6 6 6-6"/></svg></span>
           </div>
           
-          <div className="space-y-5 mt-8 relative pl-16">
-            <div className="absolute inset-0 pl-16 flex justify-between pointer-events-none z-0">
-              <div className="h-full border-l border-slate-100"></div>
-              <div className="h-full border-l border-slate-100"></div>
-              <div className="h-full border-l border-slate-100"></div>
-              <div className="h-full border-l border-slate-100"></div>
-              <div className="h-full border-l border-slate-100"></div>
-            </div>
-
-            {barangayData.map((b, i) => {
-              const w = Math.round((b.count / maxBgy) * 100);
-              const isHighlight = i === 3; // Mock highlight style from image
-              return (
-                <div key={b.name} className="flex items-center relative z-10">
-                  <span className="absolute left-0 -ml-16 w-14 text-[9px] font-bold text-slate-700 text-right truncate uppercase tracking-wider">{b.name}</span>
-                  <div className="flex-1 h-3.5 flex items-center">
-                    <div 
-                      className={`h-full rounded-r-full transition-all duration-1000 ease-out ${isHighlight ? "bg-orange-500 shadow-[0_0_10px_rgba(249,115,22,0.5)]" : "bg-blue-600"}`}
-                      style={{ width: `${animate ? w : 0}%` }}
-                    />
-                    <span className="text-[9px] font-bold text-slate-400 ml-3">{b.count}</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          
-          <div className="flex justify-between pl-16 mt-6 text-[9px] font-bold text-slate-300">
-            <span>0</span><span>20</span><span>40</span><span>60</span><span>80</span><span>100</span>
+          <div className="flex-1 min-h-[280px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={barangayData} layout="vertical" margin={{ top: 8, right: 18, left: 28, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" horizontal={false} />
+                <XAxis type="number" allowDecimals={false} axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 12, fontWeight: 700 }} />
+                <YAxis type="category" dataKey="name" width={92} axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 11, fontWeight: 700 }} />
+                <Tooltip 
+                  cursor={{ fill: "rgba(15, 23, 42, 0.04)" }}
+                  content={({ active, payload, label }) => {
+                    if (!active || !payload?.length) return null;
+                    return (
+                      <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs shadow-lg">
+                        <p className="font-black text-slate-900">{label}</p>
+                        <p className="mt-1 font-semibold text-slate-600">{payload[0].value} incidents</p>
+                      </div>
+                    );
+                  }}
+                />
+                <Bar dataKey="count" fill="#475569" radius={[0, 8, 8, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
           </div>
         </div>
 
