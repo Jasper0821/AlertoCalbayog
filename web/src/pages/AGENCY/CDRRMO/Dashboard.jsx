@@ -530,7 +530,7 @@ function CdrrmoDashboard() {
       <aside
         className={`fixed inset-y-0 left-0 z-50 flex flex-col w-64 transition-transform duration-300 ease-in-out lg:static lg:translate-x-0 lg:shadow-none ${isSidebarOpen ? "translate-x-0" : "-translate-x-full"
           }`}
-        style={{ background: "#052e16" }}
+        style={{ background: "#0a1e3f" }}
       >
         {/* Logo / Brand */}
         <div className="flex items-center gap-3 px-5 h-16 shrink-0" style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>

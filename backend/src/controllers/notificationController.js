@@ -1,13 +1,53 @@
 const Notification = require("../models/Notification");
 
+const buildRecipientFilter = (user) => {
+  const filters = [{ userId: user.id }];
+  if (user.role === "admin") {
+    filters.push({ recipientRole: "admin" }, { recipientRole: "all" });
+  } else {
+    filters.push({ recipientRole: user.role }, { recipientRole: "all" });
+  }
+  return { $or: filters };
+};
+
 // GET /api/notifications/me — all notifications for the logged-in user
 exports.getMyNotifications = async (req, res) => {
   try {
-    const notifications = await Notification.find({ userId: req.user.id })
-      .sort({ createdAt: -1 })
-      .limit(100);
+    const { page = 1, limit = 50, unread, search, category, startDate, endDate } = req.query;
+    const filter = buildRecipientFilter(req.user);
 
-    res.json(notifications);
+    if (unread === "true") {
+      filter.read = false;
+    }
+    if (category && category !== "all") {
+      filter.category = category;
+    }
+    if (startDate || endDate) {
+      filter.createdAt = {};
+      if (startDate) filter.createdAt.$gte = new Date(startDate);
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        filter.createdAt.$lte = end;
+      }
+    }
+    if (search) {
+      const regex = new RegExp(search, "i");
+      filter.$or = [
+        { title: regex },
+        { message: regex },
+        { category: regex },
+        { type: regex },
+      ].concat(filter.$or || []);
+    }
+
+    const total = await Notification.countDocuments(filter);
+    const notifications = await Notification.find(filter)
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * Number(limit))
+      .limit(Number(limit));
+
+    res.json({ notifications, total, page: Number(page), pages: Math.ceil(total / Number(limit)) });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -16,10 +56,10 @@ exports.getMyNotifications = async (req, res) => {
 // GET /api/notifications/unread-count — count of unread notifications
 exports.getUnreadCount = async (req, res) => {
   try {
-    const count = await Notification.countDocuments({
-      userId: req.user.id,
-      read: false
-    });
+    const filter = buildRecipientFilter(req.user);
+    filter.read = false;
+
+    const count = await Notification.countDocuments(filter);
 
     res.json({ count });
   } catch (error) {
@@ -30,11 +70,10 @@ exports.getUnreadCount = async (req, res) => {
 // PUT /api/notifications/:id/read — mark one notification as read
 exports.markAsRead = async (req, res) => {
   try {
-    const notification = await Notification.findOneAndUpdate(
-      { _id: req.params.id, userId: req.user.id },
-      { read: true },
-      { new: true }
-    );
+    const filter = buildRecipientFilter(req.user);
+    filter._id = req.params.id;
+
+    const notification = await Notification.findOneAndUpdate(filter, { read: true }, { new: true });
 
     if (!notification) {
       return res.status(404).json({ message: "Notification not found" });
@@ -49,10 +88,10 @@ exports.markAsRead = async (req, res) => {
 // PUT /api/notifications/read-all — mark all notifications as read
 exports.markAllAsRead = async (req, res) => {
   try {
-    await Notification.updateMany(
-      { userId: req.user.id, read: false },
-      { read: true }
-    );
+    const filter = buildRecipientFilter(req.user);
+    filter.read = false;
+
+    await Notification.updateMany(filter, { read: true });
 
     res.json({ message: "All notifications marked as read" });
   } catch (error) {
@@ -63,10 +102,10 @@ exports.markAllAsRead = async (req, res) => {
 // DELETE /api/notifications/:id — delete a single notification
 exports.deleteNotification = async (req, res) => {
   try {
-    const notification = await Notification.findOneAndDelete({
-      _id: req.params.id,
-      userId: req.user.id
-    });
+    const filter = buildRecipientFilter(req.user);
+    filter._id = req.params.id;
+
+    const notification = await Notification.findOneAndDelete(filter);
 
     if (!notification) {
       return res.status(404).json({ message: "Notification not found" });

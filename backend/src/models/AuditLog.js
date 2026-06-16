@@ -41,6 +41,14 @@ const auditLogSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    source: {
+      type: String,
+      default: "unknown",
+    },
+    userAgent: {
+      type: String,
+      default: "",
+    },
     ipAddress: {
       type: String,
       default: "",
