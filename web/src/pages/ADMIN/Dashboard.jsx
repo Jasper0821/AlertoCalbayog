@@ -1613,144 +1613,221 @@ export default function AdminDashboard() {
       role,
       count: users.filter((user) => user.role === role).length,
     }));
+    const roleConfig = {
+      admin: { color: "bg-blue-600", lightBg: "bg-blue-50", text: "text-blue-700", border: "border-blue-200", icon: "🛡️", desc: "Full system authority including user management, incident verification, and system configuration." },
+      staff: { color: "bg-emerald-600", lightBg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200", icon: "📋", desc: "Handles validation and monitoring of assigned agency incident reports." },
+      responder: { color: "bg-orange-500", lightBg: "bg-orange-50", text: "text-orange-700", border: "border-orange-200", icon: "🚨", desc: "Field units responsible for incident response and real-time status updates." },
+      resident: { color: "bg-yellow-500", lightBg: "bg-yellow-50", text: "text-yellow-700", border: "border-yellow-200", icon: "👤", desc: "Community users who submit incident reports and receive updates." },
+    };
     const workflow = [
-      { label: "Pending", body: "New reports awaiting verification", color: "bg-amber-500" },
-      { label: "Verified", body: "Validated incidents ready for action", color: "bg-teal-500" },
-      { label: "Active", body: "Responder is acknowledged or en route", color: "bg-blue-500" },
-      { label: "Resolved", body: "Response cycle is completed", color: "bg-emerald-500" },
+      { label: "Pending", body: "Newly submitted reports awaiting verification and validation.", color: "bg-orange-500", ring: "ring-orange-100", num: "01" },
+      { label: "Verified", body: "Confirmed incidents approved for assignment and dispatch.", color: "bg-blue-500", ring: "ring-blue-100", num: "02" },
+      { label: "Active", body: "Currently being handled by assigned responders with live updates enabled.", color: "bg-emerald-500", ring: "ring-emerald-100", num: "03" },
+      { label: "Resolved", body: "Incident successfully completed and archived in system logs.", color: "bg-slate-700", ring: "ring-slate-200", num: "04" },
     ];
     const systemCards = [
-      { label: "API Base URL", value: apiBase, sub: "Used by authenticated admin requests" },
-      { label: "Socket Room", value: "admin", sub: "Realtime incident and status updates" },
-      { label: "Signed-in Admin", value: storedUser.fullName || "Admin", sub: storedUser.email || "Current browser session" },
-      { label: "Tracked Records", value: `${reports.length} incidents / ${users.length} users`, sub: "Loaded into this dashboard session" },
+      { label: "API Base URL", value: apiBase, sub: "Used by authenticated admin requests", icon: "🔗" },
+      { label: "Socket Room", value: "admin", sub: "Real-time incident and status updates", icon: "📡" },
+      { label: "Signed-in Admin", value: storedUser.fullName || "Admin", sub: storedUser.email || "Current browser session", icon: "👤" },
+      { label: "Tracked Records", value: `${reports.length} incidents · ${users.length} users`, sub: "Loaded into this dashboard session", icon: "📊" },
+    ];
+    const realtimeFeatures = [
+      { text: "Admin dashboard is connected to Socket Room: admin", icon: "🔌" },
+      { text: "Incident updates are broadcast instantly across all active users", icon: "📢" },
+      { text: "Agency dashboards receive only relevant assigned incident data", icon: "🏢" },
+      { text: "Status changes propagate in real time without refresh delays", icon: "⚡" },
+      { text: "System ensures continuous live monitoring and coordination", icon: "🔄" },
+    ];
+    const shortcuts = [
+      { label: "View Active Incidents", desc: "Monitor and manage all current reports", icon: "📍", action: () => setActiveNav("incidents") },
+      { label: "User Management Console", desc: "Create, edit, and manage user accounts", icon: "👤", action: () => setActiveNav("users") },
+      { label: "Audit Trail & Logs", desc: "Review system activity and change history", icon: "📜", action: () => setActiveNav("audit") },
+      { label: "Export Incident Reports", desc: "Download complete CSV report archive", icon: "📤", action: () => {} },
+      { label: "System Health Diagnostics", desc: "Check connectivity and service status", icon: "🧪", action: () => {} },
     ];
 
     return (
-      <div className="space-y-5">
-        <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-md shadow-slate-200/70">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+      <div style={{ fontFamily: "'Inter', 'Manrope', system-ui, sans-serif" }} className="space-y-6">
+        {/* ── Page Header ─────────────────────────────────────────────── */}
+        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <p className="text-[10px] font-black uppercase tracking-widest text-red-600">Admin Settings</p>
-              <h2 className="mt-1 text-xl font-black tracking-tight text-slate-950">System Control & Configuration</h2>
-              <p className="mt-1 max-w-3xl text-sm font-medium leading-6 text-slate-500">
-                Review access rules, realtime connections, incident workflow, and dashboard maintenance actions.
+              <p className="text-[11px] font-semibold uppercase tracking-widest text-red-500">Admin Settings</p>
+              <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-900" style={{ letterSpacing: "-0.02em" }}>
+                System Control & Configuration
+              </h2>
+              <p className="mt-2 max-w-2xl text-[15px] font-normal leading-relaxed text-slate-500">
+                Manage system access, incident workflows, and real-time monitoring configuration.
               </p>
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap items-center gap-3">
               <button
                 type="button"
                 onClick={refreshAdminData}
                 disabled={isRefreshing}
-                className="rounded-lg bg-red-600 px-4 py-2 text-xs font-black text-white shadow-sm transition hover:bg-red-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-slate-300"
+                className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-5 py-2.5 text-[13px] font-semibold text-white shadow-sm transition-all hover:bg-slate-800 active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-slate-300"
               >
-                {isRefreshing ? "Refreshing..." : "Refresh Data"}
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                  <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.3" />
+                </svg>
+                {isRefreshing ? "Refreshing…" : "Refresh Data"}
               </button>
               <CsvExportButton reports={reports} />
             </div>
           </div>
         </section>
 
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {/* ── System Info Cards ────────────────────────────────────────── */}
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {systemCards.map((card) => (
-            <div key={card.label} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm shadow-slate-200/60">
-              <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">{card.label}</p>
-              <p className="mt-2 break-words text-sm font-black text-slate-950">{card.value}</p>
-              <p className="mt-1 text-xs font-medium leading-5 text-slate-500">{card.sub}</p>
+            <div key={card.label} className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:shadow-md hover:border-slate-300">
+              <div className="flex items-start justify-between">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{card.label}</p>
+                <span className="text-lg">{card.icon}</span>
+              </div>
+              <p className="mt-3 text-[15px] font-semibold text-slate-900 break-words leading-snug">{card.value}</p>
+              <p className="mt-1.5 text-[13px] font-normal leading-relaxed text-slate-500">{card.sub}</p>
             </div>
           ))}
         </div>
 
-        <div className="grid gap-5 xl:grid-cols-[0.95fr_1.05fr]">
-          <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-md shadow-slate-200/70">
+        {/* ── Access Control + Workflow ────────────────────────────────── */}
+        <div className="grid gap-5 xl:grid-cols-2">
+          {/* Access Control */}
+          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h3 className="text-sm font-black text-slate-900">Access Control</h3>
-                <p className="mt-1 text-xs font-medium text-slate-500">Current user distribution and operational permissions.</p>
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">👥</span>
+                  <h3 className="text-[15px] font-bold text-slate-900">Access Control Overview</h3>
+                </div>
+                <p className="mt-1.5 text-[13px] font-normal leading-relaxed text-slate-500">Role distribution summary</p>
               </div>
-              <span className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-slate-500">
+              <span className="shrink-0 rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
                 Role Based
               </span>
             </div>
 
             <div className="mt-5 grid grid-cols-2 gap-3">
-              {roleCounts.map((item) => (
-                <div key={item.role} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                  <p className="text-2xl font-black text-slate-950">{item.count}</p>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">{item.role}</p>
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-5 overflow-hidden rounded-xl border border-slate-200">
-              {[
-                ["Admin", "Manage users, incidents, assignments, exports, and dashboard-wide monitoring."],
-                ["Staff", "Monitor and update reports routed to their assigned agency."],
-                ["Responder", "Receive assignments and update response progress for routed incidents."],
-                ["Resident", "Submit reports and receive incident status notifications."],
-              ].map(([role, scope]) => (
-                <div key={role} className="grid gap-2 border-b border-slate-100 px-4 py-3 text-sm last:border-b-0 sm:grid-cols-[120px_1fr]">
-                  <p className="font-black text-slate-900">{role}</p>
-                  <p className="font-medium leading-6 text-slate-600">{scope}</p>
-                </div>
-              ))}
+              {roleCounts.map((item) => {
+                const cfg = roleConfig[item.role];
+                return (
+                  <div key={item.role} className={`rounded-xl border ${cfg.border} ${cfg.lightBg} p-4 transition-all hover:shadow-sm`}>
+                    <div className="flex items-center gap-2.5">
+                      <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${cfg.color} text-white text-sm`}>
+                        {item.count}
+                      </div>
+                      <p className="text-[13px] font-semibold capitalize text-slate-700">{item.role === "responder" ? "Responders" : item.role === "resident" ? "Residents" : item.role === "admin" ? "Admin" : "Staff"}</p>
+                    </div>
+                    <p className="mt-2.5 text-[12px] font-normal leading-relaxed text-slate-500">{cfg.desc}</p>
+                  </div>
+                );
+              })}
             </div>
           </section>
 
-          <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-md shadow-slate-200/70">
-            <h3 className="text-sm font-black text-slate-900">Incident Workflow</h3>
-            <p className="mt-1 text-xs font-medium text-slate-500">Official status path used by the admin and agency dashboards.</p>
+          {/* Incident Workflow Pipeline */}
+          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">🚦</span>
+              <h3 className="text-[15px] font-bold text-slate-900">Incident Workflow Pipeline</h3>
+            </div>
+            <p className="mt-1.5 text-[13px] font-normal leading-relaxed text-slate-500">
+              Official status path used by the admin and agency dashboards.
+            </p>
 
-            <div className="mt-6 grid gap-3 md:grid-cols-4">
+            <div className="mt-6 space-y-0">
               {workflow.map((step, index) => (
-                <div key={step.label} className="relative rounded-xl border border-slate-200 bg-slate-50 p-4">
-                  <div className={`mb-3 h-2 w-12 rounded-full ${step.color}`} />
-                  <p className="text-sm font-black text-slate-950">{step.label}</p>
-                  <p className="mt-2 text-xs font-medium leading-5 text-slate-500">{step.body}</p>
-                  <span className="absolute right-3 top-3 text-[10px] font-black text-slate-300">{String(index + 1).padStart(2, "0")}</span>
+                <div key={step.label} className="relative flex gap-4">
+                  {/* Stepper line + dot */}
+                  <div className="flex flex-col items-center">
+                    <div className={`relative z-10 flex h-9 w-9 items-center justify-center rounded-full ${step.color} text-[12px] font-bold text-white ring-4 ${step.ring}`}>
+                      {step.num}
+                    </div>
+                    {index < workflow.length - 1 && (
+                      <div className="w-0.5 flex-1 bg-slate-200" />
+                    )}
+                  </div>
+                  {/* Content */}
+                  <div className={`pb-6 ${index === workflow.length - 1 ? "pb-0" : ""}`}>
+                    <p className="text-[14px] font-semibold text-slate-900 mt-1.5">{step.label}</p>
+                    <p className="mt-1 text-[13px] font-normal leading-relaxed text-slate-500">{step.body}</p>
+                  </div>
                 </div>
               ))}
             </div>
 
-            <div className="mt-5 rounded-xl border border-slate-200 bg-slate-950 p-4 text-white">
-              <p className="text-xs font-black uppercase tracking-widest text-slate-400">Realtime Behavior</p>
-              <p className="mt-2 text-sm font-semibold leading-6 text-slate-100">
-                The admin dashboard joins the admin socket room and listens for new reports plus status changes. Agency dashboards receive the same updates through their agency rooms.
+            <div className="mt-5 flex items-start gap-2.5 rounded-xl bg-slate-50 border border-slate-200 px-4 py-3">
+              <span className="mt-0.5 text-sm">📡</span>
+              <p className="text-[12px] font-medium leading-relaxed text-slate-500">
+                All workflow stages are synchronized in real time across Admin and Agency dashboards.
               </p>
             </div>
           </section>
         </div>
 
-        <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-md shadow-slate-200/70">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <h3 className="text-sm font-black text-slate-900">Maintenance Shortcuts</h3>
-              <p className="mt-1 text-xs font-medium text-slate-500">Fast actions for common administrator checks.</p>
+        {/* ── Real-Time System Behavior ─────────────────────────────── */}
+        <section className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+          <div className="bg-slate-900 px-6 py-5">
+            <div className="flex items-center gap-2.5">
+              <span className="text-lg">⚡</span>
+              <h3 className="text-[15px] font-bold text-white">Real-Time System Behavior</h3>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => setActiveNav("incidents")}
-                className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-black text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 active:scale-[0.98]"
-              >
-                Open Incidents
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveNav("users")}
-                className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-black text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 active:scale-[0.98]"
-              >
-                Open Users
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveNav("audit")}
-                className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-black text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 active:scale-[0.98]"
-              >
-                View Audit Trail
-              </button>
-            </div>
+            <p className="mt-1.5 text-[13px] font-normal leading-relaxed text-slate-400">
+              Live monitoring and synchronization across all connected dashboards.
+            </p>
           </div>
+          <div className="divide-y divide-slate-100 px-6">
+            {realtimeFeatures.map((feature, index) => (
+              <div key={index} className="flex items-center gap-4 py-3.5">
+                <span className="shrink-0 flex h-8 w-8 items-center justify-center rounded-lg bg-slate-50 text-sm border border-slate-200">{feature.icon}</span>
+                <p className="text-[13px] font-medium leading-snug text-slate-600">{feature.text}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* ── Maintenance Shortcuts ─────────────────────────────────── */}
+        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-lg">🛠️</span>
+            <h3 className="text-[15px] font-bold text-slate-900">Maintenance Shortcuts</h3>
+          </div>
+          <p className="text-[13px] font-normal leading-relaxed text-slate-500 mb-5">
+            Quick administrative tools for system control.
+          </p>
+
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {shortcuts.map((item) => (
+              <button
+                key={item.label}
+                type="button"
+                onClick={item.action}
+                className="group flex items-start gap-3.5 rounded-xl border border-slate-200 bg-white p-4 text-left transition-all hover:border-slate-300 hover:bg-slate-50 hover:shadow-sm active:scale-[0.99]"
+              >
+                <span className="mt-0.5 shrink-0 flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-base group-hover:bg-slate-200 transition-colors">{item.icon}</span>
+                <div>
+                  <p className="text-[13px] font-semibold text-slate-800 group-hover:text-slate-900">{item.label}</p>
+                  <p className="mt-1 text-[12px] font-normal leading-relaxed text-slate-400">{item.desc}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+        </section>
+
+        {/* ── System Summary ───────────────────────────────────────── */}
+        <section className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-6 shadow-sm">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-lg">🧭</span>
+            <h3 className="text-[15px] font-bold text-slate-900">System Summary</h3>
+          </div>
+          <p className="max-w-3xl text-[14px] font-normal leading-relaxed text-slate-500">
+            A centralized emergency incident management dashboard designed for real-time reporting and response coordination,
+            multi-role operational control, transparent monitoring and auditing, and fast decision-making during critical events.
+          </p>
+          <p className="mt-3 text-[12px] font-medium text-slate-400">
+            Built for public safety efficiency, reliability, and real-time situational awareness.
+          </p>
         </section>
       </div>
     );
