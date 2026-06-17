@@ -18,7 +18,7 @@ export type RootStackParamList = {
   Register: undefined;
   Home: undefined;
   EmergencyReport: { emergencyType: string };
-  LiveTracking: { reportId: string; latitude: number; longitude: number; emergencyType: string };
+  LiveTracking: { reportId: string; latitude: number; longitude: number; emergencyType: string; reportStatus?: string };
   ReportHistory: undefined;
   UserAgreement: undefined;
   Notifications: undefined;

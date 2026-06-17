@@ -4,6 +4,7 @@ import * as Location from "expo-location";
 import Header from "../components/Header";
 import api from "../api/axios";
 import { getToken } from "../utils/Storage";
+import socket from "../api/socket";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RouteProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../navigation/AppNavigator";
@@ -24,8 +25,8 @@ export default function LiveTrackingScreen({
   route,
   navigation,
 }: Props): React.JSX.Element {
-  const { reportId, latitude, longitude, emergencyType } = route.params;
-  const [reportStatus, setReportStatus] = useState<string>("pending");
+  const { reportId, latitude, longitude, emergencyType, reportStatus: initialStatus } = route.params;
+  const [reportStatus, setReportStatus] = useState<string>(initialStatus || "pending");
   const watchRef = useRef<Location.LocationSubscription | null>(null);
 
   // Animation values
@@ -50,13 +51,42 @@ export default function LiveTrackingScreen({
 
   const statusInfo = getStatusTextAndColor();
 
+  const fetchReportStatus = async () => {
+    try {
+      const token = await getToken();
+      const res = await api.get("/emergency/me", {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      const matchingReport = res.data.find((r: any) => r._id === reportId);
+      if (matchingReport && matchingReport.status) {
+        console.log("📡 LiveTrackingScreen fetched status on mount:", matchingReport.status);
+        setReportStatus(matchingReport.status);
+      }
+    } catch (err) {
+      console.log("Failed to fetch report status on mount:", err);
+    }
+  };
+
   useEffect(() => {
+    fetchReportStatus();
     startTracking();
 
+    const handleStatusUpdate = (updatedReport: any) => {
+      if (updatedReport && updatedReport.status) {
+        console.log("📡 LiveTrackingScreen received status update via direct socket:", updatedReport.status);
+        setReportStatus(updatedReport.status);
+      }
+    };
+
+    socket.on(`statusUpdate-${reportId}`, handleStatusUpdate);
+
     const subscription = DeviceEventEmitter.addListener("reportStatusUpdated", (notif) => {
-      if (notif.reportId === reportId && notif.status) {
-        console.log("📡 LiveTrackingScreen received status update event:", notif.status);
-        setReportStatus(notif.status);
+      const newStatus = notif.status || notif.metadata?.status;
+      if (notif.reportId === reportId && newStatus) {
+        console.log("📡 LiveTrackingScreen received status update event:", newStatus);
+        setReportStatus(newStatus);
       }
     });
 
@@ -95,6 +125,7 @@ export default function LiveTrackingScreen({
       pulse.stop();
       waves.stop();
       subscription.remove();
+      socket.off(`statusUpdate-${reportId}`, handleStatusUpdate);
       if (watchRef.current) {
         watchRef.current.remove();
       }

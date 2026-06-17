@@ -296,6 +296,7 @@ export default function ReportHistoryScreen(): React.JSX.Element {
                             latitude: report.location?.latitude || 12.0645,
                             longitude: report.location?.longitude || 124.595,
                             emergencyType: report.emergencyType,
+                            reportStatus: report.status,
                           })}
                           className="flex-row items-center py-2.5 px-4 rounded-xl bg-primary shadow-sm"
                           activeOpacity={0.8}
