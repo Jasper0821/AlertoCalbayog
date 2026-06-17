@@ -12,7 +12,8 @@ import {
   Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
+import socket from "../api/socket";
 import { ArrowLeftIcon, TrashIcon } from "../components/SvgIcons";
 import { COLORS } from "../styles/colors";
 import api from "../api/axios";
@@ -76,7 +77,8 @@ export default function NotificationsScreen(): React.JSX.Element {
       const res = await api.get("/notifications/me", {
         headers: { Authorization: `Bearer ${token}` },
       });
-      setNotifications(res.data);
+      const data = res.data;
+      setNotifications(Array.isArray(data) ? data : data?.notifications ?? []);
     } catch (error: any) {
       console.log("Failed to fetch notifications:", error.response?.data || error.message);
     } finally {
@@ -141,15 +143,32 @@ export default function NotificationsScreen(): React.JSX.Element {
     );
   };
 
+  // Re-fetch every time the screen comes into focus (e.g. navigating back)
+  useFocusEffect(
+    useCallback(() => {
+      fetchNotifications();
+    }, [])
+  );
+
   useEffect(() => {
     fetchNotifications();
 
+    // Listen for the DeviceEventEmitter bridge from HomeScreen
     const sub = DeviceEventEmitter.addListener("reportStatusUpdated", () => {
       fetchNotifications();
     });
 
+    // Also listen directly on the socket in case the event arrives while
+    // this screen is mounted (covers edge cases where the emitter bridge
+    // in HomeScreen hasn't fired yet).
+    const handleSocketNotification = () => {
+      fetchNotifications();
+    };
+    socket.on("notification", handleSocketNotification);
+
     return () => {
       sub.remove();
+      socket.off("notification", handleSocketNotification);
     };
   }, []);
 

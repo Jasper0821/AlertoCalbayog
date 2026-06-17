@@ -76,10 +76,10 @@ export default function Header({
               accessibilityRole="button"
               accessibilityLabel="Go back"
               hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
-              className="mr-4 w-11 h-11 items-center justify-center rounded-2xl bg-surface border border-border"
+              className="mr-4 w-10 h-10 items-center justify-center rounded-full bg-surface border border-border"
               style={styles.backButton}
             >
-              <ArrowLeftIcon size={21} color={COLORS.primary} />
+              <ArrowLeftIcon size={20} color={COLORS.primary} />
             </TouchableOpacity>
           )}
           <View>
@@ -186,10 +186,10 @@ export default function Header({
 const styles = StyleSheet.create({
   backButton: {
     shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
   },
 });
 

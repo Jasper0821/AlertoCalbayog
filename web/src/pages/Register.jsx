@@ -133,14 +133,14 @@ function Register() {
  {/* Full Legal Name */}
  <div className="grid gap-1.5 text-left">
  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 ml-0.5" htmlFor="fullName">
- Full Legal Name
+ Full Name
  </label>
  <input
  className="h-11 w-full rounded-lg border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 placeholder:text-slate-300 shadow-sm"
  id="fullName"
  name="fullName"
  type="text"
- placeholder="Juan A. Dela Cruz"
+ placeholder="Enter your Name"
  required
  />
  </div>
@@ -169,7 +169,7 @@ function Register() {
  id="email"
  name="email"
  type="email"
- placeholder="name@agency.gov.ph"
+ placeholder="Email"
  required
  />
  </div>
@@ -187,8 +187,8 @@ function Register() {
  required
  >
  <option value="">Select Agency</option>
- <option value="CDRRMO">CDRRMO (Disaster Risk Reduction)</option>
- <option value="PNP">PNP (Police)</option>
+ <option value="CDRRMO">CDRRMO (Calbayog)</option>
+ <option value="PNP">PNP (Calbayog)</option>
  </select>
  </div>
 
