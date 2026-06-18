@@ -108,18 +108,12 @@ exports.updateReportStatus = async (req, res) => {
     }
 
     const isAdmin = currentUser.role === "admin";
-    const assignedResponderId = report.assignedResponder?.toString();
-    const isRoutedStaff =
-      currentUser.role === "staff" &&
+    const isAgencyUser =
+      ["staff", "responder"].includes(currentUser.role) &&
       currentUser.agency &&
       report.notifiedAgencies.includes(currentUser.agency);
-    const isAssignedResponder =
-      currentUser.role === "responder" &&
-      (assignedResponderId
-        ? assignedResponderId === currentUser._id.toString()
-        : currentUser.agency && report.notifiedAgencies.includes(currentUser.agency));
 
-    if (!isAdmin && !isAssignedResponder && !isRoutedStaff) {
+    if (!isAdmin && !isAgencyUser) {
       return res.status(403).json({ message: "You are not allowed to update this report status" });
     }
 

@@ -113,7 +113,7 @@ function SplashScreen({ onDone }) {
  <div className="flex items-center gap-2 mt-2">
  <div className="w-5 h-px bg-blue-900" />
  <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-blue-900">
- Calbayog City Government — Official Portal
+ Calbayog City Emergency Response System
  </p>
  <div className="w-5 h-px bg-blue-900" />
  </div>
