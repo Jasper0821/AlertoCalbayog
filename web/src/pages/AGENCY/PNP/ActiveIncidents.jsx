@@ -99,15 +99,9 @@ export default function ActiveIncidents({ reports = [] }) {
                     {timeStr}
                   </td>
 
-                  {/* Status — read-only badge, no dropdown */}
+                  {/* Status — read-only badge */}
                   <td className="px-6 py-4">
-                    <span
-                      className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full border ${
-                        status === "active"
-                          ? "bg-indigo-50 border-indigo-200 text-indigo-700"
-                          : "bg-slate-100 border-slate-200 text-slate-600"
-                      }`}
-                    >
+                    <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full border ${statusInfo.bg} ${statusInfo.border} ${statusInfo.text}`}>
                       <span className={`w-1.5 h-1.5 rounded-full ${statusInfo.dot}`}></span>
                       {statusInfo.label}
                     </span>

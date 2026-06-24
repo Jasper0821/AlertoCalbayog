@@ -998,19 +998,10 @@ export default function AdminDashboard() {
                   <p className="mt-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">{(report.notifiedAgencies || []).join(", ")}</p>
                 </td>
                 <td className="px-4 py-3">
-                  <div className="flex items-center gap-2">
-                    <span className={`h-2 w-2 rounded-full ${statusInfo.dot}`} />
-                    <select
-                      value={status === "responding" ? "active" : status}
-                      disabled={savingReportId === report._id}
-                      onChange={(event) => updateReportStatus(report._id, event.target.value)}
-                      className={`rounded-lg border px-2.5 py-1.5 text-xs font-black outline-none transition focus:ring-2 focus:ring-red-600/15 ${statusInfo.bg} ${statusInfo.border} ${statusInfo.text}`}
-                    >
-                      {STATUS_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>{option.label}</option>
-                      ))}
-                    </select>
-                  </div>
+                  <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-black ${statusInfo.bg} ${statusInfo.border} ${statusInfo.text}`}>
+                    <span className={`h-1.5 w-1.5 rounded-full ${statusInfo.dot}`} />
+                    {statusInfo.label}
+                  </span>
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center">
