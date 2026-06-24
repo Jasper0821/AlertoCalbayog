@@ -9,7 +9,7 @@ const getBackendHost = () => {
     return hostUri.split(":")[0];
   }
   // Fallback to the detected PC IP
-  return "192.168.101.25";
+  return "192.168.254.131";
 };
 
 export const backendHost = getBackendHost();

@@ -39,7 +39,7 @@ export default function LiveTrackingScreen({
         return { text: "Report Verified", desc: "Your emergency report has been verified by the command center. Dispatching responders now.", color: "#8B5CF6" };
       case "responding":
       case "active":
-        return { text: "Rescue on the Way", desc: "Help is coming! A professional responder has been dispatched and is heading to your location. Please stay safe.", color: "#10B981" };
+        return { text: "Rescue on the Way", desc: "Help is coming! A professional responder has been dispatched and is heading to your location. Please stay safe.", color: "#d6d827da" };
       case "resolved":
       case "responded":
         return { text: "Report Resolved", desc: "The emergency incident has been successfully resolved. Thank you for reporting.", color: "#10B981" };
