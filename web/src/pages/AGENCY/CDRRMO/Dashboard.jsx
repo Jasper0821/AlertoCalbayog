@@ -118,6 +118,7 @@ function CdrrmoDashboard() {
 
   // Real-time dispatch modal states
   const [activeAlert, setActiveAlert] = useState(null);
+  const [alertQueue, setAlertQueue] = useState([]);
   const [selectedUnit, setSelectedUnit] = useState("Mobile Patrol 1");
   const [dispatchNote, setDispatchNote] = useState("");
 
@@ -352,6 +353,38 @@ function CdrrmoDashboard() {
     }
   };
 
+  const playAlertSound = () => {
+    const soundEnabled = user.soundAlerts !== false;
+    const loopEnabled = user.loopAlarm !== false;
+    if (!soundEnabled) return;
+
+    if (loopEnabled) {
+      playSiren();
+    } else {
+      playSystemChime();
+    }
+  };
+
+  const enqueueIncomingAlert = (report) => {
+    const reportKey = report._id || report.incidentId || report.createdAt || `${Date.now()}-${Math.random()}`;
+
+    setAlertQueue(prev => {
+      if (prev.some(item => (item._id || item.incidentId || item.createdAt || item.__queueKey) === reportKey)) return prev;
+      return [...prev, { ...report, __queueKey: reportKey }];
+    });
+
+    sendDesktopNotification(report);
+  };
+
+  useEffect(() => {
+    if (activeAlert || alertQueue.length === 0) return;
+
+    const [nextAlert, ...remainingAlerts] = alertQueue;
+    setActiveAlert(nextAlert);
+    setAlertQueue(remainingAlerts);
+    playAlertSound();
+  }, [activeAlert, alertQueue, user.soundAlerts, user.loopAlarm]);
+
   // Socket Connection for Real-time Crime Alerts
   useEffect(() => {
     socket.connect();
@@ -367,16 +400,7 @@ function CdrrmoDashboard() {
         return [newReport, ...prev];
       });
 
-      // Play siren immediately
-      if (user.soundAlerts !== false) {
-        playSiren();
-      }
-
-      // Open the custom dispatch popup screen instantly
-      setActiveAlert(newReport);
-
-      // Fire native OS desktop notification immediately
-      sendDesktopNotification(newReport);
+      enqueueIncomingAlert(newReport);
     });
 
     socket.on("reportStatusChanged", (updatedReport) => {
@@ -405,11 +429,7 @@ function CdrrmoDashboard() {
   useEffect(() => {
     const handleSimulatedAlert = (e) => {
       console.log("📡 Simulated alert triggered:", e.detail);
-      if (user.soundAlerts !== false) {
-        playSiren();
-      }
-      setActiveAlert(e.detail);
-      sendDesktopNotification(e.detail);
+      enqueueIncomingAlert(e.detail);
     };
     window.addEventListener("simulate-emergency-alert", handleSimulatedAlert);
     return () => {
@@ -469,6 +489,7 @@ function CdrrmoDashboard() {
 
   const currentNav = NAV.find(n => n.id === activeNav);
   const pageTitle = currentNav?.label || "Dashboard";
+  const incomingAlertCount = (activeAlert ? 1 : 0) + alertQueue.length;
 
   return (
     <div className="flex h-screen bg-slate-50 font-sans antialiased overflow-hidden">
@@ -482,6 +503,36 @@ function CdrrmoDashboard() {
       )}
 
       {/* ══════════════ CUSTOM LOGOUT MODAL ══════════════ */}
+      {incomingAlertCount > 1 && (
+        <div className="fixed top-4 left-1/2 z-[120] w-[calc(100%-2rem)] max-w-xl -translate-x-1/2">
+          <div className="overflow-hidden rounded-2xl border border-red-100 bg-white shadow-2xl shadow-red-950/10">
+            <div className="h-1 w-full bg-gradient-to-r from-red-700 via-red-500 to-orange-400" />
+            <div className="flex items-center justify-between gap-4 px-4 py-3">
+              <div className="flex min-w-0 items-center gap-3">
+                <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#0a1e3f] text-white shadow-lg shadow-[#0a1e3f]/20">
+                  <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.9" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 00-4-5.7V5a2 2 0 10-4 0v.3A6 6 0 006 11v3.2a2 2 0 01-.6 1.4L4 17h5m6 0a3 3 0 11-6 0" />
+                  </svg>
+                  <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-black text-white ring-2 ring-white">
+                    {incomingAlertCount}
+                  </span>
+                </div>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-black text-slate-900">
+                    {incomingAlertCount} incoming reports
+                  </p>
+                  <p className="truncate text-[11px] font-semibold text-slate-500">Reports arrived at the same time.</p>
+                </div>
+              </div>
+              <span className="hidden shrink-0 items-center gap-1.5 rounded-full border border-red-100 bg-red-50 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-red-700 sm:inline-flex">
+                <span className="h-1.5 w-1.5 rounded-full bg-red-500 alert-live-dot" />
+                Incoming
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showLogoutModal && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-[#030d1e]/75 backdrop-blur-sm" onClick={() => setShowLogoutModal(false)} />
