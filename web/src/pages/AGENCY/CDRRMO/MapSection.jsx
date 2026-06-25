@@ -1,17 +1,62 @@
 import { useEffect, useState } from"react";
-import { CircleMarker, MapContainer, Popup, TileLayer, ZoomControl, useMap } from"react-leaflet";
+import { MapContainer, Popup, TileLayer, ZoomControl, Marker, useMap } from"react-leaflet";
+import L from"leaflet";
 import"leaflet/dist/leaflet.css";
 import { CloseIcon, ExpandIcon, BoltIcon, MapIcon } from"./icons.jsx";
 import { SectionHeader, shellCard, innerCard, pillBase, statusChip } from"./SharedUI.jsx";
 
 const cityCenter = [12.068, 124.597];
 
-const markerStyle = {
- danger: { color:"#ef4444", fillColor:"#ffffff" },
- yellow: { color:"#f59e0b", fillColor:"#ffffff" },
- neutral: { color:"#64748b", fillColor:"#ffffff" },
- success: { color:"#10b981", fillColor:"#ffffff" },
+// ── SVG path data for each emergency type icon ──
+const ICON_SVGS = {
+  fire: `<path d="M22 6c0 0-3 2-3 5s1.5 4 3 5c1.5-1 3-2 3-5s-3-5-3-5z" fill="white" opacity="0.9"/>
+         <path d="M22 4c0 0-6 4-6 11c0 4 2.5 7 6 7s6-3 6-7c0-7-6-11-6-11z" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+         <path d="M19.5 18c0 1.5 1 3 2.5 3s2.5-1.5 2.5-3c0-2-2.5-4-2.5-4s-2.5 2-2.5 4z" fill="white" opacity="0.7"/>`,
+  flood: `<path d="M12 14c2-1.5 4 1 6 0s4-1.5 6 0" fill="none" stroke="white" stroke-width="2" stroke-linecap="round"/>
+          <path d="M12 18.5c2-1.5 4 1 6 0s4-1.5 6 0" fill="none" stroke="white" stroke-width="2" stroke-linecap="round"/>
+          <path d="M12 23c2-1.5 4 1 6 0s4-1.5 6 0" fill="none" stroke="white" stroke-width="2" stroke-linecap="round"/>
+          <path d="M20 8l2 3 2-3" fill="none" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="22" cy="11" r="0.8" fill="white"/>`,
+  medical: `<rect x="16" y="10" width="12" height="12" rx="2" fill="none" stroke="white" stroke-width="1.8"/>
+            <path d="M22 13v6" stroke="white" stroke-width="2.2" stroke-linecap="round"/>
+            <path d="M19 16h6" stroke="white" stroke-width="2.2" stroke-linecap="round"/>`,
+  others: `<path d="M22 10v4" stroke="white" stroke-width="2" stroke-linecap="round"/>
+           <circle cx="22" cy="18" r="1.2" fill="white"/>
+           <path d="M22 6l-7 14h14z" fill="none" stroke="white" stroke-width="1.8" stroke-linejoin="round"/>`,
 };
+
+const TYPE_CONFIG = {
+  fire:      { color: "#dc2626", label: "Fire Emergency",    svg: ICON_SVGS.fire },
+  flood:     { color: "#2563eb", label: "Flood / Water",     svg: ICON_SVGS.flood },
+  medical:   { color: "#059669", label: "Medical Emergency",  svg: ICON_SVGS.medical },
+  crime:     { color: "#7c3aed", label: "Crime Report",      svg: ICON_SVGS.others },
+  emergency: { color: "#d97706", label: "Emergency",         svg: ICON_SVGS.others },
+  others:    { color: "#64748b", label: "Other Incident",    svg: ICON_SVGS.others },
+};
+
+function getTypeConfig(emergencyType) {
+  const raw = (emergencyType || "others").toLowerCase().trim();
+  if (raw === "security") return TYPE_CONFIG.crime;
+  return TYPE_CONFIG[raw] || TYPE_CONFIG.others;
+}
+
+function buildDivIcon(cfg) {
+  return L.divIcon({
+    className: "",
+    html: `
+      <div style="position:relative;width:44px;height:56px;filter:drop-shadow(0 4px 10px rgba(0,0,0,0.35));cursor:pointer;">
+        <svg viewBox="0 0 44 56" xmlns="http://www.w3.org/2000/svg"
+             style="position:absolute;top:0;left:0;width:44px;height:56px;">
+          <path d="M22 2C12.06 2 4 10.06 4 20c0 7.5 5.5 15 10.5 21C18.5 45.5 22 51 22 51s3.5-5.5 7.5-10C34.5 35 40 27.5 40 20C40 10.06 31.94 2 22 2z"
+            fill="${cfg.color}" stroke="white" stroke-width="2.5"/>
+          ${cfg.svg}
+        </svg>
+      </div>`,
+    iconSize: [44, 56],
+    iconAnchor: [22, 56],
+    popupAnchor: [0, -58],
+  });
+}
 
 function MapResizeBridge({ refreshKey }) {
  const map = useMap();
@@ -26,6 +71,12 @@ function MapResizeBridge({ refreshKey }) {
 }
 
 function MapView({ interactive, mapKey, pins }) {
+ // Filter out resolved/closed reports — icons disappear once resolved
+ const activeReports = pins.filter((pin) => {
+   const status = (pin.status || "").toLowerCase();
+   return !["resolved", "closed", "responded", "cancelled"].includes(status);
+ });
+
  return (
  <MapContainer
  key={mapKey}
@@ -46,26 +97,23 @@ function MapView({ interactive, mapKey, pins }) {
  attribution="&copy; OpenStreetMap contributors"
  />
 
- {pins.map((pin) => {
- const markerMode = (pin.status ==="Closed" || pin.status ==="resolved") ?"success" :"danger";
- const marker = markerStyle[markerMode] || markerStyle.danger;
+ {activeReports.map((pin) => {
+ const cfg = getTypeConfig(pin.emergencyType);
+ const icon = buildDivIcon(cfg);
  const coordinates = pin.location && pin.location.latitude ? [pin.location.latitude, pin.location.longitude] : cityCenter;
 
  return (
- <CircleMarker
+ <Marker
  key={pin._id || pin.id}
- center={coordinates}
- radius={interactive ? 12 : 10}
- pathOptions={{
- color: marker.color,
- fillColor: marker.fillColor,
- fillOpacity: 0.9,
- weight: 2,
- }}
+ position={coordinates}
+ icon={icon}
  >
  <Popup autoPan closeButton={interactive}>
  <div className="grid min-w-[200px] gap-2 text-slate-900">
- <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">{pin.emergencyType}</p>
+ <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.12em]" style={{ color: cfg.color }}>
+   <span style={{ width: 8, height: 8, borderRadius: "50%", background: cfg.color, display: "inline-block" }} />
+   {cfg.label}
+ </div>
  <p className="text-sm font-semibold text-slate-900">{pin.description ||"No description"}</p>
  <div className="flex flex-wrap gap-2 pt-1">
  <span className={`${pillBase} ${pin.status ==="pending" || pin.status ==="responding" ? statusChip.danger : statusChip.success}`}>
@@ -77,7 +125,7 @@ function MapView({ interactive, mapKey, pins }) {
  </div>
  </div>
  </Popup>
- </CircleMarker>
+ </Marker>
  );
  })}
 
@@ -89,6 +137,12 @@ function MapView({ interactive, mapKey, pins }) {
 function MapSection({ reports: pins = [], isOffline }) {
  const [isFullscreen, setIsFullscreen] = useState(false);
  const [liveAlert, setLiveAlert] = useState(null);
+
+ // Filter out resolved for the fullscreen card strip too
+ const activeReports = pins.filter((pin) => {
+   const status = (pin.status || "").toLowerCase();
+   return !["resolved", "closed", "responded", "cancelled"].includes(status);
+ });
 
  useEffect(() => {
  if (!isFullscreen) return undefined;
@@ -154,7 +208,7 @@ function MapSection({ reports: pins = [], isOffline }) {
 
  <div className="absolute bottom-10 left-10 right-10 top-auto z-[1000] pointer-events-none">
  <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide pointer-events-auto">
- {pins.map((pin) => (
+ {activeReports.map((pin) => (
  <div
  key={pin.id || pin._id}
  className="bg-slate-900/95 border border-slate-800 p-6 rounded-[32px] shadow-2xl min-w-[320px] backdrop-blur-xl"
@@ -200,4 +254,5 @@ function MapSection({ reports: pins = [], isOffline }) {
 }
 
 export default MapSection;
+
 

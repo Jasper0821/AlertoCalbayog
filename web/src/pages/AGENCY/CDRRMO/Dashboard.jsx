@@ -84,26 +84,15 @@ function CdrrmoDashboard() {
       return [];
     }
   });
-  const [statusOverrides, setStatusOverrides] = useState(() => {
-    try {
-      const stored = localStorage.getItem("cdrrmoStatusOverrides");
-      return stored ? JSON.parse(stored) : {};
-    } catch (e) {
-      return {};
-    }
-  });
+  // statusOverrides are ephemeral (optimistic UI only) — NOT persisted to localStorage
+  // This prevents stale overrides from blocking real server data across devices/sessions
+  const [statusOverrides, setStatusOverrides] = useState({});
 
   useEffect(() => {
     if (reports.length > 0) {
       localStorage.setItem("cdrrmoReports", JSON.stringify(reports));
     }
   }, [reports]);
-
-  useEffect(() => {
-    if (Object.keys(statusOverrides).length > 0) {
-      localStorage.setItem("cdrrmoStatusOverrides", JSON.stringify(statusOverrides));
-    }
-  }, [statusOverrides]);
   const [isOffline, setIsOffline] = useState(false);
   const [activeNav, setActiveNav] = useState(() => {
     return localStorage.getItem("cdrrmoActiveNav") || "dashboard";
@@ -225,12 +214,15 @@ function CdrrmoDashboard() {
   const pendingCount = safeReports.filter(r => ["pending", "verified"].includes(r.status)).length;
   const activeCount = safeReports.filter(r => ["responding", "ongoing", "dispatching", "en_route", "active"].includes(r.status)).length;
 
-  // Poll for safety + initial load
+  // Poll for safety + initial load — clears stale overrides on each fresh fetch
   useEffect(() => {
     const fetchReports = async () => {
       try {
         const res = await api.get(`/emergency/agency/CDRRMO`);
-        setReports(Array.isArray(res.data) ? res.data : (res.data?.reports || []));
+        const freshReports = Array.isArray(res.data) ? res.data : (res.data?.reports || []);
+        setReports(freshReports);
+        // Clear ALL overrides on successful fetch — server data is the source of truth
+        setStatusOverrides({});
         setIsOffline(false);
       } catch (error) {
         setIsOffline(true);
@@ -238,7 +230,8 @@ function CdrrmoDashboard() {
       }
     };
     fetchReports();
-    const iv = setInterval(fetchReports, 15000);
+    // Poll every 5 seconds for faster cross-device sync
+    const iv = setInterval(fetchReports, 5000);
     return () => clearInterval(iv);
   }, []);
 
