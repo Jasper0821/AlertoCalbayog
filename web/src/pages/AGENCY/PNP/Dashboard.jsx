@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import api from "../../../api/axios.js";
 import socket from "../../../api/socket.js";
 import Swal from "sweetalert2";
+import { clearDashboardNavigationState } from "../../../utils/dashboardSession.js";
 
 // Components
 import DashboardOverview from "./DashboardOverview.jsx";
@@ -454,6 +455,9 @@ function AdminDashboard() {
   const confirmLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
+    sessionStorage.removeItem("token");
+    sessionStorage.removeItem("user");
+    clearDashboardNavigationState();
     window.location.href = "/";
   };
 
@@ -496,7 +500,7 @@ function AdminDashboard() {
       )}
 
       {/* ══════════════ CUSTOM LOGOUT MODAL ══════════════ */}
-      {incomingAlertCount > 1 && (
+      {incomingAlertCount > 0 && (
         <div className="fixed top-4 left-1/2 z-[120] w-[calc(100%-2rem)] max-w-xl -translate-x-1/2">
           <div className="overflow-hidden rounded-2xl border border-red-100 bg-white shadow-2xl shadow-red-950/10">
             <div className="h-1 w-full bg-gradient-to-r from-red-700 via-red-500 to-orange-400" />
@@ -512,9 +516,13 @@ function AdminDashboard() {
                 </div>
                 <div className="min-w-0">
                   <p className="truncate text-sm font-black text-slate-900">
-                    {incomingAlertCount} incoming reports
+                    {incomingAlertCount > 1 ? `${incomingAlertCount} incoming reports` : "Incoming report"}
                   </p>
-                  <p className="truncate text-[11px] font-semibold text-slate-500">Reports arrived at the same time.</p>
+                  <p className="truncate text-[11px] font-semibold text-slate-500">
+                    {incomingAlertCount > 1
+                      ? "Reports arrived at the same time."
+                      : activeAlert?.emergencyType || "New crime report received."}
+                  </p>
                 </div>
               </div>
               <span className="hidden sm:inline-flex shrink-0 items-center gap-1.5 rounded-full border border-red-100 bg-red-50 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-red-700">

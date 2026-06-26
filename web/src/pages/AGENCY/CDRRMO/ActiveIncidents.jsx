@@ -14,9 +14,9 @@ export default function ActiveIncidents({ reports = [] }) {
   );
 
   return (
-    <div className="space-y-6 pb-10">
+    <div className="flex h-full min-h-0 w-full flex-col gap-4">
       {/* Header */}
-      <div className="flex items-start justify-between">
+      <div className="flex shrink-0 flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold text-slate-800">Incident Reports</h1>
           <p className="text-sm text-slate-500 mt-0.5">
@@ -30,9 +30,10 @@ export default function ActiveIncidents({ reports = [] }) {
       </div>
 
       {/* Table */}
-      <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-        <table className="w-full text-left border-collapse">
-          <thead>
+      <div className="min-h-0 flex-1 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="h-full overflow-auto">
+        <table className="min-w-[960px] w-full text-left border-collapse">
+          <thead className="sticky top-0 z-10">
             <tr className="bg-slate-50/70 border-b border-slate-200 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
               <th className="px-6 py-4">Incident ID</th>
               <th className="px-6 py-4">Type</th>
@@ -146,6 +147,7 @@ export default function ActiveIncidents({ reports = [] }) {
             )}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );

@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import api from "../api/axios.js";
 import { Navbar } from "../components/Navbar";
 import { Footer } from "../components/Footer";
+import { clearDashboardNavigationState } from "../utils/dashboardSession.js";
 
 function Login() {
   const navigate = useNavigate();
@@ -30,6 +31,7 @@ function Login() {
     localStorage.removeItem("user");
     sessionStorage.removeItem("token");
     sessionStorage.removeItem("user");
+    clearDashboardNavigationState();
     clearAdminCache();
   }, []);
 

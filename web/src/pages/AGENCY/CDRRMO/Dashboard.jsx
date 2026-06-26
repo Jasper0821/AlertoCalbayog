@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import api from "../../../api/axios.js";
 import socket from "../../../api/socket.js";
 import Swal from "sweetalert2";
+import { clearDashboardNavigationState } from "../../../utils/dashboardSession.js";
 
 // Components
 import DashboardOverview from "./DashboardOverview.jsx";
@@ -454,6 +455,9 @@ function CdrrmoDashboard() {
   const confirmLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
+    sessionStorage.removeItem("token");
+    sessionStorage.removeItem("user");
+    clearDashboardNavigationState();
     window.location.href = "/";
   };
 
@@ -483,6 +487,7 @@ function CdrrmoDashboard() {
   const currentNav = NAV.find(n => n.id === activeNav);
   const pageTitle = currentNav?.label || "Dashboard";
   const incomingAlertCount = (activeAlert ? 1 : 0) + alertQueue.length;
+  const fixedHeightPages = ["incident-reports", "queuing", "incident-history"];
 
   return (
     <div className="flex h-screen bg-slate-50 font-sans antialiased overflow-hidden">
@@ -496,7 +501,7 @@ function CdrrmoDashboard() {
       )}
 
       {/* ══════════════ CUSTOM LOGOUT MODAL ══════════════ */}
-      {incomingAlertCount > 1 && (
+      {incomingAlertCount > 0 && (
         <div className="fixed top-4 left-1/2 z-[120] w-[calc(100%-2rem)] max-w-xl -translate-x-1/2">
           <div className="overflow-hidden rounded-2xl border border-red-100 bg-white shadow-2xl shadow-red-950/10">
             <div className="h-1 w-full bg-gradient-to-r from-red-700 via-red-500 to-orange-400" />
@@ -512,9 +517,13 @@ function CdrrmoDashboard() {
                 </div>
                 <div className="min-w-0">
                   <p className="truncate text-sm font-black text-slate-900">
-                    {incomingAlertCount} incoming reports
+                    {incomingAlertCount > 1 ? `${incomingAlertCount} incoming reports` : "Incoming report"}
                   </p>
-                  <p className="truncate text-[11px] font-semibold text-slate-500">Reports arrived at the same time.</p>
+                  <p className="truncate text-[11px] font-semibold text-slate-500">
+                    {incomingAlertCount > 1
+                      ? "Reports arrived at the same time."
+                      : activeAlert?.emergencyType || "New emergency report received."}
+                  </p>
                 </div>
               </div>
               <span className="hidden shrink-0 items-center gap-1.5 rounded-full border border-red-100 bg-red-50 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-red-700 sm:inline-flex">
@@ -787,8 +796,8 @@ function CdrrmoDashboard() {
         </header>
 
         {/* ── PAGE CONTENT ── */}
-        <section className="flex-1 overflow-y-auto p-5 lg:p-7">
-          <div className="max-w-screen-2xl mx-auto">
+        <section className={`flex-1 min-h-0 ${fixedHeightPages.includes(activeNav) ? "overflow-hidden p-3 lg:p-4" : "overflow-y-auto p-5 lg:p-7"}`}>
+          <div className={fixedHeightPages.includes(activeNav) ? "h-full w-full" : "max-w-screen-2xl mx-auto"}>
             {renderContent()}
           </div>
         </section>

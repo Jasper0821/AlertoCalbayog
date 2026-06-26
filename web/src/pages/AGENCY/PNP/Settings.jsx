@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { clearDashboardNavigationState } from "../../../utils/dashboardSession.js";
 
 const TABS = [
   {
@@ -292,7 +293,11 @@ export default function Settings({ user = {}, onUserUpdate }) {
       onConfirm: () => {
         setModalConfig({ type: "loading", title: "Deactivating...", message: "Please wait while we deactivate your account..." });
         setTimeout(() => {
+          localStorage.removeItem("token");
           localStorage.removeItem("user");
+          sessionStorage.removeItem("token");
+          sessionStorage.removeItem("user");
+          clearDashboardNavigationState();
           window.location.reload();
         }, 1500);
       }
