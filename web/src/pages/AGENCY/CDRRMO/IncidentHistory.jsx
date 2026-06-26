@@ -180,14 +180,14 @@ export default function IncidentHistory({ reports = [] }) {
   };
 
   return (
-    <div className="space-y-5">
-      <div>
+    <div className="flex h-full min-h-0 w-full flex-col gap-4">
+      <div className="shrink-0">
         <h1 className="text-xl font-bold text-slate-800">Incident History</h1>
         <p className="text-sm text-slate-500 mt-0.5">Archive of all resolved, closed, and cancelled incidents.</p>
       </div>
 
       {/* Filters */}
-      <div className="bg-white border border-slate-200 rounded-2xl shadow-sm px-5 py-4 flex flex-wrap gap-3 items-center">
+      <div className="flex shrink-0 flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
         <div className="relative">
           <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" /></svg>
           <input
@@ -227,10 +227,10 @@ export default function IncidentHistory({ reports = [] }) {
       </div>
 
       {/* Table */}
-      <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead>
+      <div className="min-h-0 flex-1 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="h-full overflow-auto">
+          <table className="min-w-[980px] w-full text-left">
+            <thead className="sticky top-0 z-10">
               <tr className="bg-slate-50 border-b border-slate-200">
                 {["Incident ID", "Type", "Location", "Reporter", "Date & Time", "Priority", "Status"].map(h => (
                   <th key={h} className="px-5 py-3.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">{h}</th>

@@ -13,6 +13,7 @@ import Contact from "./pages/Contact";
 import ForgotPassword from "./pages/ForgotPassword";
 import IncidentMap from "./pages/IncidentMap";
 import VerifyOTP from "./pages/VerifyOTP";
+import { clearDashboardNavigationState } from "./utils/dashboardSession.js";
 
 const getAgencyRoute = (user) => {
   if (user?.role === "admin") return "/admindashboard";
@@ -67,6 +68,7 @@ function PublicRoute({ children }) {
     localStorage.removeItem("user");
     sessionStorage.removeItem("token");
     sessionStorage.removeItem("user");
+    clearDashboardNavigationState();
     clearAdminCache();
   }, []);
 

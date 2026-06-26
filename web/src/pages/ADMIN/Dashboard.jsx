@@ -30,6 +30,7 @@ import {
 import api from "../../api/axios.js";
 import socket from "../../api/socket.js";
 import { getValidCalbayogBarangay } from "../../utils/barangays.js";
+import { clearDashboardNavigationState } from "../../utils/dashboardSession.js";
 
 const STATUS_OPTIONS = [
   { value: "pending", label: "Pending" },
@@ -724,6 +725,7 @@ export default function AdminDashboard() {
     localStorage.removeItem("user");
     sessionStorage.removeItem("token");
     sessionStorage.removeItem("user");
+    clearDashboardNavigationState();
     clearAdminCache();
     navigate("/login");
   };
