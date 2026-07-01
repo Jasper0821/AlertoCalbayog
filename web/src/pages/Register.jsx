@@ -55,28 +55,28 @@ function Register() {
  };
 
  return (
- <main className="relative flex flex-col min-h-screen bg-[#f4f7fc] font-sans antialiased transition-colors duration-300">
+ <main className="relative flex h-dvh flex-col overflow-hidden bg-[#f4f7fc] font-sans antialiased transition-colors duration-300">
  <Navbar />
 
- <div className="flex-1 flex items-center justify-center px-4 pt-32 pb-20 relative">
+ <div className="relative flex min-h-0 flex-1 items-center justify-center px-4 pt-16 pb-1">
  {/* Background Decorative Elements */}
  <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(12,49,102,0.03),transparent_40%)]" />
  <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgba(239,68,68,0.02),transparent_40%)]" />
 
  {/* Unified Two-Panel Registration Box */}
- <section className="relative w-full max-w-4xl overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-xl flex flex-col md:flex-row z-10">
+ <section className="relative z-10 flex max-h-full w-full max-w-3xl overflow-hidden rounded-xl border border-slate-200/60 bg-white shadow-xl md:flex-row">
  
  {/* Left Panel: Responder Network Sidebar */}
- <div className="w-full md:w-[320px] shrink-0 bg-[#0a1e3f] text-white p-8 flex flex-col justify-between relative">
+ <div className="relative hidden w-full shrink-0 bg-[#0a1e3f] p-4 text-white md:flex md:w-[220px] md:flex-col md:justify-between">
  <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.03),transparent_60%)]" />
  
  <div className="relative z-10">
  {/* Logo */}
- <div className="mb-6 flex items-center gap-3">
+ <div className="mb-3 flex items-center gap-2.5">
  <img
  src="/logo.png"
  alt="Alerto Calbayog Logo"
- className="w-14 h-14 object-contain shrink-0"
+ className="h-9 w-9 shrink-0 object-contain"
  />
  <div>
  <p className="text-[9px] font-black uppercase tracking-[0.2em] text-blue-400">Official Portal</p>
@@ -84,17 +84,17 @@ function Register() {
  </div>
  </div>
  
- <h2 className="text-2xl font-bold tracking-tight text-white mb-4">
+ <h2 className="mb-2 text-lg font-bold tracking-tight text-white">
  Responder Network
  </h2>
  
- <p className="text-slate-300 text-sm leading-relaxed">
+ <p className="text-[11px] leading-relaxed text-slate-300">
  Joining the Alerto Calbayog network connects you directly with the City's Command and Control Center. Secure verification is required for all personnel.
  </p>
  </div>
 
  {/* Sidebar bottom icons */}
- <div className="space-y-4 pt-12 md:pt-0 relative z-10">
+ <div className="relative z-10 hidden space-y-2 pt-6 lg:block">
  <div className="flex items-center gap-3 text-left">
  <span className="text-red-500 mt-0.5">
  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
@@ -118,17 +118,17 @@ function Register() {
  </div>
 
  {/* Right Panel: Registration Form */}
- <div className="flex-1 p-8 bg-white">
- <div className="text-left mb-6">
- <h1 className="text-xl font-bold text-[#0a1e3f]">
+ <div className="max-h-full flex-1 overflow-hidden bg-white p-4 sm:p-5">
+ <div className="mb-3 text-left">
+ <h1 className="text-base font-bold text-[#0a1e3f]">
  Personal Information
  </h1>
- <p className="text-[13px] text-slate-500 mt-1">
+ <p className="mt-0.5 text-[12px] text-slate-500">
  Provide your official legal details for background verification.
  </p>
  </div>
 
- <form className="space-y-4" onSubmit={handleSubmit}>
+ <form className="space-y-2" onSubmit={handleSubmit}>
  
  {/* Full Legal Name */}
  <div className="grid gap-1.5 text-left">
@@ -136,7 +136,7 @@ function Register() {
  Full Name
  </label>
  <input
- className="h-11 w-full rounded-lg border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 placeholder:text-slate-300 shadow-sm"
+ className="h-8 w-full rounded-lg border border-slate-200 bg-white px-3 text-[12px] text-slate-900 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 placeholder:text-slate-300 shadow-sm"
  id="fullName"
  name="fullName"
  type="text"
@@ -146,13 +146,13 @@ function Register() {
  </div>
 
  {/* Contact Info (2 columns) */}
- <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+ <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
  <div className="grid gap-1.5 text-left">
  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 ml-0.5" htmlFor="phoneNumber">
  Contact Number
  </label>
  <input
- className="h-11 w-full rounded-lg border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 placeholder:text-slate-300 shadow-sm"
+ className="h-8 w-full rounded-lg border border-slate-200 bg-white px-3 text-[12px] text-slate-900 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 placeholder:text-slate-300 shadow-sm"
  id="phoneNumber"
  name="phoneNumber"
  type="tel"
@@ -165,7 +165,7 @@ function Register() {
  Email Address
  </label>
  <input
- className="h-11 w-full rounded-lg border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 placeholder:text-slate-300 shadow-sm"
+ className="h-8 w-full rounded-lg border border-slate-200 bg-white px-3 text-[12px] text-slate-900 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 placeholder:text-slate-300 shadow-sm"
  id="email"
  name="email"
  type="email"
@@ -183,7 +183,7 @@ function Register() {
  <select
  id="agency"
  name="agency"
- className="h-11 w-full rounded-lg border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 shadow-sm cursor-pointer"
+ className="h-8 w-full cursor-pointer rounded-lg border border-slate-200 bg-white px-3 text-[12px] text-slate-900 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 shadow-sm"
  required
  >
  <option value="">Select Agency</option>
@@ -193,14 +193,14 @@ function Register() {
  </div>
 
  {/* Password Fields (2 columns) */}
- <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+ <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
  <div className="grid gap-1.5 text-left">
  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 ml-0.5" htmlFor="password">
  Password
  </label>
  <div className="relative flex items-center">
  <input
- className="h-11 w-full rounded-lg border border-slate-200 bg-white pl-4 pr-10 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 placeholder:text-slate-300 shadow-sm"
+ className="h-8 w-full rounded-lg border border-slate-200 bg-white pl-3 pr-10 text-[12px] text-slate-900 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 placeholder:text-slate-300 shadow-sm"
  id="password"
  name="password"
  type={showPassword ?"text" :"password"}
@@ -234,7 +234,7 @@ function Register() {
  </label>
  <div className="relative flex items-center">
  <input
- className="h-11 w-full rounded-lg border border-slate-200 bg-white pl-4 pr-10 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 placeholder:text-slate-300 shadow-sm"
+ className="h-8 w-full rounded-lg border border-slate-200 bg-white pl-3 pr-10 text-[12px] text-slate-900 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 placeholder:text-slate-300 shadow-sm"
  id="confirmPassword"
  name="confirmPassword"
  type={showConfirmPassword ?"text" :"password"}
@@ -265,19 +265,19 @@ function Register() {
  </div>
 
  {error && (
- <p className="text-xs font-bold text-red-600 bg-red-50 p-3.5 rounded-xl border border-red-100">
+ <p className="rounded-lg border border-red-100 bg-red-50 p-2 text-[11px] font-bold text-red-600">
  {error}
  </p>
  )}
 
  {successMessage && (
- <p className="text-xs font-bold text-emerald-600 bg-emerald-50 p-3.5 rounded-xl border border-emerald-100">
+ <p className="rounded-lg border border-emerald-100 bg-emerald-50 p-2 text-[11px] font-bold text-emerald-600">
  {successMessage}
  </p>
  )}
 
  {/* User Agreement Checkbox */}
- <div className="flex items-start gap-3 text-left py-2 border-t border-slate-100 mt-4">
+ <div className="mt-1 flex items-start gap-2 border-t border-slate-100 py-1.5 text-left">
  <input
  className="mt-0.5 h-4.5 w-4.5 rounded border-slate-200 bg-white accent-blue-600 cursor-pointer shrink-0"
  id="userAgreement"
@@ -287,16 +287,16 @@ function Register() {
  onChange={(e) => setIsAgreementAccepted(e.target.checked)}
  required
  />
- <label className="text-xs font-semibold text-slate-500 cursor-pointer leading-snug" htmlFor="userAgreement">
+ <label className="cursor-pointer text-[11px] font-semibold leading-snug text-slate-500" htmlFor="userAgreement">
  I agree to the <button type="button" onClick={() => setShowTermsModal(true)} className="text-red-600 hover:underline font-bold transition-all duration-150 active:scale-[0.98] transform inline-block">User Agreement</button> and consent to secure data verification.
  </label>
  </div>
 
  {/* Red Continue Button */}
- <div className="pt-2">
+ <div>
  <button
  type="submit"
- className="w-full flex h-11 items-center justify-center rounded-lg bg-[#b91c1c] hover:bg-[#a11818] text-white text-[13px] font-bold uppercase tracking-wider gap-2 shadow-md transition-all duration-150 active:scale-[0.98] transform disabled:opacity-50 disabled:cursor-not-allowed"
+ className="flex h-9 w-full items-center justify-center gap-2 rounded-lg bg-[#b91c1c] text-[12px] font-bold uppercase tracking-wider text-white shadow-md transition-all duration-150 hover:bg-[#a11818] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
  disabled={isSubmitting || !isAgreementAccepted}
  >
  {isSubmitting ? (
@@ -313,18 +313,17 @@ function Register() {
  </button>
  </div>
 
+ <p className="text-center text-xs font-semibold text-slate-500">
+ Already registered?{""}
+ <Link className="ml-1 inline-block text-blue-600 transition-all duration-150 hover:text-blue-700 hover:underline active:scale-95" to="/login">
+ Sign In
+ </Link>
+ </p>
+
  </form>
  </div>
  </section>
  </div>
-
- {/* Back to Login Link */}
- <p className="pb-8 text-center text-sm font-semibold text-slate-500 z-10 -mt-10">
- Already registered?{""}
- <Link className="text-blue-600 hover:text-blue-700 hover:underline transition-all duration-150 active:scale-95 transform inline-block" to="/login">
- Sign In
- </Link>
- </p>
 
  {/* USER AGREEMENT MODAL */}
  {showTermsModal && (

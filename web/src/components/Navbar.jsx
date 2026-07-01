@@ -22,7 +22,7 @@ export function Navbar() {
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-[100] bg-[#0f172a] backdrop-blur-xl border-b border-slate-800 transition-all duration-300">
-      <div className="mx-auto flex h-20 items-center justify-between px-6 sm:px-10 max-w-7xl">
+      <div className="mx-auto flex h-16 items-center justify-between px-6 sm:px-10 max-w-7xl">
 
         {/* Logo */}
         <Link to="/" className="flex items-center gap-2.5 transition-transform duration-150 active:scale-[0.97] transform" onClick={() => setIsOpen(false)}>

@@ -132,3 +132,39 @@
 .alert-badge-slide {
   animation: alert-badge-slide 0.4s ease both;
 }
+
+/* Sonar Pulse Wave Effect for Leaflet Map Markers */
+@keyframes map-sonar-wave {
+  0% {
+    transform: scale(0.6);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(2.8);
+    opacity: 0;
+  }
+}
+
+.map-sonar-wave {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 44px;
+  height: 44px;
+  margin-top: -22px;
+  margin-left: -22px;
+  border-radius: 50%;
+  background-color: currentColor;
+  opacity: 0;
+  animation: map-sonar-wave 2s infinite ease-out;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.no-padding-layout {
+  padding: 0 !important;
+  margin: 0 !important;
+  max-width: 100% !important;
+  height: 100% !important;
+  width: 100% !important;
+}
