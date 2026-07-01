@@ -134,7 +134,7 @@ function LandingPage() {
  });
 
  return (
- <main className="relative min-h-screen flex flex-col bg-white font-sans text-slate-900 antialiased transition-colors duration-300">
+ <main className="relative flex h-dvh flex-col overflow-hidden bg-white font-sans text-slate-900 antialiased transition-colors duration-300">
 
  {/* Splash screen — unmounts after done */}
  {!splashDone && (
@@ -149,28 +149,28 @@ function LandingPage() {
  <Navbar />
 
  {/* Hero Section with dotted pattern */}
- <div className="relative flex-1 pt-32 pb-20 px-6 sm:px-10 flex flex-col items-center justify-center">
+ <div className="relative flex min-h-0 flex-1 flex-col items-center justify-center overflow-hidden px-4 pb-4 pt-20 sm:px-8">
  {/* Dotted Background */}
  <div className="absolute inset-0 bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:24px_24px] opacity-70 pointer-events-none" />
 
- <div className="relative w-full max-w-7xl mx-auto flex flex-col lg:flex-row items-center gap-12 lg:gap-8">
+ <div className="relative w-full max-w-5xl mx-auto flex flex-col lg:flex-row items-center gap-4 lg:gap-7">
 
  {/* Left Column */}
- <div className="flex-1 text-center lg:text-left pt-10">
- <h1 className="text-[40px] sm:text-[50px] lg:text-[56px] font-bold leading-[1.1] tracking-tight text-[#0a1e3f] mb-6">
+ <div className="flex-1 text-center lg:text-left">
+ <h1 className="text-[28px] sm:text-[34px] lg:text-[42px] font-bold leading-[1.04] tracking-tight text-[#0a1e3f] mb-3">
  Calbayog's Unified <br className="hidden lg:block" />
  Emergency Response <br className="hidden lg:block" />
  System
  </h1>
 
- <p className="text-[17px] leading-relaxed text-[#5f6368] max-w-xl mx-auto lg:mx-0 mb-10">
+ <p className="text-[13px] sm:text-[14px] leading-relaxed text-[#5f6368] max-w-md mx-auto lg:mx-0 mb-5">
  Providing the citizens of Calbayog City with a direct, high-speed connection to first responders. Real-time monitoring and coordinated dispatch for a safer community.
  </p>
 
- <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4">
+ <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-3">
  <Link
  to="/register"
- className="flex items-center justify-center gap-2 h-12 px-8 rounded-md bg-[#0a1e3f] text-[15px] font-bold text-white hover:bg-[#07152c] transition-all duration-150 active:scale-95 transform w-full sm:w-auto shadow-lg shadow-[#0a1e3f]/20"
+ className="flex items-center justify-center gap-2 h-9 px-5 rounded-md bg-[#0a1e3f] text-[12px] font-bold text-white hover:bg-[#07152c] transition-all duration-150 active:scale-95 transform w-full sm:w-auto shadow-lg shadow-[#0a1e3f]/20"
  >
  Register for Alerts
  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -180,7 +180,7 @@ function LandingPage() {
  </Link>
  <Link
  to="/about"
- className="flex items-center justify-center h-12 px-8 rounded-md bg-white border border-[#e5e7eb] text-[15px] font-bold text-[#0a1e3f] hover:bg-slate-50 transition-all duration-150 active:scale-95 transform w-full sm:w-auto"
+ className="flex items-center justify-center h-9 px-5 rounded-md bg-white border border-[#e5e7eb] text-[12px] font-bold text-[#0a1e3f] hover:bg-slate-50 transition-all duration-150 active:scale-95 transform w-full sm:w-auto"
  >
  Learn More
  </Link>
@@ -188,12 +188,12 @@ function LandingPage() {
  </div>
 
  {/* Right Column (Image) */}
- <div className="flex-1 w-full max-w-2xl lg:max-w-none">
- <div className="relative rounded-2xl overflow-hidden shadow-2xl shadow-slate-900/20 border border-slate-200">
+ <div className="flex-1 w-full max-w-[440px] lg:max-w-[500px]">
+ <div className="relative rounded-xl overflow-hidden shadow-2xl shadow-slate-900/20 border border-slate-200">
  <img
  src="/command_center.png"
  alt="Emergency Command Center"
- className="w-full h-auto object-cover rounded-2xl block"
+ className="block h-[145px] w-full object-cover sm:h-[180px] md:h-[220px] lg:h-[300px]"
  onError={(e) => {
  e.target.onerror = null;
  e.target.src ="https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&q=80&w=1200&h=800";

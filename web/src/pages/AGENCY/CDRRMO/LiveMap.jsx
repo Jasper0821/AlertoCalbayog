@@ -86,8 +86,9 @@ function buildDivIcon(cfg) {
     className: "",
     html: `
       <div style="position:relative;width:44px;height:56px;filter:drop-shadow(0 4px 10px rgba(0,0,0,0.4));cursor:pointer;">
+        <div class="map-sonar-wave" style="color: ${cfg.color}; position: absolute; left: 22px; top: 20px;"></div>
         <svg viewBox="0 0 44 56" xmlns="http://www.w3.org/2000/svg"
-             style="position:absolute;top:0;left:0;width:44px;height:56px;">
+             style="position:absolute;top:0;left:0;width:44px;height:56px;z-index:1;">
           <path d="M22 2C12.06 2 4 10.06 4 20c0 7.5 5.5 15 10.5 21C18.5 45.5 22 51 22 51s3.5-5.5 7.5-10C34.5 35 40 27.5 40 20C40 10.06 31.94 2 22 2z"
             fill="${cfg.color}" stroke="white" stroke-width="2.5"/>
           ${cfg.svg}
@@ -100,6 +101,7 @@ function buildDivIcon(cfg) {
 }
 
 export default function LiveMap({ reports = [] }) {
+  // Filter out resolved/closed reports — they disappear from live map once resolved
   const safeReports = (Array.isArray(reports) ? reports : []).filter(r => {
     const status = (r.status || "").toLowerCase();
     return !["resolved", "closed", "responded", "cancelled"].includes(status);
@@ -132,38 +134,32 @@ export default function LiveMap({ reports = [] }) {
   }))].filter(t => TYPE_MAP_CONFIG[t]);
 
   return (
-    <div className="space-y-5">
-      <div>
-        <h1 className="text-xl font-bold text-slate-800">Live Map</h1>
-        <p className="text-sm text-slate-500 mt-0.5">Real-time geospatial view of CDRRMO emergency incidents.</p>
+    <div className="h-full w-full overflow-hidden bg-slate-100">
+      {/* Map Toolbar */}
+      <div className="hidden items-center justify-between px-5 py-3 border-b border-slate-100 shrink-0 flex-wrap gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
+          {(presentTypes.length > 0 ? presentTypes : ["fire", "medical", "flood"]).map(type => {
+            const cfg = TYPE_MAP_CONFIG[type] || TYPE_MAP_CONFIG.others;
+            return (
+              <div key={type} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border"
+                style={{ background: cfg.legendBg, borderColor: cfg.legendBorder, color: cfg.legendText }}>
+                <span style={{ width: 8, height: 8, borderRadius: "50%", background: cfg.color, display: "inline-block" }} />
+                {cfg.label}
+              </div>
+            );
+          })}
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="flex items-center gap-1.5 text-[11px] font-black text-emerald-600 tracking-wider uppercase">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            Live GPS Sync
+          </span>
+        </div>
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col">
-        {/* Map Toolbar */}
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 shrink-0 flex-wrap gap-3">
-          <div className="flex items-center gap-3 flex-wrap">
-            {(presentTypes.length > 0 ? presentTypes : ["fire", "medical", "flood"]).map(type => {
-              const cfg = TYPE_MAP_CONFIG[type] || TYPE_MAP_CONFIG.others;
-              return (
-                <div key={type} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border"
-                  style={{ background: cfg.legendBg, borderColor: cfg.legendBorder, color: cfg.legendText }}>
-                  <span style={{ width: 8, height: 8, borderRadius: "50%", background: cfg.color, display: "inline-block" }} />
-                  {cfg.label}
-                </div>
-              );
-            })}
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="flex items-center gap-1.5 text-[11px] font-black text-emerald-600 tracking-wider uppercase">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              Live GPS Sync
-            </span>
-          </div>
-        </div>
-
-        {/* Leaflet Map */}
-        <div className="relative bg-slate-100" style={{ height: "520px" }}>
-          <MapContainer center={cityCenter} zoom={14} className="h-full w-full z-10" zoomControl={false}>
+      {/* Leaflet Map */}
+      <div className="relative h-full w-full bg-slate-100">
+        <MapContainer center={cityCenter} zoom={14} className="h-full w-full z-10" zoomControl={false}>
             <MapResizeBridge />
             <TileLayer
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -242,20 +238,19 @@ export default function LiveMap({ reports = [] }) {
           </MapContainer>
 
           {/* Area label */}
-          <div className="absolute top-4 left-4 bg-white/95 backdrop-blur-sm border border-slate-200 rounded-xl px-3.5 py-2.5 shadow-sm z-[500]">
+          <div className="hidden absolute top-4 left-4 bg-white/95 backdrop-blur-sm border border-slate-200 rounded-xl px-3.5 py-2.5 shadow-sm z-[500]">
             <p className="text-xs font-bold text-slate-700">Calbayog City, Samar</p>
             <p className="text-[10px] text-slate-400 mt-0.5">CDRRMO Response Area</p>
           </div>
 
           {/* Incident count badge */}
           {safeReports.length > 0 && (
-            <div className="absolute top-4 right-4 bg-white/95 backdrop-blur-sm border border-slate-200 rounded-xl px-3.5 py-2.5 shadow-sm z-[500] flex items-center gap-2">
+            <div className="hidden absolute top-4 right-4 bg-white/95 backdrop-blur-sm border border-slate-200 rounded-xl px-3.5 py-2.5 shadow-sm z-[500] items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
               <p className="text-xs font-bold text-slate-700">{safeReports.length} Active Incident{safeReports.length !== 1 ? "s" : ""}</p>
             </div>
           )}
         </div>
-      </div>
     </div>
   );
 }

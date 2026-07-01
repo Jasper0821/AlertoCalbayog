@@ -1,5 +1,4 @@
 import { useState, useEffect } from"react";
-import { Navbar } from"../components/Navbar";
 import { MapContainer, TileLayer, Marker, Popup, ZoomControl, useMap } from"react-leaflet";
 import L from"leaflet";
 import"leaflet/dist/leaflet.css";
@@ -98,12 +97,8 @@ function IncidentMap() {
  });
 
  return (
- <main className="relative flex flex-col h-screen bg-slate-50 font-sans antialiased transition-colors duration-300 overflow-hidden">
- <div className="shrink-0 relative z-50">
- <Navbar />
- </div>
- 
- <div className="flex-1 w-full relative z-0 mt-16 sm:mt-24">
+ <main className="relative h-dvh overflow-hidden bg-slate-50 font-sans antialiased transition-colors duration-300">
+ <div className="absolute inset-0 z-0">
  <MapContainer center={cityCenter} zoom={13} className="h-full w-full" zoomControl={false}>
  <MapResizeBridge refreshKey="incident-map" />
  <TileLayer

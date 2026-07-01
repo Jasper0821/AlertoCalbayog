@@ -491,12 +491,33 @@ function AdminDashboard() {
   return (
     <div className="flex h-screen bg-slate-50 font-sans antialiased overflow-hidden">
 
-      {/* Mobile overlay */}
-      {isSidebarOpen && (
+      {/* Mobile overlay — for non-live-map pages */}
+      {isSidebarOpen && activeNav !== "live-map" && (
         <div
           className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm lg:hidden"
           onClick={() => setIsSidebarOpen(false)}
         />
+      )}
+
+      {/* Overlay backdrop — for live-map sidebar */}
+      {isSidebarOpen && activeNav === "live-map" && (
+        <div
+          className="fixed inset-0 z-[55] bg-black/30 backdrop-blur-sm"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+
+      {/* Floating burger button — only visible on live map */}
+      {activeNav === "live-map" && (
+        <button
+          onClick={() => setIsSidebarOpen(prev => !prev)}
+          title="Toggle Sidebar"
+          className="fixed top-4 left-4 z-[60] flex items-center justify-center w-10 h-10 rounded-xl bg-[#0a1e3f] text-white shadow-lg hover:bg-[#1a3a6b] active:scale-95 transition-all"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </button>
       )}
 
       {/* ══════════════ CUSTOM LOGOUT MODAL ══════════════ */}
@@ -580,8 +601,10 @@ function AdminDashboard() {
 
       {/* ══════════════ SIDEBAR ══════════════ */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex flex-col w-64 transition-transform duration-300 ease-in-out lg:static lg:translate-x-0 lg:shadow-none ${
-          isSidebarOpen ? "translate-x-0" : "-translate-x-full"
+        className={`fixed inset-y-0 left-0 z-[60] flex flex-col w-64 transition-transform duration-300 ease-in-out ${
+          activeNav === "live-map"
+            ? isSidebarOpen ? "translate-x-0" : "-translate-x-full"
+            : `${isSidebarOpen ? "translate-x-0" : "-translate-x-full"} lg:static lg:translate-x-0 lg:shadow-none`
         }`}
         style={{ background: "#0a1e3f" }}
       >
@@ -664,7 +687,7 @@ function AdminDashboard() {
       <main className="flex-1 flex flex-col overflow-hidden bg-slate-50 min-w-0">
 
         {/* ── TOP NAVIGATION BAR ── */}
-        <header className="flex h-16 items-center justify-between bg-white border-b border-slate-200 px-4 lg:px-6 shrink-0 gap-4">
+        <header className={`${activeNav === "live-map" ? "hidden" : "flex"} h-16 items-center justify-between bg-white border-b border-slate-200 px-4 lg:px-6 shrink-0 gap-4`}>
 
           {/* Left: hamburger + page title + search */}
           <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -799,8 +822,16 @@ function AdminDashboard() {
         </header>
 
         {/* ── PAGE CONTENT ── */}
-        <section className="flex-1 overflow-y-auto p-5 lg:p-7">
-          <div className="max-w-screen-2xl mx-auto">
+        <section className={`flex-1 min-h-0 ${
+          activeNav === "live-map"
+            ? "overflow-hidden p-0 m-0 w-full h-full"
+            : "overflow-y-auto p-5 lg:p-7"
+        }`}>
+          <div className={
+            activeNav === "live-map"
+              ? "h-full w-full"
+              : "max-w-screen-2xl mx-auto"
+          }>
             {renderContent()}
           </div>
         </section>

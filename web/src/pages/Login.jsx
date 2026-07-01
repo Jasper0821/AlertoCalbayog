@@ -76,20 +76,20 @@ function Login() {
   };
 
   return (
-    <main className="relative flex flex-col min-h-screen bg-[#f4f7fc] font-sans antialiased transition-colors duration-300">
+    <main className="relative flex h-dvh flex-col overflow-hidden bg-[#f4f7fc] font-sans antialiased transition-colors duration-300">
       <Navbar />
 
-      <div className="flex-1 flex flex-col items-center justify-center px-4 relative mt-16 sm:mt-20">
+      <div className="relative flex min-h-0 flex-1 flex-col items-center justify-center px-4 pt-20 pb-3">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(12,49,102,0.03),transparent_40%)]" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgba(239,68,68,0.02),transparent_40%)]" />
 
-        <section className="relative w-full max-w-[420px] overflow-hidden rounded-2xl border border-slate-200/60 bg-white p-7 sm:p-8 shadow-[0_20px_50px_-20px_rgba(0,0,0,0.08)] z-10">
+        <section className="relative z-10 w-full max-w-[380px] overflow-hidden rounded-xl border border-slate-200/60 bg-white p-5 shadow-[0_20px_50px_-20px_rgba(0,0,0,0.08)] sm:p-6">
 
-          <div className="flex flex-col items-center mb-6 z-10 text-center">
+          <div className="z-10 mb-4 flex flex-col items-center text-center">
             <img
               src="/logo.png"
               alt="Alerto Calbayog Logo"
-              className="w-20 h-20 object-contain mb-1 transition-transform duration-300 hover:scale-105"
+              className="mb-1 h-14 w-14 object-contain transition-transform duration-300 hover:scale-105 sm:h-16 sm:w-16"
             />
             <h2 className="text-[17px] font-bold text-[#0a1e3f] tracking-tight mt-1">
               Alerto Calbayog
@@ -99,7 +99,7 @@ function Login() {
             </p>
           </div>
 
-          <form className="space-y-5" onSubmit={handleSubmit}>
+          <form className="space-y-3.5" onSubmit={handleSubmit}>
 
             <div className="grid gap-1.5 text-left">
               <label className="text-[12px] font-bold text-slate-600 ml-0.5" htmlFor="email">
@@ -114,7 +114,7 @@ function Login() {
                   </svg>
                 </span>
                 <input
-                  className="h-11 w-full rounded-lg border border-slate-200 bg-white pl-11 pr-5 text-[14px] text-slate-900 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 placeholder:text-slate-300 shadow-sm"
+                  className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-11 pr-5 text-[13px] text-slate-900 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 placeholder:text-slate-300 shadow-sm"
                   id="email"
                   name="email"
                   type="email"
@@ -146,7 +146,7 @@ function Login() {
                   </svg>
                 </span>
                 <input
-                  className="h-11 w-full rounded-lg border border-slate-200 bg-white pl-11 pr-11 text-[14px] text-slate-900 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 placeholder:text-slate-300 shadow-sm"
+                  className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-11 pr-11 text-[13px] text-slate-900 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 placeholder:text-slate-300 shadow-sm"
                   id="password"
                   name="password"
                   type={showPassword ? "text" : "password"}
@@ -184,7 +184,7 @@ function Login() {
 
             <div className="border border-dashed border-blue-500 rounded-lg p-[2.5px] transition-transform duration-150 active:scale-[0.98] transform">
               <button
-                className="w-full flex h-11 items-center justify-center rounded-[6px] bg-[#b91c1c] hover:bg-[#a11818] text-white text-[13px] font-bold uppercase tracking-wider gap-2 shadow-md transition-colors"
+                className="w-full flex h-10 items-center justify-center rounded-[6px] bg-[#b91c1c] hover:bg-[#a11818] text-white text-[12px] font-bold uppercase tracking-wider gap-2 shadow-md transition-colors"
                 type="submit"
                 disabled={isSubmitting}
               >
@@ -207,9 +207,9 @@ function Login() {
               </button>
             </div>
 
-            <div className="h-px bg-slate-100 my-6"></div>
+            <div className="h-px bg-slate-100 my-3"></div>
 
-            <div className="flex items-start gap-3 text-left">
+            <div className="hidden items-start gap-3 text-left sm:flex">
               <span className="text-red-600 mt-0.5 shrink-0">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
@@ -220,7 +220,7 @@ function Login() {
               </p>
             </div>
 
-            <p className="mt-5 text-center text-[12px] font-semibold text-slate-500">
+            <p className="mt-3 text-center text-[12px] font-semibold text-slate-500">
               New responder?{" "}
               <Link className="text-blue-600 hover:text-blue-700 hover:underline transition-all duration-150 active:scale-95 transform inline-block" to="/register">
                 Register
