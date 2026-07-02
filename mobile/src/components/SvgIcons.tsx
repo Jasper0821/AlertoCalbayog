@@ -437,4 +437,83 @@ export function HistoryIcon({ size = 22, color = "#0A1E3F" }: IconProps): React.
   );
 }
 
+/* ── 📞 Phone Icon ───────────────────────────────────────── */
+export function PhoneIcon({ size = 24, color = "#FFFFFF" }: IconProps): React.JSX.Element {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M22 16.92V19.92C22 20.48 21.56 20.93 21 20.97C20.68 20.99 20.35 21 20 21C10.61 21 3 13.39 3 4C3 3.65 3.01 3.32 3.03 3C3.07 2.44 3.52 2 4.08 2H7.08C7.56 2 7.97 2.35 8.05 2.82C8.14 3.37 8.3 3.91 8.52 4.42L6.91 6.03C8.31 8.57 10.43 10.69 12.97 12.09L14.58 10.48C15.09 10.7 15.63 10.86 16.18 10.95C16.65 11.03 17 11.44 17 11.92V14.92"
+        stroke={color}
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M22 16.92V19.92C22 20.48 21.56 20.93 21 20.97C20.68 20.99 20.35 21 20 21C10.61 21 3 13.39 3 4C3 3.65 3.01 3.32 3.03 3C3.07 2.44 3.52 2 4.08 2H7.08C7.56 2 7.97 2.35 8.05 2.82C8.14 3.37 8.3 3.91 8.52 4.42L6.91 6.03C8.31 8.57 10.43 10.69 12.97 12.09L14.58 10.48C15.09 10.7 15.63 10.86 16.18 10.95C16.65 11.03 17 11.44 17 11.92V14.92"
+        fill={color}
+        opacity={0.15}
+      />
+    </Svg>
+  );
+}
 
+/* ── ✉️ Message Icon ─────────────────────────────────────── */
+export function MessageIcon({ size = 24, color = "#FFFFFF" }: IconProps): React.JSX.Element {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M21 15C21 15.53 20.79 16.04 20.41 16.41C20.04 16.79 19.53 17 19 17H7L3 21V5C3 4.47 3.21 3.96 3.59 3.59C3.96 3.21 4.47 3 5 3H19C19.53 3 20.04 3.21 20.41 3.59C20.79 3.96 21 4.47 21 5V15Z"
+        stroke={color}
+        strokeWidth={1.8}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M21 15C21 15.53 20.79 16.04 20.41 16.41C20.04 16.79 19.53 17 19 17H7L3 21V5C3 4.47 3.21 3.96 3.59 3.59C3.96 3.21 4.47 3 5 3H19C19.53 3 20.04 3.21 20.41 3.59C20.79 3.96 21 4.47 21 5V15Z"
+        fill={color}
+        opacity={0.1}
+      />
+      <Path d="M8 9H16" stroke={color} strokeWidth={1.8} strokeLinecap="round" />
+      <Path d="M8 13H12" stroke={color} strokeWidth={1.8} strokeLinecap="round" />
+    </Svg>
+  );
+}
+
+/* ── 🛡️ Shield Check Icon ───────────────────────────────── */
+export function ShieldCheckIcon({ size = 24, color = "#0A1E3F" }: IconProps): React.JSX.Element {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M12 2L4 6V11C4 16.25 7.4 21.05 12 22C16.6 21.05 20 16.25 20 11V6L12 2Z"
+        stroke={color}
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M12 2L4 6V11C4 16.25 7.4 21.05 12 22C16.6 21.05 20 16.25 20 11V6L12 2Z"
+        fill={color}
+        opacity={0.1}
+      />
+      <Path
+        d="M9 12L11 14L15 10"
+        stroke={color}
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
+/* ── ✕ Close Circle Icon ────────────────────────────────── */
+export function CloseIcon({ size = 24, color = "#0A1E3F" }: IconProps): React.JSX.Element {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Circle cx="12" cy="12" r="10" stroke={color} strokeWidth={1.5} opacity={0.15} />
+      <Circle cx="12" cy="12" r="10" fill={color} opacity={0.05} />
+      <Path d="M15 9L9 15" stroke={color} strokeWidth={2} strokeLinecap="round" />
+      <Path d="M9 9L15 15" stroke={color} strokeWidth={2} strokeLinecap="round" />
+    </Svg>
+  );
+}
