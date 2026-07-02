@@ -546,7 +546,7 @@ function CdrrmoDashboard() {
 
             <div className="p-6 bg-[#f8fafc]">
               <p className="text-slate-600 text-sm font-medium leading-relaxed">
-                Are you sure you want to end your active shift session and logout from the command center?
+                Are you sure you want to end your shift session and logout from the command center?
               </p>
             </div>
 
@@ -561,7 +561,7 @@ function CdrrmoDashboard() {
                 onClick={confirmLogout}
                 className="px-5 py-2 rounded-lg text-[13px] font-black text-white bg-red-600 hover:bg-red-700 active:scale-95 transition-all uppercase tracking-wide shadow-lg shadow-red-600/20"
               >
-                Logout Shift
+                Logout
               </button>
             </div>
 
@@ -643,7 +643,7 @@ function CdrrmoDashboard() {
             <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
             </svg>
-            <span>Logout Terminal</span>
+            <span>Logout</span>
           </button>
         </div>
 

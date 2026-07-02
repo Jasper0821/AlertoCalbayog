@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, TouchableOpacity, Modal, Pressable, StyleSheet, DeviceEventEmitter } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, DeviceEventEmitter } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { ArrowLeftIcon, BellIcon, HistoryIcon } from "./SvgIcons";
 import { COLORS } from "../styles/colors";
 import api from "../api/axios";
 import { getToken } from "../utils/Storage";
+import EmergencyHotlineSheet from "./EmergencyHotlineSheet";
 
 interface Props {
   title: string;
@@ -56,12 +57,6 @@ export default function Header({
     };
   }, [showActions]);
 
-  const hotlines = [
-    { agency: "PNP CALBAYOG", number: "117 / 0905-4254-511", icon: "🚓" },
-    { agency: "BFP CALBAYOG", number: "911 / 0927-1279-488", icon: "🚒" },
-    { agency: "CDRRMO", number: "0917-1779-215", icon: "🚑" },
-  ];
-
   return (
     <>
       <View 
@@ -93,6 +88,8 @@ export default function Header({
           <TouchableOpacity 
             onPress={() => setModalVisible(true)}
             className="w-10 h-10 rounded-full bg-surface border border-border items-center justify-center"
+            accessibilityRole="button"
+            accessibilityLabel="Open emergency hotlines"
           >
             <Text className="text-primary text-lg">☰</Text>
           </TouchableOpacity>
@@ -124,61 +121,11 @@ export default function Header({
         )}
       </View>
 
-      <Modal
-        animationType="fade"
-        transparent={true}
+      {/* Emergency Hotline Bottom Sheet */}
+      <EmergencyHotlineSheet
         visible={isModalVisible}
-        onRequestClose={() => setModalVisible(false)}
-      >
-        <Pressable 
-          className="flex-1 bg-black/70 justify-center items-center px-6"
-          onPress={() => setModalVisible(false)}
-        >
-          <Pressable 
-            className="w-full bg-surface border border-border rounded-3xl p-6"
-            onPress={(e) => e.stopPropagation()}
-          >
-            <View className="flex-row justify-between items-center mb-6">
-              <View>
-                <Text className="text-primary text-2xl font-black">Emergency</Text>
-                <Text className="text-red text-xl font-bold">Hotlines</Text>
-              </View>
-              <TouchableOpacity 
-                onPress={() => setModalVisible(false)}
-                className="w-10 h-10 rounded-full bg-background border border-border items-center justify-center"
-              >
-                <Text className="text-primary text-lg">✕</Text>
-              </TouchableOpacity>
-            </View>
-
-            <View className="gap-4">
-              {hotlines.map((hotline, index) => (
-                <View 
-                  key={index} 
-                  className="flex-row items-center bg-background border border-border rounded-2xl p-4"
-                >
-                  <View className="w-12 h-12 rounded-full bg-surface items-center justify-center mr-4">
-                    <Text className="text-2xl">{hotline.icon}</Text>
-                  </View>
-                  <View className="flex-1">
-                    <Text className="text-textGray font-semibold mb-1">{hotline.agency}</Text>
-                    <Text className="text-text font-black tracking-wider">{hotline.number}</Text>
-                  </View>
-                </View>
-              ))}
-            </View>
-
-            <View className="mt-8">
-              <TouchableOpacity 
-                onPress={() => setModalVisible(false)}
-                className="w-full bg-primary py-4 rounded-full items-center"
-              >
-                <Text className="text-white font-bold text-lg">Close</Text>
-              </TouchableOpacity>
-            </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
+        onClose={() => setModalVisible(false)}
+      />
     </>
   );
 }
@@ -192,4 +139,3 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
 });
-

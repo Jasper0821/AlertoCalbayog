@@ -6,7 +6,7 @@ const contacts = [
  {
  agency:"CDRRMO",
  fullName:"City Disaster Risk Reduction & Management Office",
- number:"(055) 209-1234",
+ number:"0917 1779 215",
  email:"cdrrmo@calbayog.gov.ph",
  icon: (
  <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -20,7 +20,7 @@ const contacts = [
  {
  agency:"BFP",
  fullName:"Bureau of Fire Protection — Calbayog City",
- number:"(055) 209-5678",
+ number:"0927 1279 488",
  email:"bfp.calbayog@bfp.gov.ph",
  icon: (
  <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -35,7 +35,7 @@ const contacts = [
  {
  agency:"PNP",
  fullName:"Philippine National Police — Calbayog City Station",
- number:"(055) 209-9012",
+ number:"09985986571 / 09054254511",
  email:"pnp.calbayog@pnp.gov.ph",
  icon: (
  <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
