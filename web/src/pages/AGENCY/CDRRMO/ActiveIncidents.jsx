@@ -5,7 +5,7 @@ import {
   formatStreetPurok,
   getIncidentStatusInfo,
   normalizeIncidentStatus
-} from "./utils.js";
+} from "../../../utils/incidentFormatters.js";
 
 export default function ActiveIncidents({ reports = [] }) {
   // Show all unresolved reports so responders can progress incidents without opening the queue.

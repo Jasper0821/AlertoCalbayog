@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { STATUS_STYLES, TYPE_ICONS, getPriority, getIncidentId, PRIORITY_STYLES } from "./utils.js";
+import { STATUS_STYLES, TYPE_ICONS, getPriority, getIncidentId, PRIORITY_STYLES } from "../../../utils/incidentFormatters.js";
 
 export default function QueuingSystem({ reports = [], onStatusChange }) {
   const [resolvingIncidentId, setResolvingIncidentId] = useState(null);

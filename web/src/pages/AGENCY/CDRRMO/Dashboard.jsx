@@ -76,6 +76,10 @@ const NAV = [
   },
 ];
 
+function isCdrrmoReport(report) {
+  return (report.emergencyType || report.incidentType || report.type || "").toLowerCase() !== "crime";
+}
+
 function CdrrmoDashboard() {
   const [reports, setReports] = useState(() => {
     try {
@@ -208,10 +212,12 @@ function CdrrmoDashboard() {
     }
   };
 
-  const safeReports = (Array.isArray(reports) ? reports : []).map(r => ({
-    ...r,
-    status: statusOverrides[r._id] || r.status
-  }));
+  const safeReports = (Array.isArray(reports) ? reports : [])
+    .filter(isCdrrmoReport)
+    .map(r => ({
+      ...r,
+      status: statusOverrides[r._id] || r.status
+    }));
   const pendingCount = safeReports.filter(r => ["pending", "verified"].includes(r.status)).length;
   const activeCount = safeReports.filter(r => ["responding", "ongoing", "dispatching", "en_route", "active"].includes(r.status)).length;
 

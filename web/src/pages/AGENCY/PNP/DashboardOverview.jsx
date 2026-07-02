@@ -1,6 +1,6 @@
 import { MapContainer, TileLayer, CircleMarker } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
-import { STATUS_STYLES, TYPE_ICONS, getIncidentId } from "./utils.js";
+import { STATUS_STYLES, TYPE_ICONS, getIncidentId } from "../../../utils/incidentFormatters.js";
 
 const cityCenter = [12.068, 124.597];
 
