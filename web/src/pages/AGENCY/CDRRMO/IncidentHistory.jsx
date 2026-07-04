@@ -1,17 +1,40 @@
 import { useState } from "react";
-import { STATUS_STYLES, TYPE_ICONS, getPriority, getIncidentId, PRIORITY_STYLES } from "./utils.js";
+import { STATUS_STYLES, TYPE_ICONS, getPriority, getIncidentId, PRIORITY_STYLES } from "../../../utils/incidentFormatters.js";
+
+const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 export default function IncidentHistory({ reports = [] }) {
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
 
   const resolved = reports.filter(r => ["resolved", "closed", "cancelled", "responded"].includes((r.status || "").toLowerCase()));
+
+  const historyYears = Array.from(new Set(
+    resolved
+      .map(report => report.createdAt ? new Date(report.createdAt) : null)
+      .filter(date => date && !Number.isNaN(date.getTime()))
+      .map(date => date.getFullYear())
+  )).sort((a, b) => b - a);
+  const monthYears = historyYears.length > 0 ? historyYears : [new Date().getFullYear()];
+  const monthOptions = monthYears.flatMap(year =>
+    MONTH_NAMES.map((name, index) => ({
+      value: `${year}-${String(index).padStart(2, "0")}`,
+      label: `${name} ${year}`,
+    }))
+  );
+
+  const [monthFilter, setMonthFilter] = useState("all");
   
   const filtered = resolved.filter(r => {
     const type = (r.emergencyType || "").toLowerCase();
     const loc = typeof r.location === "string" ? r.location : (r.location?.name || "");
     const name = r.userId?.fullName || "";
+    const date = r.createdAt ? new Date(r.createdAt) : null;
+    const monthKey = date && !Number.isNaN(date.getTime())
+      ? `${date.getFullYear()}-${String(date.getMonth()).padStart(2, "0")}`
+      : "";
     if (typeFilter !== "all" && type !== typeFilter) return false;
+    if (monthFilter !== "all" && monthKey !== monthFilter) return false;
     if (search && !loc.toLowerCase().includes(search) && !name.toLowerCase().includes(search)) return false;
     return true;
   });
@@ -206,9 +229,18 @@ export default function IncidentHistory({ reports = [] }) {
           <option value="all">All Types</option>
           <option value="fire">Fire</option>
           <option value="medical">Medical</option>
-          <option value="police">Police</option>
           <option value="flood">Flood</option>
           <option value="accident">Accident</option>
+        </select>
+        <select
+          value={monthFilter}
+          onChange={e => setMonthFilter(e.target.value)}
+          className="px-3 py-2 text-xs border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-slate-700 cursor-pointer"
+        >
+          <option value="all">All Incidents</option>
+          {monthOptions.map(month => (
+            <option key={month.value} value={month.value}>{month.label}</option>
+          ))}
         </select>
         <div className="flex items-center gap-3 ml-auto shrink-0">
           <span className="text-xs text-slate-400">

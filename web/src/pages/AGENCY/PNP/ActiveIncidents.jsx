@@ -1,4 +1,4 @@
-import { STATUS_STYLES } from "./utils.js";
+import { STATUS_STYLES } from "../../../utils/incidentFormatters.js";
 
 export default function ActiveIncidents({ reports = [] }) {
   // Only show reports that are currently ACTIVE (being responded to)

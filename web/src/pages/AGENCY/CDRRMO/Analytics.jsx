@@ -1,7 +1,59 @@
 import { useState, useEffect } from "react";
-import { BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+import { BarChart, Bar, CartesianGrid, Cell, Pie, PieChart, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 
 import { getValidCalbayogBarangay } from "../../../utils/barangays.js";
+
+const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+function getReportBarangay(report) {
+  const rawLoc = report.location?.barangay || (typeof report.location === "string" ? report.location : report.location?.name || "");
+  return getValidCalbayogBarangay(rawLoc);
+}
+
+function isResolvedStatus(status) {
+  return ["resolved", "closed", "responded"].includes((status || "").toLowerCase());
+}
+
+function isHistoryStatus(status) {
+  return ["resolved", "closed", "cancelled", "responded"].includes((status || "").toLowerCase());
+}
+
+function isActiveStatus(status) {
+  return ["active", "responding", "ongoing", "dispatching", "en_route"].includes((status || "").toLowerCase());
+}
+
+function isCrimeReport(report) {
+  return (report.emergencyType || report.incidentType || report.type || "").toLowerCase() === "crime";
+}
+
+function isAccidentReport(report) {
+  const searchable = [
+    report.emergencyType,
+    report.incidentType,
+    report.type,
+    report.category,
+    report.description,
+  ].filter(Boolean).join(" ").toLowerCase();
+
+  return searchable.includes("accident") || searchable.includes("vehicular") || searchable.includes("collision");
+}
+
+function isCurrentMonth(report, now) {
+  const date = new Date(report.createdAt || report.date || "");
+  if (Number.isNaN(date.getTime())) return false;
+  return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth();
+}
+
+function getReportDate(report) {
+  const date = new Date(report.createdAt || report.date || "");
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function formatTypeLabel(type) {
+  return String(type || "Others")
+    .replace(/[_-]+/g, " ")
+    .replace(/\b\w/g, char => char.toUpperCase());
+}
 
 export default function Analytics({ reports = [] }) {
   const [animate, setAnimate] = useState(false);
@@ -12,86 +64,80 @@ export default function Analytics({ reports = [] }) {
   }, []);
 
   const safeReports = Array.isArray(reports) ? reports : [];
+  const cdrrmoReports = safeReports.filter(report => !isCrimeReport(report));
+  const now = new Date();
 
   // Live counts from actual data
-  const total = safeReports.length;
-  const responded = safeReports.filter(r =>
-    ["resolved", "closed", "responded"].includes((r.status || "").toLowerCase())
-  ).length;
-  const pending = safeReports.filter(r => (r.status || "").toLowerCase() === "pending").length;
-  const active = safeReports.filter(r => (r.status || "").toLowerCase() === "active").length;
+  const total = cdrrmoReports.length;
+  const responded = cdrrmoReports.filter(r => isResolvedStatus(r.status)).length;
+  const pending = cdrrmoReports.filter(r => (r.status || "").toLowerCase() === "pending").length;
+  const active = cdrrmoReports.filter(r => isActiveStatus(r.status)).length;
   const resolutionRate = total > 0 ? Math.round((responded / total) * 100) : 0;
+  const historyReports = cdrrmoReports.filter(r => isHistoryStatus(r.status));
+  const currentMonthReports = cdrrmoReports.filter(report => isCurrentMonth(report, now));
+  const latestReportDate = cdrrmoReports
+    .map(getReportDate)
+    .filter(Boolean)
+    .sort((a, b) => b - a)[0] || now;
+  const latestMonthReports = cdrrmoReports.filter(report => {
+    const date = getReportDate(report);
+    return date && date.getFullYear() === latestReportDate.getFullYear() && date.getMonth() === latestReportDate.getMonth();
+  });
+  const monthlySourceReports = currentMonthReports.length > 0 ? currentMonthReports : latestMonthReports;
+  const monthlySourceDate = currentMonthReports.length > 0 ? now : latestReportDate;
+  const monthlySourceLabel = `${MONTH_NAMES[monthlySourceDate.getMonth()]} ${monthlySourceDate.getFullYear()}`;
 
-  // Barangay breakdown from actual data
-  const barangayMap = {};
-  safeReports.forEach(r => {
-    const rawLoc = r.location?.barangay || (typeof r.location === "string" ? r.location : r.location?.name || "");
-    const bgy = getValidCalbayogBarangay(rawLoc);
-    if (bgy) {
-      barangayMap[bgy] = (barangayMap[bgy] || 0) + 1;
+  // Monthly trend from actual report dates, rolling last 6 months
+  const MONTHLY = Array.from({ length: 6 }).map((_, i) => {
+    const date = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
+    return {
+      key: `${date.getFullYear()}-${date.getMonth()}`,
+      month: MONTH_NAMES[date.getMonth()],
+      value: 0,
+    };
+  });
+  const monthMap = new Map(MONTHLY.map(month => [month.key, month]));
+  cdrrmoReports.forEach(report => {
+    const date = new Date(report.createdAt || report.date || "");
+    if (Number.isNaN(date.getTime())) return;
+    const key = `${date.getFullYear()}-${date.getMonth()}`;
+    if (monthMap.has(key)) {
+      monthMap.get(key).value += 1;
     }
   });
-  const barangayData = Object.entries(barangayMap)
-    .map(([name, count]) => ({ name, count }))
+  const maxVal = Math.max(...MONTHLY.map(m => m.value), 1);
+
+  // Incident type breakdown from Incident History records
+  const typeColors = ["#dc2626", "#0ea5e9", "#10b981", "#f59e0b", "#6366f1", "#64748b"];
+  const typeMap = {};
+  historyReports.forEach(report => {
+    const type = formatTypeLabel(report.emergencyType || report.incidentType || report.type || "Others");
+    typeMap[type] = (typeMap[type] || 0) + 1;
+  });
+  const incidentTypes = Object.entries(typeMap)
+    .map(([label, count], index) => ({ label, count, color: typeColors[index % typeColors.length] }))
     .sort((a, b) => b.count - a.count)
     .slice(0, 6);
-  const maxBgy = Math.max(...barangayData.map(b => b.count), 1);
-
-  // Monthly mock trend (based on real total for current month)
-  const MONTHLY = [
-    { month: "Jan", value: 14 },
-    { month: "Feb", value: 19 },
-    { month: "Mar", value: 11 },
-    { month: "Apr", value: 23 },
-    { month: "May", value: 17 },
-    { month: "Jun", value: Math.max(total, 5) },
-  ];
-  const maxVal = Math.max(...MONTHLY.map(m => m.value));
-
-  // Incident sub-type mock breakdown
-  const incidentTypes = [
-    { label: "Fire Emergency",         count: 42, color: "bg-red-600",       bar: "#dc2626" },
-    { label: "Medical / Rescue",       count: 36, color: "bg-emerald-500",   bar: "#10b981" },
-    { label: "Disaster Response",      count: 19, color: "bg-amber-500",     bar: "#f59e0b" },
-  ];
   const incidentTotal = incidentTypes.reduce((s, c) => s + c.count, 0);
 
-  // Response time mock data
-  const respTable = [
-    { barangay: "Poblacion",    incidents: 23, avgTime: "5:12", resolved: 20, rate: 87 },
-    { barangay: "Hamorawon",    incidents: 18, avgTime: "6:44", resolved: 15, rate: 83 },
-    { barangay: "Nijaga",       incidents: 14, avgTime: "7:05", resolved: 11, rate: 78 },
-    { barangay: "Balud",        incidents: 11, avgTime: "5:55", resolved: 10, rate: 90 },
-    { barangay: "Dagum",        incidents: 9,  avgTime: "8:20", resolved: 7,  rate: 77 },
-  ];
+  // Low-to-high barangay accident ranking from fetched CDRRMO database data.
+  const accidentSourceReports = monthlySourceReports.filter(isAccidentReport);
+  const barangayAccidentSource = accidentSourceReports.length > 0 ? accidentSourceReports : monthlySourceReports;
+  const barangayAccidentMap = {};
+  barangayAccidentSource.forEach(report => {
+    const bgy = getReportBarangay(report);
+    if (bgy) {
+      barangayAccidentMap[bgy] = (barangayAccidentMap[bgy] || 0) + 1;
+    }
+  });
+  const barangayAccidentData = Object.entries(barangayAccidentMap)
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => a.count - b.count || a.name.localeCompare(b.name))
+    .slice(0, 6);
+  const accidentChartLabel = accidentSourceReports.length > 0 ? "accident reports" : "CDRRMO incidents";
 
   return (
     <div className="space-y-5 pb-10">
-      <div>
-        <h1 className="text-xl font-bold text-slate-800">Analytics</h1>
-        <p className="text-sm text-slate-500 mt-0.5">Emergency incident trends, response metrics, and barangay insights.</p>
-      </div>
-
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        {[
-          { label: "Total Reports",    value: total   || 128, sub: "All emergency reports",       color: "text-slate-800",   bg: "bg-white border-slate-200",             dot: "bg-slate-400" },
-          { label: "Pending",          value: pending || 8,   sub: "Awaiting dispatch",       color: "text-amber-700",   bg: "bg-amber-50 border-amber-200",          dot: "bg-amber-400" },
-          { label: "Active",           value: active  || 3,   sub: "Currently responding",    color: "text-indigo-700",  bg: "bg-indigo-50 border-indigo-200",        dot: "bg-indigo-400" },
-          { label: "Responded",        value: responded || 114, sub: "Resolved incidents",    color: "text-emerald-700", bg: "bg-emerald-50 border-emerald-200",      dot: "bg-emerald-400" },
-          { label: "Resolution Rate",  value: `${resolutionRate || 89}%`, sub: "Target: >85%", color: "text-blue-700", bg: "bg-blue-50 border-blue-200",             dot: "bg-blue-400" },
-        ].map(k => (
-          <div key={k.label} className={`border rounded-2xl p-4 shadow-sm ${k.bg} flex flex-col gap-2`}>
-            <div className="flex items-center gap-1.5">
-              <span className={`w-2 h-2 rounded-full shrink-0 ${k.dot}`} />
-              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider leading-none">{k.label}</p>
-            </div>
-            <p className={`text-3xl font-black ${k.color}`}>{k.value}</p>
-            <p className="text-[10px] text-slate-400">{k.sub}</p>
-          </div>
-        ))}
-      </div>
-
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
 
@@ -126,22 +172,54 @@ export default function Analytics({ reports = [] }) {
 
         {/* Incident Type Breakdown */}
         <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-5">
-          <h3 className="text-sm font-bold text-slate-800 mb-4">By Incident Type</h3>
-          <div className="space-y-3.5">
+          <h3 className="text-sm font-bold text-slate-800 mb-1">Incident Type Circle</h3>
+          <p className="text-[11px] text-slate-400 mb-4">Based on Incident History records</p>
+          {incidentTypes.length > 0 ? (
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={incidentTypes}
+                    dataKey="count"
+                    nameKey="label"
+                    innerRadius={52}
+                    outerRadius={84}
+                    paddingAngle={3}
+                    isAnimationActive={animate}
+                  >
+                    {incidentTypes.map(item => (
+                      <Cell key={item.label} fill={item.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    content={({ active, payload }) => {
+                      if (!active || !payload?.length) return null;
+                      const item = payload[0].payload;
+                      const pct = incidentTotal > 0 ? Math.round((item.count / incidentTotal) * 100) : 0;
+                      return (
+                        <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs shadow-lg">
+                          <p className="font-black text-slate-900">{item.label}</p>
+                          <p className="mt-1 font-semibold text-slate-600">{item.count} incidents ({pct}%)</p>
+                        </div>
+                      );
+                    }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <div className="flex h-64 items-center justify-center text-sm text-slate-400">No incident history type data yet.</div>
+          )}
+          <div className="mt-2 space-y-2">
             {incidentTypes.map(t => {
-              const pct = Math.round((t.count / incidentTotal) * 100);
+              const pct = incidentTotal > 0 ? Math.round((t.count / incidentTotal) * 100) : 0;
               return (
-                <div key={t.label}>
-                  <div className="flex items-center justify-between text-xs mb-1">
-                    <span className="font-medium text-slate-700 truncate">{t.label}</span>
-                    <span className="font-bold text-slate-800 shrink-0 ml-2">{t.count} <span className="text-slate-400 font-normal text-[10px]">({pct}%)</span></span>
+                <div key={t.label} className="flex items-center justify-between gap-3 text-xs">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: t.color }} />
+                    <span className="truncate font-medium text-slate-700">{t.label}</span>
                   </div>
-                  <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
-                    <div
-                      className="h-full rounded-full transition-all duration-1000 ease-out"
-                      style={{ width: `${animate ? pct : 0}%`, background: t.bar }}
-                    />
-                  </div>
+                  <span className="shrink-0 font-bold text-slate-800">{t.count} <span className="text-[10px] font-normal text-slate-400">({pct}%)</span></span>
                 </div>
               );
             })}
@@ -149,71 +227,38 @@ export default function Analytics({ reports = [] }) {
         </div>
       </div>
 
-      {/* Barangay Hotspot & Response Time Table */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-
-        {/* Barangay Hotspot Chart */}
+      {/* Barangay Accident Ranking */}
+      <div>
         <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-5">
-          <h3 className="text-sm font-bold text-slate-800 mb-1">Incidents by Barangay / Location</h3>
-          <p className="text-[11px] text-slate-400 mb-5">Top areas from geocoded report locations</p>
+          <div className="mb-5">
+            <h3 className="text-sm font-bold text-slate-800">Barangays With Most Accidents</h3>
+            <p className="text-[11px] text-slate-400 mt-0.5">Low-to-high barangay graph from database data ({monthlySourceLabel})</p>
+          </div>
           <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={barangayData} layout="vertical" margin={{ top: 8, right: 18, left: 28, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" horizontal={false} />
-                <XAxis type="number" allowDecimals={false} axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 12, fontWeight: 700 }} />
-                <YAxis type="category" dataKey="name" width={92} axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 11, fontWeight: 700 }} />
-                <Tooltip 
-                  cursor={{ fill: "rgba(15, 23, 42, 0.04)" }}
-                  content={({ active, payload, label }) => {
-                    if (!active || !payload?.length) return null;
-                    return (
-                      <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs shadow-lg">
-                        <p className="font-black text-slate-900">{label}</p>
-                        <p className="mt-1 font-semibold text-slate-600">{payload[0].value} incidents</p>
-                      </div>
-                    );
-                  }}
-                />
-                <Bar dataKey="count" fill="#475569" radius={[0, 8, 8, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* Response Time Table */}
-        <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-          <div className="px-5 py-4 border-b border-slate-100">
-            <h3 className="text-sm font-bold text-slate-800">Response Time by Barangay</h3>
-            <p className="text-[11px] text-slate-400 mt-0.5">Average dispatch response performance</p>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-200">
-                  {["Barangay", "Incidents", "Avg Time", "Resolved", "Rate"].map(h => (
-                    <th key={h} className="px-5 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {respTable.map(row => (
-                  <tr key={row.barangay} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-5 py-3.5 text-xs font-semibold text-slate-700">{row.barangay}</td>
-                    <td className="px-5 py-3.5 text-xs font-bold text-slate-800">{row.incidents}</td>
-                    <td className="px-5 py-3.5 text-xs text-slate-600">{row.avgTime} min</td>
-                    <td className="px-5 py-3.5 text-xs text-slate-600">{row.resolved}</td>
-                    <td className="px-5 py-3.5">
-                      <div className="flex items-center gap-2">
-                        <div className="h-1.5 w-14 bg-slate-100 rounded-full overflow-hidden">
-                          <div className="h-full bg-emerald-500 rounded-full transition-all duration-1000 ease-out" style={{ width: `${animate ? row.rate : 0}%` }} />
+            {barangayAccidentData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={barangayAccidentData} layout="vertical" margin={{ top: 8, right: 18, left: 28, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#dbeafe" horizontal={false} />
+                  <XAxis type="number" allowDecimals={false} axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 12, fontWeight: 700 }} />
+                  <YAxis type="category" dataKey="name" width={132} axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 11, fontWeight: 700 }} />
+                  <Tooltip
+                    cursor={{ fill: "rgba(37, 99, 235, 0.06)" }}
+                    content={({ active, payload, label }) => {
+                      if (!active || !payload?.length) return null;
+                      return (
+                        <div className="rounded-lg border border-blue-100 bg-white px-3 py-2 text-xs shadow-lg">
+                          <p className="font-black text-slate-900">{label}</p>
+                          <p className="mt-1 font-semibold text-blue-700">{payload[0].value} {accidentChartLabel} in {monthlySourceLabel}</p>
                         </div>
-                        <span className="text-xs font-bold text-emerald-700">{row.rate}%</span>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                      );
+                    }}
+                  />
+                  <Bar dataKey="count" fill="#2563eb" radius={[0, 8, 8, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex h-full items-center justify-center text-sm text-slate-400">No barangay data in the database yet.</div>
+            )}
           </div>
         </div>
       </div>

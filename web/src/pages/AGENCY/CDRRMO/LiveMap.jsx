@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { MapContainer, TileLayer, Marker, Popup, ZoomControl, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { STATUS_STYLES, getIncidentId } from "./utils.js";
+import { STATUS_STYLES, getIncidentId } from "../../../utils/incidentFormatters.js";
 
 const cityCenter = [12.068, 124.597];
 
