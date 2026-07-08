@@ -89,7 +89,7 @@ export default function HomeScreen({
 
   return (
     <View className="flex-1 bg-darkBlue">
-      <Header title="Alert Calbayog" showBack />
+      <Header title="Alerto Calbayog" showBack />
 
       <View className="flex-1 items-center justify-center px-8">
         {/* Top messaging */}

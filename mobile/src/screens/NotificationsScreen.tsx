@@ -30,6 +30,8 @@ interface NotificationItem {
   createdAt: string;
 }
 
+const INITIAL_DISPLAY_COUNT = 5;
+
 function getRelativeTime(dateString: string): string {
   const now = new Date();
   const date = new Date(dateString);
@@ -70,6 +72,8 @@ export default function NotificationsScreen(): React.JSX.Element {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState(false);
+  const [deletingAll, setDeletingAll] = useState(false);
 
   const fetchNotifications = async () => {
     try {
@@ -143,6 +147,37 @@ export default function NotificationsScreen(): React.JSX.Element {
     );
   };
 
+  const handleDeleteAllNotifications = () => {
+    Alert.alert(
+      "Delete All Notifications",
+      "Are you sure you want to delete all notifications? This action cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete All",
+          style: "destructive",
+          onPress: async () => {
+            setDeletingAll(true);
+            try {
+              const token = await getToken();
+              await api.delete("/notifications/delete-all", {
+                headers: { Authorization: `Bearer ${token}` },
+              });
+              setNotifications([]);
+              setExpanded(false);
+              DeviceEventEmitter.emit("notificationsRead");
+            } catch (error: any) {
+              console.log("Failed to delete all notifications:", error.response?.data || error.message);
+              Alert.alert("Error", "Failed to delete notifications. Please try again.");
+            } finally {
+              setDeletingAll(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   // Re-fetch every time the screen comes into focus (e.g. navigating back)
   useFocusEffect(
     useCallback(() => {
@@ -180,6 +215,13 @@ export default function NotificationsScreen(): React.JSX.Element {
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
+  // Determine which notifications to display based on expanded state
+  const hasMore = notifications.length > INITIAL_DISPLAY_COUNT;
+  const displayedNotifications = expanded
+    ? notifications
+    : notifications.slice(0, INITIAL_DISPLAY_COUNT);
+  const hiddenCount = notifications.length - INITIAL_DISPLAY_COUNT;
+
   return (
     <View style={[styles.container, { paddingTop: Math.max(insets.top, 16) }]}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.background} />
@@ -205,15 +247,35 @@ export default function NotificationsScreen(): React.JSX.Element {
           </View>
         </View>
 
-        {unreadCount > 0 && (
-          <TouchableOpacity
-            onPress={handleMarkAllRead}
-            activeOpacity={0.7}
-            style={styles.markAllButton}
-          >
-            <Text style={styles.markAllText}>Mark all read</Text>
-          </TouchableOpacity>
-        )}
+        <View style={styles.headerActions}>
+          {unreadCount > 0 && (
+            <TouchableOpacity
+              onPress={handleMarkAllRead}
+              activeOpacity={0.7}
+              style={styles.markAllButton}
+            >
+              <Text style={styles.markAllText}>Mark all read</Text>
+            </TouchableOpacity>
+          )}
+
+          {notifications.length > 0 && (
+            <TouchableOpacity
+              onPress={handleDeleteAllNotifications}
+              activeOpacity={0.7}
+              style={styles.deleteAllButton}
+              disabled={deletingAll}
+            >
+              {deletingAll ? (
+                <ActivityIndicator size="small" color={COLORS.red} />
+              ) : (
+                <>
+                  <TrashIcon size={14} color={COLORS.red} />
+                  <Text style={styles.deleteAllText}>Delete All</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
       {/* ── Content ── */}
@@ -239,7 +301,7 @@ export default function NotificationsScreen(): React.JSX.Element {
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.accent} />
           }
         >
-          {notifications.map((notif) => {
+          {displayedNotifications.map((notif) => {
             const accent = getStatusAccent(notif.status);
             const isUnread = !notif.read;
 
@@ -303,6 +365,29 @@ export default function NotificationsScreen(): React.JSX.Element {
               </TouchableOpacity>
             );
           })}
+
+          {/* ── See More / See Less Button ── */}
+          {hasMore && (
+            <TouchableOpacity
+              onPress={() => setExpanded((prev) => !prev)}
+              activeOpacity={0.7}
+              style={styles.seeMoreButton}
+            >
+              <View style={styles.seeMoreInner}>
+                <Text style={styles.seeMoreText}>
+                  {expanded ? "See Less" : "See More"}
+                </Text>
+                {!expanded && (
+                  <View style={styles.seeMoreBadge}>
+                    <Text style={styles.seeMoreBadgeText}>{hiddenCount}</Text>
+                  </View>
+                )}
+                <Text style={styles.seeMoreArrow}>
+                  {expanded ? "▲" : "▼"}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          )}
         </ScrollView>
       )}
     </View>
@@ -326,6 +411,12 @@ const styles = StyleSheet.create({
   headerLeft: {
     flexDirection: "row",
     alignItems: "center",
+    flex: 1,
+  },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
   backButton: {
     width: 42,
@@ -365,6 +456,20 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700",
     color: COLORS.accent,
+  },
+  deleteAllButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: "rgba(239, 68, 68, 0.08)",
+    gap: 5,
+  },
+  deleteAllText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: COLORS.red,
   },
 
   /* ── Empty State ── */
@@ -517,5 +622,48 @@ const styles = StyleSheet.create({
   deleteCardButton: {
     marginTop: 8,
     padding: 4,
+  },
+
+  /* ── See More Button ── */
+  seeMoreButton: {
+    marginTop: 4,
+    marginBottom: 8,
+    alignItems: "center",
+  },
+  seeMoreInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 14,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
+    gap: 8,
+  },
+  seeMoreText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: COLORS.accent,
+  },
+  seeMoreBadge: {
+    backgroundColor: "rgba(59, 130, 246, 0.12)",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  seeMoreBadgeText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: COLORS.accent,
+  },
+  seeMoreArrow: {
+    fontSize: 10,
+    color: COLORS.accent,
   },
 });

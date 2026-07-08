@@ -3,7 +3,7 @@ const mapAgencies = (emergencyType) => {
     case "fire":
       return ["CDRRMO", "BFP"];
     case "crime":
-      return ["CDRRMO", "PNP"];
+      return ["PNP"];
     case "medical":
     case "others":
     case "flood":
