@@ -116,3 +116,16 @@ exports.deleteNotification = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+// DELETE /api/notifications/delete-all — delete all notifications for the logged-in user
+exports.deleteAllNotifications = async (req, res) => {
+  try {
+    const filter = buildRecipientFilter(req.user);
+
+    const result = await Notification.deleteMany(filter);
+
+    res.json({ message: "All notifications deleted successfully", deletedCount: result.deletedCount });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
