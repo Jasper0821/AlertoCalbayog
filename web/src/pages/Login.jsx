@@ -68,7 +68,7 @@ function Login() {
       const route = getAgencyRoute(res.data.user);
       setTimeout(() => {
         navigate(route);
-      }, 2000);
+      }, 500);
     } catch (err) {
       setError(err.response?.data?.message || "Login failed. Please try again.");
       setIsSubmitting(false);
@@ -231,23 +231,22 @@ function Login() {
         </section>
 
         {loginSuccess && (
-          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/60 backdrop-blur-xl p-4 transition-all duration-1000 animate-in fade-in fill-mode-both">
-            <div className="max-w-md w-full rounded-[56px] bg-white p-12 text-center shadow-[0_40px_120px_rgba(0,0,0,0.3)] border border-slate-100 animate-in zoom-in-95 slide-in-from-bottom-12 duration-700">
-              <div className="mx-auto mb-8 grid h-24 w-24 place-items-center rounded-[32px] bg-emerald-500 text-white shadow-2xl shadow-emerald-500/30">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" className="h-10 w-10">
+          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-overlay-fade">
+            <div className="max-w-[320px] w-full rounded-2xl bg-white p-6 text-center shadow-[0_20px_50px_rgba(0,0,0,0.15)] border border-slate-100 animate-login-success">
+              <div className="mx-auto mb-4 grid h-12 w-12 place-items-center rounded-full bg-emerald-500 text-white shadow-lg shadow-emerald-500/20">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" className="h-6 w-6">
                   <path d="M20 6L9 17L4 12" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               </div>
-              <p className="text-xs font-black uppercase tracking-[0.2em] text-emerald-600 mb-4">Authentication Secure</p>
-              <h3 className="text-3xl font-black tracking-tighter text-slate-900 uppercase leading-[0.9]">Login Successful</h3>
-              <p className="mt-6 text-lg font-bold text-slate-500 leading-relaxed">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 mb-1">Secure Authentication</p>
+              <h3 className="text-xl font-bold tracking-tight text-slate-900">Login Successful</h3>
+              <p className="mt-2 text-xs font-semibold text-slate-500 leading-relaxed">
                 Welcome to <span className="text-[#0a1e3f]">{dashboardLabel}</span>. Routing to your terminal...
               </p>
-              <div className="mt-10 flex flex-col items-center gap-3">
-                <div className="h-1.5 w-32 rounded-full bg-slate-100 overflow-hidden">
-                  <div className="h-full bg-emerald-500 animate-[loading_1.5s_ease-in-out_infinite]" style={{ width: '60%' }} />
+              <div className="mt-4 flex flex-col items-center gap-2">
+                <div className="h-1 w-24 rounded-full bg-slate-100 overflow-hidden">
+                  <div className="h-full bg-emerald-500 animate-pulse" style={{ width: '100%' }} />
                 </div>
-                <p className="text-xs font-black uppercase tracking-widest text-slate-300">Initializing Terminal</p>
               </div>
             </div>
           </div>

@@ -393,6 +393,9 @@ function CdrrmoDashboard() {
     socket.emit("joinRoom", "admin");
 
     socket.on("newEmergencyAlert", (newReport) => {
+      // Ensure we only process CDRRMO reports (block PNP/crime reports)
+      if (!isCdrrmoReport(newReport)) return;
+
       console.log("📡 CDRRMO Command Center received live alert:", newReport);
 
       setReports(prev => {
@@ -404,6 +407,9 @@ function CdrrmoDashboard() {
     });
 
     socket.on("reportStatusChanged", (updatedReport) => {
+      // Ensure we only process CDRRMO reports (block PNP/crime reports)
+      if (!isCdrrmoReport(updatedReport)) return;
+
       console.log("📡 CDRRMO Command Center received status change:", updatedReport);
       setReports(prev => prev.some(r => r._id === updatedReport._id)
         ? prev.map(r => r._id === updatedReport._id ? updatedReport : r)
@@ -608,11 +614,10 @@ function CdrrmoDashboard() {
 
       {/* ══════════════ SIDEBAR ══════════════ */}
       <aside
-        className={`fixed inset-y-0 left-0 z-[60] flex flex-col w-64 transition-transform duration-300 ease-in-out ${
-          activeNav === "live-map"
-            ? isSidebarOpen ? "translate-x-0" : "-translate-x-full"
-            : `${isSidebarOpen ? "translate-x-0" : "-translate-x-full"} lg:translate-x-0 lg:static lg:shadow-none`
-        }`}
+        className={`fixed inset-y-0 left-0 z-[60] flex flex-col w-64 transition-transform duration-300 ease-in-out ${activeNav === "live-map"
+          ? isSidebarOpen ? "translate-x-0" : "-translate-x-full"
+          : `${isSidebarOpen ? "translate-x-0" : "-translate-x-full"} lg:translate-x-0 lg:static lg:shadow-none`
+          }`}
         style={{ background: "#0a1e3f" }}
       >
         {/* Logo / Brand */}
@@ -644,8 +649,8 @@ function CdrrmoDashboard() {
                 key={item.id}
                 onClick={() => { setActiveNav(item.id); setIsSidebarOpen(false); }}
                 className={`group w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 text-left relative ${isActive
-                    ? "bg-white/15 text-white shadow-md"
-                    : "text-emerald-200 hover:bg-white/10 hover:text-white"
+                  ? "bg-white/15 text-white shadow-md"
+                  : "text-emerald-200 hover:bg-white/10 hover:text-white"
                   }`}
               >
                 {/* Active bar indicator */}
@@ -794,8 +799,8 @@ function CdrrmoDashboard() {
             <button
               onClick={() => { setActiveNav("settings"); setShowNotifDropdown(false); }}
               className={`p-2.5 rounded-xl transition-all ${activeNav === "settings"
-                  ? "bg-[#0a1e3f] text-white"
-                  : "text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                ? "bg-[#0a1e3f] text-white"
+                : "text-slate-400 hover:bg-slate-100 hover:text-slate-700"
                 }`}
               title="Settings"
             >
@@ -826,13 +831,12 @@ function CdrrmoDashboard() {
         </header>
 
         {/* ── PAGE CONTENT ── */}
-        <section className={`flex-1 min-h-0 ${
-          activeNav === "live-map"
-            ? "overflow-hidden p-0 m-0 w-full h-full"
-            : fixedHeightPages.includes(activeNav)
-              ? "overflow-hidden p-3 lg:p-4"
-              : "overflow-y-auto p-5 lg:p-7"
-        }`}>
+        <section className={`flex-1 min-h-0 ${activeNav === "live-map"
+          ? "overflow-hidden p-0 m-0 w-full h-full"
+          : fixedHeightPages.includes(activeNav)
+            ? "overflow-hidden p-3 lg:p-4"
+            : "overflow-y-auto p-5 lg:p-7"
+          }`}>
           <div className={
             activeNav === "live-map" || fixedHeightPages.includes(activeNav)
               ? "h-full w-full"
