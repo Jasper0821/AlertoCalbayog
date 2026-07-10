@@ -1,182 +1,376 @@
-import { MapContainer, TileLayer, CircleMarker } from "react-leaflet";
-import "leaflet/dist/leaflet.css";
+import { useMemo, useState } from "react";
+import {
+  LineChart, Line,
+  XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
+} from "recharts";
 import { STATUS_STYLES, TYPE_ICONS, getIncidentId } from "../../../utils/incidentFormatters.js";
 
-const cityCenter = [12.068, 124.597];
+/* ─── Brand (PNP violet) ─────────────────────────────────────────── */
+const BRAND   = "#7c3aed";
+const BRAND_D = "#6d28d9";
+const BRAND_BG = "#f5f3ff";
 
-const getCoordinates = (report, index) => {
-  if (report.location && report.location.latitude && report.location.longitude) {
-    return [Number(report.location.latitude), Number(report.location.longitude)];
-  }
-  const offsets = [
-    [0.003, -0.004], // Hamorawon
-    [-0.001, 0.002], // City Plaza
-    [0.006, 0.008],  // Maharlika Hwy
-    [-0.004, -0.006], // Riverside
-    [0.002, 0.005],  // Nijaga
-  ];
-  const offset = offsets[index % offsets.length];
-  return [cityCenter[0] + offset[0], cityCenter[1] + offset[1]];
-};
+/* ─── Build daily trend for THIS month ──────────────────────────── */
+function buildDailyTrend(reports) {
+  const now   = new Date();
+  const year  = now.getFullYear();
+  const month = now.getMonth();
+  const days  = new Date(year, month + 1, 0).getDate();
 
-export default function DashboardOverview({ reports = [], setActiveNav }) {
-  const latestReports = (Array.isArray(reports) ? reports : []).slice(0, 4);
+  const data = Array.from({ length: days }, (_, i) => ({
+    day: i + 1,
+    label: `${i + 1}`,
+    resolved: 0,
+    pending: 0,
+  }));
 
-  // Dynamic KPI calculations based on mock / API reports
-  const totalIncidents = reports.length;
-  const pendingCount = reports.filter(r => (r.status || "").toLowerCase() === "pending").length;
-  const activeCount = reports.filter(r => ["responding", "ongoing", "dispatching", "en_route", "active"].includes((r.status || "").toLowerCase())).length;
-  const resolvedCount = reports.filter(r => ["resolved", "responded", "closed"].includes((r.status || "").toLowerCase())).length;
-  
-  const avgResponse = totalIncidents > 0 
-    ? `0${Math.max(3, Math.min(7, Math.floor(5 + (pendingCount * 0.5) - (resolvedCount * 0.2))))}:${String(Math.abs(Math.floor(22 + (activeCount * 4))) % 60).padStart(2, "0")}`
-    : "00:00";
+  reports.forEach(r => {
+    if (!r.createdAt) return;
+    const d = new Date(r.createdAt);
+    if (d.getFullYear() !== year || d.getMonth() !== month) return;
+    const idx = d.getDate() - 1;
+    const isResolved = ["resolved","responded","closed"].includes((r.status || "").toLowerCase());
+    if (isResolved) data[idx].resolved++;
+    else data[idx].pending++;
+  });
+  return data;
+}
+
+/* ─── Build calendar incident map ───────────────────────────────── */
+function buildCalendarMap(reports) {
+  const map = {};
+  reports.forEach(r => {
+    if (!r.createdAt) return;
+    const d = new Date(r.createdAt);
+    const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+    if (!map[key]) map[key] = { p: 0, a: 0, r: 0 };
+    const s = (r.status || "").toLowerCase();
+    if (["resolved","responded","closed"].includes(s)) map[key].r++;
+    else if (["responding","ongoing","dispatching","en_route","active"].includes(s)) map[key].a++;
+    else map[key].p++;
+  });
+  return map;
+}
+
+/* ─── Compact Calendar ──────────────────────────────────────────── */
+function MiniCalendar({ reports }) {
+  const [viewing, setViewing] = useState(() => new Date());
+  const calMap = useMemo(() => buildCalendarMap(reports), [reports]);
+
+  const year  = viewing.getFullYear();
+  const month = viewing.getMonth();
+  const monthName = new Intl.DateTimeFormat("en", { month: "long" }).format(viewing);
+  const firstDay    = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const today       = new Date();
+
+  const cells = [];
+  for (let i = 0; i < firstDay; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
 
   return (
-    <div className="space-y-6">
+    <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+        <span style={{ fontSize: 13, fontWeight: 800, color: "#0f172a" }}>Calendar</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <button onClick={() => setViewing(v => new Date(v.getFullYear(), v.getMonth()-1, 1))}
+            style={{ width: 22, height: 22, borderRadius: 6, border: "1px solid #e2e8f0", background: "#f8fafc", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7"/></svg>
+          </button>
+          <span style={{ fontSize: 10, fontWeight: 700, color: "#0f172a" }}>{monthName} {year}</span>
+          <button onClick={() => setViewing(v => new Date(v.getFullYear(), v.getMonth()+1, 1))}
+            style={{ width: 22, height: 22, borderRadius: 6, border: "1px solid #e2e8f0", background: "#f8fafc", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/></svg>
+          </button>
+        </div>
+      </div>
 
-      {/* ── 5 KPI Cards ── */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        {[
-          {
-            label: "Total Today", value: String(totalIncidents).padStart(2, "0"),
-            sub: <><span className="text-emerald-500 font-bold">Live Data</span> synced</>,
-            icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>,
-            iconBg: "bg-blue-50/70 text-[#0a1e3f]", valueColor: "text-slate-800",
-          },
-          {
-            label: "Pending", value: String(pendingCount).padStart(2, "0"),
-            sub: "Requiring dispatch",
-            icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" /></svg>,
-            iconBg: "bg-amber-50 text-amber-600", valueColor: "text-amber-600", topBar: "bg-amber-500",
-          },
-          {
-            label: "Active Cases", value: String(activeCount).padStart(2, "0"),
-            sub: "In progress responding",
-            icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>,
-            iconBg: "bg-indigo-50 text-indigo-600", valueColor: "text-indigo-600",
-          },
-          {
-            label: "Resolved", value: String(resolvedCount).padStart(2, "0"),
-            sub: "Completed and closed",
-            icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
-            iconBg: "bg-emerald-50 text-emerald-600", valueColor: "text-emerald-600",
-          },
-          {
-            label: "Avg Response", value: avgResponse,
-            sub: "Target: < 08:00 min",
-            icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
-            iconBg: "bg-slate-100 text-slate-600", valueColor: "text-slate-800",
-          },
-        ].map(card => (
-          <div key={card.label} className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between relative overflow-hidden">
-            {card.topBar && <div className={`absolute top-0 inset-x-0 h-0.5 ${card.topBar}`} />}
-            <div className="flex items-center gap-2.5 mb-3">
-              <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${card.iconBg}`}>
-                {card.icon}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", marginBottom: 2 }}>
+        {["S","M","T","W","T","F","S"].map((d,i) => (
+          <div key={i} style={{ textAlign:"center", fontSize:9, fontWeight:700, color:"#94a3b8" }}>{d}</div>
+        ))}
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", flex: 1, alignContent: "start", gap: 1 }}>
+        {cells.map((day, i) => {
+          if (!day) return <div key={i}/>;
+          const key  = `${year}-${month}-${day}`;
+          const data = calMap[key];
+          const isToday = day===today.getDate()&&month===today.getMonth()&&year===today.getFullYear();
+          return (
+            <div key={i} style={{ textAlign:"center", padding:"3px 1px", borderRadius:6, background:isToday?BRAND:"transparent" }}>
+              <span style={{ fontSize:10, fontWeight:isToday?800:400, color:isToday?"#fff":"#374151" }}>{day}</span>
+              {data&&(
+                <div style={{ display:"flex", justifyContent:"center", gap:1.5, marginTop:1 }}>
+                  {data.p>0&&<span style={{ width:4, height:4, borderRadius:"50%", background:"#f59e0b", display:"inline-block" }}/>}
+                  {data.a>0&&<span style={{ width:4, height:4, borderRadius:"50%", background:BRAND, display:"inline-block" }}/>}
+                  {data.r>0&&<span style={{ width:4, height:4, borderRadius:"50%", background:"#10b981", display:"inline-block" }}/>}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      <div style={{ display:"flex", gap:10, marginTop:8, flexWrap:"wrap" }}>
+        {[["#f59e0b","Pending"],[BRAND,"Responding"],["#10b981","Resolved"]].map(([dot,label])=>(
+          <div key={label} style={{ display:"flex", alignItems:"center", gap:4, fontSize:9, color:"#64748b", fontWeight:600 }}>
+            <span style={{ width:6, height:6, borderRadius:"50%", background:dot, display:"inline-block" }}/>{label}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ─── Chart tooltip ─────────────────────────────────────────────── */
+function ChartTip({ active, payload, label }) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div style={{ background:"#fff", border:"1px solid #e2e8f0", borderRadius:8, padding:"6px 12px", boxShadow:"0 4px 16px rgba(0,0,0,0.08)", fontSize:10 }}>
+      <p style={{ color:"#64748b", fontWeight:700, margin:"0 0 3px" }}>Day {label}</p>
+      {payload.map(p=><p key={p.name} style={{ color:p.color, fontWeight:800, margin:"1px 0" }}>● {p.name}: {p.value}</p>)}
+    </div>
+  );
+}
+
+/* ─── Table filter tabs ─────────────────────────────────────────── */
+const TABS = ["Today","Weekly","Monthly","Yearly"];
+function filterByTab(reports, tab) {
+  const now = new Date();
+  return reports.filter(r => {
+    if (!r.createdAt) return false;
+    const d = new Date(r.createdAt);
+    if (tab==="Today")   return d.toDateString()===now.toDateString();
+    if (tab==="Weekly")  return (now-d)<=7*86400000;
+    if (tab==="Monthly") return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();
+    return true;
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════════ */
+export default function DashboardOverview({ reports = [], setActiveNav, onStatusChange }) {
+  const safe = Array.isArray(reports) ? reports : [];
+  const [tab, setTab] = useState("Today");
+
+  /* KPIs */
+  const total    = safe.length;
+  const pending  = safe.filter(r=>["pending","verified"].includes((r.status||"").toLowerCase())).length;
+  const active   = safe.filter(r=>["responding","ongoing","dispatching","en_route","active"].includes((r.status||"").toLowerCase())).length;
+  const resolved = safe.filter(r=>["resolved","responded","closed"].includes((r.status||"").toLowerCase())).length;
+
+  /* Chart */
+  const chartData = useMemo(() => buildDailyTrend(safe), [safe]);
+
+  /* Table rows */
+  const tableRows = useMemo(() => {
+    const filtered = filterByTab(safe, tab);
+    return [...filtered].sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt)).slice(0,3);
+  }, [safe, tab]);
+
+  /* Cards */
+  const cards = [
+    { label:"Total Cases",  value:total,   up:true,  desc:"All police cases reported in Calbayog", iconBg:"#fef9ec", iconColor:"#b45309",
+      icon:<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a4 4 0 00-5-3.87M9 20H4v-2a4 4 0 015-3.87m6-4.13a4 4 0 10-8 0 4 4 0 008 0zm6 0a3 3 0 11-6 0 3 3 0 016 0z"/></svg> },
+    { label:"Officers Deployed", value:active, up:true, desc:"PNP personnel currently dispatched", iconBg:BRAND_BG, iconColor:BRAND_D, highlight:true,
+      icon:<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg> },
+    { label:"Open Cases",   value:pending, up:false, desc:"Cases pending field response",          iconBg:"#eff6ff", iconColor:"#1d4ed8",
+      icon:<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg> },
+    { label:"Cases Cleared", valueA:resolved, labelA:"Cleared", valueB:total-resolved, labelB:"Ongoing", iconBg:"#f0fdf4", iconColor:"#166534",
+      icon:<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> },
+  ];
+
+  return (
+    <div style={{
+      width:"100%", height:"100%",
+      display:"flex", flexDirection:"column",
+      padding:"16px 20px", gap:12,
+      boxSizing:"border-box", overflow:"hidden",
+      background:"#f8fafc", fontFamily:"inherit",
+    }}>
+
+      {/* KPI Cards */}
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10, flexShrink:0 }}>
+        {cards.map((c,i)=>(
+          <div key={i} style={{
+            background: c.highlight ? BRAND_BG : "#fff",
+            borderRadius:12, padding:"12px 14px",
+            boxShadow:"0 1px 4px rgba(0,0,0,0.05)",
+            border: c.highlight ? `1px solid #ddd6fe` : "1px solid transparent",
+            transition:"box-shadow .2s, transform .2s",
+          }}
+            onMouseEnter={e=>{ e.currentTarget.style.boxShadow="0 4px 16px rgba(0,0,0,0.09)"; e.currentTarget.style.transform="translateY(-1px)"; }}
+            onMouseLeave={e=>{ e.currentTarget.style.boxShadow="0 1px 4px rgba(0,0,0,0.05)"; e.currentTarget.style.transform="translateY(0)"; }}
+          >
+            <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
+              <div style={{ width:32, height:32, borderRadius:8, background:c.iconBg, color:c.iconColor, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                {c.icon}
               </div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{card.label}</p>
+              <span style={{ fontSize:10, fontWeight:700, color:"#64748b" }}>{c.label}</span>
+              <span style={{ marginLeft:"auto", fontSize:14, color:"#cbd5e1", cursor:"pointer" }}>···</span>
             </div>
-            <div>
-              <p className={`text-3xl font-black ${card.valueColor}`}>{card.value}</p>
-              <p className="text-[10px] text-slate-500 mt-1 leading-tight">{card.sub}</p>
-            </div>
+            {c.valueA!==undefined ? (
+              <div style={{ display:"flex", gap:16 }}>
+                <div><div style={{ fontSize:20, fontWeight:800, color:"#0f172a" }}>{c.valueA}</div><div style={{ fontSize:9, color:"#94a3b8", fontWeight:600 }}>{c.labelA}</div></div>
+                <div><div style={{ fontSize:20, fontWeight:800, color:"#0f172a" }}>{c.valueB}</div><div style={{ fontSize:9, color:"#94a3b8", fontWeight:600 }}>{c.labelB}</div></div>
+              </div>
+            ) : (
+              <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:4 }}>
+                <span style={{ fontSize:22, fontWeight:800, color:"#0f172a", lineHeight:1 }}>{String(c.value).padStart(2,"0")}</span>
+
+              </div>
+            )}
+            <p style={{ fontSize:9, color:"#94a3b8", margin:0, lineHeight:1.4, overflow:"hidden", textOverflow:"ellipsis", display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical" }}>{c.desc}</p>
           </div>
         ))}
       </div>
 
-      {/* ── Main Grid ── */}
-      <div className="w-full">
+      {/* Charts row */}
+      <div style={{ display:"grid", gridTemplateColumns:"1.55fr 1fr", gap:10, flex:1, minHeight:0 }}>
 
-        {/* Live Emergency Reports Table */}
-        <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col w-full">
-          <div className="px-5 py-4 flex items-center justify-between border-b border-slate-100">
-            <div>
-              <h3 className="text-sm font-bold text-slate-800">Live Emergency Reports</h3>
-              <p className="text-[11px] text-slate-400 mt-0.5">Latest incoming crime incidents</p>
+        {/* Case Overview chart — this month daily */}
+        <div style={{ background:"#fff", borderRadius:12, padding:"14px 16px", boxShadow:"0 1px 4px rgba(0,0,0,0.05)", display:"flex", flexDirection:"column" }}>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10, flexShrink:0 }}>
+            <span style={{ fontSize:13, fontWeight:800, color:"#0f172a" }}>Case Overview</span>
+            <div style={{ display:"flex", gap:12 }}>
+              {[[BRAND,"Cleared"],["#f59e0b","Open"]].map(([c,l])=>(
+                <span key={l} style={{ fontSize:9, fontWeight:700, color:c, display:"flex", alignItems:"center", gap:4 }}>
+                  <span style={{ width:7, height:7, borderRadius:"50%", background:c, display:"inline-block" }}/>{l}
+                </span>
+              ))}
             </div>
-            <div className="flex gap-2">
-              <button className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-600 transition-colors">
-                Export Logs
-              </button>
-            </div>
+            <span style={{ fontSize:9, color:"#94a3b8", fontWeight:600 }}>
+              {new Intl.DateTimeFormat("en",{month:"long",year:"numeric"}).format(new Date())}
+            </span>
           </div>
-
-          <div className="overflow-x-auto flex-1">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-100">
-                  {["Incident ID", "Type", "Location", "Time", "Status"].map(h => (
-                    <th key={h} className="px-5 py-3.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
-                {latestReports.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="py-10 text-center text-sm text-slate-400">No reports available.</td>
-                  </tr>
-                ) : latestReports.map((report, i) => {
-                  const type = (report.emergencyType || "others").toLowerCase();
-                  const status = (report.status || "pending").toLowerCase();
-                  const typeInfo = TYPE_ICONS[type] || TYPE_ICONS.others;
-                  const statusInfo = STATUS_STYLES[status] || STATUS_STYLES.pending;
-                  const incId = String(getIncidentId(report, i));
-                  const loc = typeof report.location === "string" ? report.location : (report.location?.name || "Unknown");
-                  const timeStr = report.createdAt
-                    ? new Date(report.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })
-                    : "—";
-
-                  return (
-                    <tr key={report._id || i} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-5 py-3.5">
-                        <span className="text-xs font-mono font-bold text-[#0a1e3f]">{incId}</span>
-                      </td>
-                      <td className="px-5 py-3.5">
-                        <div className="flex items-center gap-2">
-                          <span className={`w-2 h-2 rounded-full shrink-0 ${(typeInfo.color || "").replace("text", "bg")}`} />
-                          <span className="text-xs font-medium text-slate-700">{typeInfo.label}</span>
-                        </div>
-                      </td>
-                      <td className="px-5 py-3.5">
-                        <span className="text-xs text-slate-600 truncate block max-w-sm">{loc}</span>
-                      </td>
-                      <td className="px-5 py-3.5">
-                        <span className="text-xs text-slate-500 font-semibold">{timeStr}</span>
-                      </td>
-                      <td className="px-5 py-3.5">
-                        <div className="flex items-center gap-1.5">
-                          <span className={`w-1.5 h-1.5 rounded-full ${statusInfo.dot}`} />
-                          <span className={`text-xs font-bold ${statusInfo.text}`}>{statusInfo.label}</span>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="px-5 py-3 border-t border-slate-100 flex items-center justify-between bg-slate-50/50">
-            <p className="text-[11px] text-slate-400">{latestReports.length} most recent incidents shown</p>
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => setActiveNav?.("incident-reports")}
-                className="text-xs font-semibold text-slate-500 hover:text-slate-700 transition-colors"
-              >
-                View All Reports
-              </button>
-              <button
-                onClick={() => setActiveNav?.("queuing")}
-                className="text-xs font-semibold text-[#0a1e3f] hover:text-[#07152c] transition-colors"
-              >
-                Manage Queue →
-              </button>
+          <div style={{ flex:1, minHeight:0, position:"relative" }}>
+            <div style={{ position:"absolute", top:0, left:0, right:0, bottom:0 }}>
+              <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={chartData} margin={{ top:20, right:10, left:-26, bottom:10 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false}/>
+                <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill:"#94a3b8", fontSize:8, fontWeight:600 }} interval={4}/>
+                <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{ fill:"#94a3b8", fontSize:8, fontWeight:600 }}/>
+                <Tooltip content={<ChartTip/>}/>
+                <Line type="monotone" dataKey="resolved" name="Cleared" stroke={BRAND} strokeWidth={2} dot={false} activeDot={{ r:5 }} isAnimationActive animationDuration={800}/>
+                <Line type="monotone" dataKey="pending"  name="Open"    stroke="#f59e0b" strokeWidth={2} dot={false} activeDot={{ r:5 }} isAnimationActive animationDuration={800}/>
+              </LineChart>
+              </ResponsiveContainer>
             </div>
           </div>
         </div>
+
+        {/* Calendar */}
+        <div style={{ background:"#fff", borderRadius:12, padding:"14px 16px", boxShadow:"0 1px 4px rgba(0,0,0,0.05)" }}>
+          <MiniCalendar reports={safe}/>
+        </div>
       </div>
 
+      {/* Police Case Reports table */}
+      <div style={{ background:"#fff", borderRadius:12, boxShadow:"0 1px 4px rgba(0,0,0,0.05)", overflow:"hidden", flexShrink:0 }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 16px", borderBottom:"1px solid #f1f5f9" }}>
+          <div>
+            <span style={{ fontSize:13, fontWeight:800, color:"#0f172a" }}>Police Case Reports</span>
+            <span style={{ fontSize:9, color:"#94a3b8", marginLeft:8, fontWeight:500 }}>
+              Live reports filed through AlertoCalbayog
+            </span>
+          </div>
+          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+            <div style={{ display:"flex", background:"#f8fafc", borderRadius:8, padding:2, gap:1, border:"1px solid #e2e8f0" }}>
+              {TABS.map(t=>(
+                <button key={t} onClick={()=>setTab(t)} style={{
+                  padding:"4px 10px", borderRadius:6, fontSize:10, fontWeight:700,
+                  border:"none", cursor:"pointer",
+                  background: tab===t ? BRAND : "transparent",
+                  color: tab===t ? "#fff" : "#64748b",
+                  transition:"all .15s",
+                }}>{t}</button>
+              ))}
+            </div>
+            <button onClick={()=>setActiveNav?.("reported-incidents")}
+              style={{ padding:"5px 12px", borderRadius:7, fontSize:10, fontWeight:700, background:BRAND_BG, color:BRAND_D, border:`1px solid #ddd6fe`, cursor:"pointer" }}>
+              View All
+            </button>
+          </div>
+        </div>
+
+        <table style={{ width:"100%", borderCollapse:"collapse" }}>
+          <thead>
+            <tr style={{ background:"#f8fafc" }}>
+              <th style={TH}><input type="checkbox" style={{ cursor:"pointer" }}/></th>
+              {["No.","Complainant","Case Type","Date Filed","Status","Location","Contact No.","Action"].map(h=>(
+                <th key={h} style={TH}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {tableRows.length===0 ? (
+              <tr><td colSpan={9} style={{ padding:"20px 0", textAlign:"center", fontSize:11, color:"#94a3b8" }}>No cases for this period</td></tr>
+            ) : tableRows.map((r,i)=>{
+              const typeKey  = (r.emergencyType||"others").toLowerCase();
+              const statKey  = (r.status||"pending").toLowerCase();
+              const typeInfo = TYPE_ICONS[typeKey]||TYPE_ICONS.others;
+              const statInfo = STATUS_STYLES[statKey]||STATUS_STYLES.pending;
+              const reporter = r.userId?.fullName||r.name||"Anonymous";
+              const phone    = r.userId?.phoneNumber||r.phoneNumber||"—";
+              const loc      = typeof r.location==="string"?r.location:(r.location?.name||[r.location?.barangay,r.location?.street].filter(Boolean).join(", ")||"Unknown");
+              const dateStr  = r.createdAt?new Date(r.createdAt).toLocaleDateString("en-PH",{day:"numeric",month:"short",year:"numeric"}):"—";
+              return (
+                <tr key={r._id||i} style={{ borderTop:"1px solid #f8fafc", transition:"background .12s" }}
+                  onMouseEnter={e=>e.currentTarget.style.background="#f8fafc"}
+                  onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                  <td style={TD}><input type="checkbox" style={{ cursor:"pointer" }}/></td>
+                  <td style={{ ...TD, color:"#94a3b8", fontWeight:700 }}>{String(i+1).padStart(2,"0")}</td>
+                  <td style={TD}>
+                    <div style={{ display:"flex", alignItems:"center", gap:7 }}>
+                      <div style={{ width:28, height:28, borderRadius:"50%", background:BRAND_BG, color:BRAND_D, display:"flex", alignItems:"center", justifyContent:"center", fontSize:10, fontWeight:800, flexShrink:0 }}>
+                        {reporter.charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        <div style={{ fontSize:11, fontWeight:700, color:"#0f172a" }}>{reporter}</div>
+                        <div style={{ fontSize:9, color:"#94a3b8" }}>Complainant</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td style={{ ...TD, fontWeight:600, color:"#374151" }}>{typeInfo.label}</td>
+                  <td style={{ ...TD, color:"#64748b" }}>{dateStr}</td>
+                  <td style={TD}>
+                    <span className={`${statInfo.bg} ${statInfo.text} border ${statInfo.border}`}
+                      style={{ display:"inline-flex", alignItems:"center", gap:4, padding:"2px 8px", borderRadius:20, fontSize:9, fontWeight:700 }}>
+                      <span className={statInfo.dot} style={{ width:5, height:5, borderRadius:"50%", display:"inline-block" }}/>
+                      {statInfo.label}
+                    </span>
+                  </td>
+                  <td style={{ ...TD, color:"#64748b", maxWidth:130, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{loc}</td>
+                  <td style={{ ...TD, color:"#64748b", fontFamily:"monospace", fontSize:10 }}>{phone}</td>
+                  <td style={TD}>
+                    <div style={{ display:"flex", gap:8 }}>
+                      <button title="Edit" onClick={()=>setActiveNav?.("reported-incidents")}
+                        style={{ background:"none", border:"none", cursor:"pointer", color:"#64748b", padding:3, borderRadius:5 }}
+                        onMouseEnter={e=>e.currentTarget.style.background="#f1f5f9"}
+                        onMouseLeave={e=>e.currentTarget.style.background="none"}>
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                        </svg>
+                      </button>
+                      <button title="Mark Resolved" onClick={()=>onStatusChange?.(r._id,"resolved")}
+                        style={{ background:"none", border:"none", cursor:"pointer", color:"#ef4444", padding:3, borderRadius:5 }}
+                        onMouseEnter={e=>e.currentTarget.style.background="#fef2f2"}
+                        onMouseLeave={e=>e.currentTarget.style.background="none"}>
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <polyline points="3 6 5 6 21 6"/><path strokeLinecap="round" strokeLinejoin="round" d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6m5 0V4a1 1 0 011-1h2a1 1 0 011 1v2"/>
+                        </svg>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
+
+const TH = { padding:"7px 14px", textAlign:"left", fontSize:8, fontWeight:700, color:"#94a3b8", textTransform:"uppercase", letterSpacing:"0.07em", whiteSpace:"nowrap" };
+const TD = { padding:"9px 14px", fontSize:11, verticalAlign:"middle" };

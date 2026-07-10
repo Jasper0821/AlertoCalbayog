@@ -823,12 +823,12 @@ function AdminDashboard() {
 
         {/* ── PAGE CONTENT ── */}
         <section className={`flex-1 min-h-0 ${
-          activeNav === "live-map"
+          activeNav === "live-map" || activeNav === "dashboard"
             ? "overflow-hidden p-0 m-0 w-full h-full"
             : "overflow-y-auto p-5 lg:p-7"
         }`}>
           <div className={
-            activeNav === "live-map"
+            activeNav === "live-map" || activeNav === "dashboard"
               ? "h-full w-full"
               : "max-w-screen-2xl mx-auto"
           }>
