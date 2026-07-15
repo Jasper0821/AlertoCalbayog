@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { STATUS_STYLES, TYPE_ICONS, getPriority, getIncidentId, PRIORITY_STYLES } from "../../../utils/incidentFormatters.js";
+import { getIncidentStatusInfo, TYPE_ICONS, getPriority, getIncidentId, PRIORITY_STYLES } from "../../../utils/incidentFormatters.js";
 
 const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -24,7 +24,7 @@ export default function IncidentHistory({ reports = [] }) {
   );
 
   const [monthFilter, setMonthFilter] = useState("all");
-  
+
   const filtered = resolved.filter(r => {
     const type = (r.emergencyType || "").toLowerCase();
     const loc = typeof r.location === "string" ? r.location : (r.location?.name || "");
@@ -41,7 +41,7 @@ export default function IncidentHistory({ reports = [] }) {
 
   const handleDownloadPDF = () => {
     const printWindow = window.open("", "_blank");
-    
+
     // Build incident rows
     const rowsHtml = filtered.map((r, i) => {
       const type = (r.emergencyType || "others").toUpperCase();
@@ -52,7 +52,7 @@ export default function IncidentHistory({ reports = [] }) {
       const dateStr = `${date.toLocaleDateString()} ${date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
       const priority = getPriority(r).toUpperCase();
       const reporter = r.userId?.fullName || "Unknown";
-      
+
       return `
         <tr>
           <td>${incId}</td>
@@ -230,7 +230,7 @@ export default function IncidentHistory({ reports = [] }) {
           <option value="fire">Fire</option>
           <option value="medical">Medical</option>
           <option value="flood">Flood</option>
-          <option value="accident">Accident</option>
+
         </select>
         <select
           value={monthFilter}
@@ -278,9 +278,8 @@ export default function IncidentHistory({ reports = [] }) {
                 </tr>
               ) : filtered.map((r, i) => {
                 const type = (r.emergencyType || "others").toLowerCase();
-                const status = (r.status || "pending").toLowerCase();
                 const typeInfo = TYPE_ICONS[type] || TYPE_ICONS.others;
-                const statusInfo = STATUS_STYLES[status] || STATUS_STYLES.pending;
+                const statusInfo = getIncidentStatusInfo(r.status);
                 const priority = getPriority(r);
                 const incId = getIncidentId(r, i);
                 const loc = typeof r.location === "string" ? r.location : (r.location?.name || "Unknown");
@@ -313,10 +312,10 @@ export default function IncidentHistory({ reports = [] }) {
                       </span>
                     </td>
                     <td className="px-5 py-3.5">
-                      <div className="flex items-center gap-1.5">
-                        <span className={`w-1.5 h-1.5 rounded-full ${statusInfo.dot}`}></span>
-                        <span className={`text-xs font-semibold ${statusInfo.text}`}>{statusInfo.label}</span>
-                      </div>
+                      <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full ${statusInfo.className}`}>
+                        <span className="w-1.5 h-1.5 rounded-full bg-current opacity-70" />
+                        {statusInfo.label}
+                      </span>
                     </td>
                   </tr>
                 );

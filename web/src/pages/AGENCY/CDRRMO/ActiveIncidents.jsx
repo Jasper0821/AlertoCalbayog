@@ -1,6 +1,5 @@
 import {
   TYPE_ICONS,
-  STATUS_STYLES,
   formatBarangay,
   formatStreetPurok,
   getIncidentStatusInfo,
@@ -47,7 +46,7 @@ export default function ActiveIncidents({ reports = [] }) {
           <tbody className="divide-y divide-slate-100">
             {activeReports.map((report, idx) => {
               const status = (report.status || "active").toLowerCase();
-              const statusInfo = STATUS_STYLES[status] || STATUS_STYLES.active;
+              const statusInfo = getIncidentStatusInfo(report.status);
 
               // Location
               const barangay = report.location?.barangay
@@ -116,8 +115,8 @@ export default function ActiveIncidents({ reports = [] }) {
 
                   {/* Status — read-only badge */}
                   <td className="px-6 py-4">
-                    <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full border ${statusInfo.bg} ${statusInfo.border} ${statusInfo.text}`}>
-                      <span className={`w-1.5 h-1.5 rounded-full ${statusInfo.dot}`}></span>
+                    <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full ${statusInfo.className}`}>
+                      <span className="w-1.5 h-1.5 rounded-full bg-current opacity-70" />
                       {statusInfo.label}
                     </span>
                   </td>
