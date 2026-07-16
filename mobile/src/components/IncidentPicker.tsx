@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useCallback } from "react";
 import {
   View,
   Text,
@@ -71,14 +71,25 @@ export default function IncidentPicker({
   navigation,
 }: Props): React.JSX.Element {
   const [loading, setLoading] = useState<string | null>(null);
+  const abortRef = useRef<boolean>(false);
+
+  // Cancel handler: sets abort flag, resets loading, and closes modal
+  const handleCancel = useCallback(() => {
+    abortRef.current = true;
+    setLoading(null);
+    onClose();
+  }, [onClose]);
 
   const handleSelect = async (type: IncidentType) => {
     if (loading) return;
+    abortRef.current = false;
     setLoading(type.key);
 
     try {
       // Request location permission
       const permission = await Location.requestForegroundPermissionsAsync();
+      if (abortRef.current) return;
+
       if (permission.status !== "granted") {
         Alert.alert("Permission Denied", "Location access is required to send a report.");
         setLoading(null);
@@ -105,7 +116,11 @@ export default function IncidentPicker({
         }
       }
 
+      if (abortRef.current) return;
+
       const token = await getToken();
+
+      if (abortRef.current) return;
 
       // Submit report — all types go to CDRRMO
       const res = await api.post(
@@ -123,6 +138,8 @@ export default function IncidentPicker({
         }
       );
 
+      if (abortRef.current) return;
+
       Alert.alert(
         "Report Sent ✓",
         `Your ${type.label.toLowerCase()} report has been sent to CDRRMO. Agencies have been notified.`
@@ -138,12 +155,16 @@ export default function IncidentPicker({
         emergencyType: type.key,
       });
     } catch (error: any) {
+      // Don't show error if the submission was cancelled
+      if (abortRef.current) return;
       Alert.alert(
         "Error",
         error.response?.data?.message || error.message || "Failed to send report"
       );
     } finally {
-      setLoading(null);
+      if (!abortRef.current) {
+        setLoading(null);
+      }
     }
   };
 
@@ -152,11 +173,11 @@ export default function IncidentPicker({
       animationType="slide"
       transparent={true}
       visible={visible}
-      onRequestClose={onClose}
+      onRequestClose={handleCancel}
     >
       <Pressable
         className="flex-1 bg-black/80 justify-end"
-        onPress={onClose}
+        onPress={handleCancel}
       >
         <Pressable
           className="bg-surface border-t border-border rounded-t-[32px] px-6 pt-6 pb-10"
@@ -210,7 +231,7 @@ export default function IncidentPicker({
           {/* Cancel */}
           <TouchableOpacity
             className="mt-6 py-4 rounded-2xl items-center bg-background border border-border"
-            onPress={onClose}
+            onPress={handleCancel}
           >
             <Text className="text-textGray font-black uppercase tracking-widest text-sm">
               Cancel

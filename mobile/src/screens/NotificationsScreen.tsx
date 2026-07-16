@@ -10,7 +10,14 @@ import {
   StatusBar,
   ActivityIndicator,
   Alert,
+  LayoutAnimation,
+  UIManager,
+  Platform,
 } from "react-native";
+
+if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import socket from "../api/socket";
@@ -369,7 +376,14 @@ export default function NotificationsScreen(): React.JSX.Element {
           {/* ── See More / See Less Button ── */}
           {hasMore && (
             <TouchableOpacity
-              onPress={() => setExpanded((prev) => !prev)}
+              onPress={() => {
+                LayoutAnimation.configureNext(LayoutAnimation.create(
+                  300,
+                  LayoutAnimation.Types.easeInEaseOut,
+                  LayoutAnimation.Properties.opacity
+                ));
+                setExpanded((prev) => !prev);
+              }}
               activeOpacity={0.7}
               style={styles.seeMoreButton}
             >
