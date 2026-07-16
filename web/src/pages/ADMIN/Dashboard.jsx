@@ -53,7 +53,7 @@ const STATUS_STYLES = {
 const TYPE_LABELS = {
   fire: "Fire",
   flood: "Flood",
-  emergency: "Emergency",
+  emergency: "Others",
   crime: "Crime",
   medical: "Medical",
   others: "Others",
@@ -81,7 +81,6 @@ const STATUS_COLORS = {
 const CATEGORY_COLORS = {
   Fire: "#dc2626",
   Flood: "#2563eb",
-  Emergency: "#4f46e5",
   Crime: "#7c3aed",
   Medical: "#059669",
   Others: "#64748b",
@@ -133,15 +132,23 @@ function normalizeStatus(status) {
 }
 
 function getBarangay(report) {
-  let locationStr = "Unspecified";
+  // Use the barangay field directly from the DB report
   if (report.location?.barangay) {
-    locationStr = report.location.barangay;
-  } else if (typeof report.location === "string" && report.location.trim()) {
-    locationStr = report.location.trim();
-  } else if (report.location?.name) {
-    locationStr = report.location.name;
+    const bgy = report.location.barangay.trim();
+    if (bgy && bgy.toLowerCase() !== "unknown" && bgy.toLowerCase() !== "unspecified") return bgy;
   }
-  return getValidCalbayogBarangay(locationStr);
+  // Fall back to location name string
+  if (typeof report.location === "string" && report.location.trim()) {
+    return report.location.trim();
+  }
+  if (report.location?.name) {
+    return report.location.name.trim();
+  }
+  // Fall back to street if that's all we have
+  if (report.location?.street) {
+    return report.location.street.trim();
+  }
+  return null;
 }
 
 function addCount(map, key) {
@@ -230,7 +237,7 @@ function EmptyAnalytics() {
 function AnalyticsCard({ title, subtitle, children, className = "" }) {
   return (
     <section className={`rounded-xl border border-slate-200 bg-white p-5 shadow-sm shadow-slate-200/60 ${className}`}>
-      <div className="mb-4">
+      <div className="mb-4 shrink-0">
         <h3 className="text-sm font-black text-slate-900">{title}</h3>
         {subtitle && <p className="mt-1 text-xs font-medium text-slate-500">{subtitle}</p>}
       </div>
@@ -273,7 +280,7 @@ function CsvExportButton({ reports }) {
       onClick={exportCsv}
       className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-500 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-600 active:scale-[0.98]"
     >
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" x2="12" y1="15" y2="3" /></svg>
       Export
     </button>
   );
@@ -393,8 +400,7 @@ export default function AdminDashboard() {
       if (search ?? auditSearch) params.set("search", search ?? auditSearch);
       if (dateFrom ?? auditDateFrom) params.set("startDate", dateFrom ?? auditDateFrom);
       if (dateTo ?? auditDateTo) params.set("endDate", dateTo ?? auditDateTo);
-      params.set("page", page ?? auditPage);
-      params.set("limit", "20");
+      params.set("limit", "1000");
       const res = await api.get(`/audit?${params.toString()}`);
       setAuditLogs(res.data.logs || []);
       setAuditTotal(res.data.total || 0);
@@ -440,7 +446,7 @@ export default function AdminDashboard() {
     if (activeNav === "audit" && auditTab !== "status") {
       fetchAuditLogs();
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeNav, auditTab, auditPage]);
 
   useEffect(() => {
@@ -570,7 +576,7 @@ export default function AdminDashboard() {
       hasData: reports.length > 0,
       categories: mapToChartData(categoryMap, CATEGORY_COLORS).sort((a, b) => b.value - a.value),
       statuses: mapToChartData(statusMap, STATUS_COLORS),
-      barangays: mapToChartData(barangayMap).sort((a, b) => b.value - a.value).slice(0, 8),
+      barangays: mapToChartData(barangayMap).sort((a, b) => b.value - a.value),
       trend: buildMonthlyTrend(reports),
     };
   }, [reports]);
@@ -738,17 +744,17 @@ export default function AdminDashboard() {
   ];
 
   const renderStatCards = () => (
-    <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+    <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
       {statCards.map((stat) => {
         const Icon = stat.icon;
         return (
           <div key={stat.label} className="flex items-center gap-3 rounded-xl border border-slate-100 bg-white p-3 shadow-sm shadow-slate-200/50">
-            <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${stat.bg} ${stat.text}`}>
+            <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${stat.bg} ${stat.text}`}>
               <Icon className="h-4 w-4" />
             </div>
             <div>
               <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{stat.label}</p>
-              <p className="text-xl font-black tracking-tight text-slate-900">{stat.value}</p>
+              <p className="text-lg font-black tracking-tight text-slate-900">{stat.value}</p>
               <p className="text-[9px] font-bold text-slate-400">{stat.sub}</p>
             </div>
           </div>
@@ -758,29 +764,21 @@ export default function AdminDashboard() {
   );
 
   const renderAnalytics = () => (
-    <div className="space-y-5">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h2 className="text-lg font-black tracking-tight text-slate-950">Incident Analytics</h2>
-          <p className="text-sm font-medium text-slate-500">Live reporting intelligence from current incident records.</p>
-        </div>
-        <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black uppercase tracking-widest text-slate-500">
-          Database/API data
-        </div>
-      </div>
+    <div className="flex flex-col h-full overflow-hidden">
 
       {!analyticsData.hasData ? (
         <EmptyAnalytics />
       ) : (
-        <>
-          <div className="grid gap-5 xl:grid-cols-[1.3fr_0.7fr]">
+        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden pr-1 space-y-3">
+          {/* Row 1: Line chart + Status Pie */}
+          <div className="grid gap-3 xl:grid-cols-[1.3fr_0.7fr]">
             <AnalyticsCard title="Monthly Incident Trend" subtitle="Reports created during the latest six-month window">
-              <div className="h-72">
+              <div style={{ height: 200 }}>
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={analyticsData.trend} margin={{ top: 12, right: 18, left: -18, bottom: 0 }}>
+                  <LineChart data={analyticsData.trend} margin={{ top: 8, right: 18, left: -18, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 12, fontWeight: 700 }} />
-                    <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 12, fontWeight: 700 }} />
+                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 11, fontWeight: 700 }} />
+                    <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 11, fontWeight: 700 }} />
                     <Tooltip content={<ChartTooltip />} />
                     <Line type="monotone" dataKey="incidents" stroke={THEME.accent} strokeWidth={3} dot={{ r: 4, fill: THEME.accent }} activeDot={{ r: 6 }} />
                   </LineChart>
@@ -789,15 +787,15 @@ export default function AdminDashboard() {
             </AnalyticsCard>
 
             <AnalyticsCard title="Incidents by Status" subtitle="Current operational state of all reports">
-              <div className="h-72">
+              <div style={{ height: 200 }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
                       data={analyticsData.statuses}
                       dataKey="value"
                       nameKey="name"
-                      innerRadius={58}
-                      outerRadius={92}
+                      innerRadius="40%"
+                      outerRadius="70%"
                       paddingAngle={3}
                     >
                       {analyticsData.statuses.map((entry, index) => (
@@ -812,14 +810,15 @@ export default function AdminDashboard() {
             </AnalyticsCard>
           </div>
 
-          <div className="grid gap-5 xl:grid-cols-2">
+          {/* Row 2: Category Bar + Barangay Bar */}
+          <div className="grid gap-3 xl:grid-cols-2">
             <AnalyticsCard title="Incidents by Category" subtitle="Emergency type volume across all agencies">
-              <div className="h-72">
+              <div style={{ height: 200 }}>
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={analyticsData.categories} margin={{ top: 12, right: 16, left: -18, bottom: 0 }}>
+                  <BarChart data={analyticsData.categories} margin={{ top: 8, right: 16, left: -18, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 12, fontWeight: 700 }} />
-                    <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 12, fontWeight: 700 }} />
+                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 11, fontWeight: 700 }} />
+                    <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 11, fontWeight: 700 }} />
                     <Tooltip content={<ChartTooltip />} />
                     <Bar dataKey="value" radius={[8, 8, 0, 0]}>
                       {analyticsData.categories.map((entry) => (
@@ -832,74 +831,80 @@ export default function AdminDashboard() {
             </AnalyticsCard>
 
             <AnalyticsCard title="Incidents by Barangay / Location" subtitle="Top areas from geocoded report locations">
-              <div className="h-72">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={analyticsData.barangays} layout="vertical" margin={{ top: 8, right: 18, left: 28, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" horizontal={false} />
-                    <XAxis type="number" allowDecimals={false} axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 12, fontWeight: 700 }} />
-                    <YAxis type="category" dataKey="name" width={92} axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 11, fontWeight: 700 }} />
-                    <Tooltip content={<ChartTooltip />} />
-                    <Bar dataKey="value" fill={THEME.primary} radius={[0, 8, 8, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+              <div className="overflow-y-auto pr-1" style={{ height: 200 }}>
+                <div style={{ height: Math.max(180, analyticsData.barangays.length * 36) }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={analyticsData.barangays} layout="vertical" margin={{ top: 4, right: 18, left: 28, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" horizontal={false} />
+                      <XAxis type="number" allowDecimals={false} axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 11, fontWeight: 700 }} />
+                      <YAxis type="category" dataKey="name" width={92} axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 10, fontWeight: 700 }} />
+                      <Tooltip content={<ChartTooltip />} />
+                      <Bar dataKey="value" fill={THEME.primary} radius={[0, 8, 8, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
               </div>
             </AnalyticsCard>
           </div>
-        </>
+        </div>
       )}
     </div>
   );
 
   const renderOverview = () => (
-    <div className="space-y-4">
-      <section className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-lg font-black tracking-tight text-slate-900">
-            Hello {storedUser.fullName || "Admin"}
-          </h1>
-          <p className="text-xs font-medium text-slate-500">
-            Maintain your situational awareness to achieve a resilient community environment.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-1.5 rounded-lg border border-slate-100 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 shadow-sm">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5 text-slate-400"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
-            {new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date())}
-          </div>
-          <CsvExportButton reports={filteredReports} />
-        </div>
-      </section>
-
-      {renderStatCards()}
+    <div className="flex flex-col gap-2 h-full">
+      <div className="grid grid-cols-4 gap-2 shrink-0">
+        {statCards.map((stat) => {
+          const Icon = stat.icon;
+          return (
+            <div key={stat.label} className="flex items-center gap-2 rounded-lg border border-slate-100 bg-white px-3 py-2 shadow-sm">
+              <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${stat.bg} ${stat.text}`}>
+                <Icon className="h-3.5 w-3.5" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[8px] font-black uppercase tracking-widest text-slate-400 truncate">{stat.label}</p>
+                <p className="text-base font-black leading-none text-slate-900">{stat.value}</p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
 
       {!analyticsData.hasData ? (
         <EmptyAnalytics />
       ) : (
-        <>
-          <div className="grid gap-4 xl:grid-cols-[1.4fr_0.6fr]">
-            <AnalyticsCard title="Incident Trending" subtitle="Reports in the latest six-month window">
-              <div className="h-48">
+        <div className="flex flex-col gap-2 flex-1 min-h-0">
+          {/* Top Half: Charts */}
+          <div className="grid grid-cols-3 gap-2 flex-1 min-h-0">
+            {/* Pie */}
+            <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm min-h-0 flex flex-col">
+              <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1">Incident Analysis</p>
+              <div className="flex-1 min-h-0">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={analyticsData.trend} margin={{ top: 8, right: 16, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 11, fontWeight: 700 }} />
-                    <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 11, fontWeight: 700 }} />
+                  <PieChart>
+                    <Pie data={analyticsData.statuses} dataKey="value" nameKey="name" innerRadius={24} outerRadius={40} paddingAngle={3}>
+                      {analyticsData.statuses.map((entry, index) => (
+                        <Cell key={entry.name} fill={entry.fill || PIE_COLORS[index % PIE_COLORS.length]} />
+                      ))}
+                    </Pie>
                     <Tooltip content={<ChartTooltip />} />
-                    <Line type="monotone" dataKey="incidents" stroke="#10b981" strokeWidth={2.5} dot={{ r: 3, fill: "#10b981" }} activeDot={{ r: 5 }} />
-                  </LineChart>
+                    <Legend iconType="circle" iconSize={6} formatter={(value) => <span className="text-[8px] font-bold text-slate-600">{value}</span>} />
+                  </PieChart>
                 </ResponsiveContainer>
               </div>
-            </AnalyticsCard>
+            </div>
 
-            <AnalyticsCard title="Agency Categories" subtitle="Emergency type volume">
-              <div className="h-48">
+            {/* Bar */}
+            <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm min-h-0 flex flex-col">
+              <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1">By Category</p>
+              <div className="flex-1 min-h-0">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={analyticsData.categories} margin={{ top: 8, right: 12, left: -20, bottom: 0 }}>
+                  <BarChart data={analyticsData.categories} margin={{ top: 4, right: 4, left: -28, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 11, fontWeight: 700 }} />
-                    <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 11, fontWeight: 700 }} />
+                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 8, fontWeight: 700 }} />
+                    <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 8, fontWeight: 700 }} />
                     <Tooltip content={<ChartTooltip />} />
-                    <Bar dataKey="value" radius={[6, 6, 0, 0]}>
+                    <Bar dataKey="value" radius={[3, 3, 0, 0]}>
                       {analyticsData.categories.map((entry) => (
                         <Cell key={entry.name} fill={entry.fill || "#10b981"} />
                       ))}
@@ -907,49 +912,41 @@ export default function AdminDashboard() {
                   </BarChart>
                 </ResponsiveContainer>
               </div>
-            </AnalyticsCard>
-          </div>
+            </div>
 
-          <div className="grid gap-4 xl:grid-cols-[0.5fr_1.5fr]">
-            <AnalyticsCard title="Incident Analysis" subtitle="Operational state of all reports">
-              <div className="h-48">
+            {/* Trend line */}
+            <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm min-h-0 flex flex-col">
+              <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1">Incident Trend</p>
+              <div className="flex-1 min-h-0">
                 <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={analyticsData.statuses}
-                      dataKey="value"
-                      nameKey="name"
-                      innerRadius={44}
-                      outerRadius={72}
-                      paddingAngle={3}
-                    >
-                      {analyticsData.statuses.map((entry, index) => (
-                        <Cell key={entry.name} fill={entry.fill || PIE_COLORS[index % PIE_COLORS.length]} />
-                      ))}
-                    </Pie>
+                  <LineChart data={analyticsData.trend} margin={{ top: 4, right: 8, left: -26, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 9, fontWeight: 700 }} />
+                    <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 9, fontWeight: 700 }} />
                     <Tooltip content={<ChartTooltip />} />
-                    <Legend iconType="circle" iconSize={8} formatter={(value) => <span className="text-[10px] font-bold text-slate-600">{value}</span>} />
-                  </PieChart>
+                    <Line type="monotone" dataKey="incidents" stroke="#10b981" strokeWidth={2} dot={{ r: 2.5, fill: "#10b981" }} activeDot={{ r: 4 }} />
+                  </LineChart>
                 </ResponsiveContainer>
               </div>
-            </AnalyticsCard>
-
-            <section className="overflow-hidden rounded-xl border border-slate-100 bg-white shadow-sm shadow-slate-200/50">
-              <div className="border-b border-slate-100 px-4 py-3 flex justify-between items-center">
-                <div>
-                  <h2 className="text-sm font-black text-slate-900">Incident Scorecard</h2>
-                  <p className="text-[10px] font-medium text-slate-500">Latest 2 reports.</p>
-                </div>
-                <div className="flex gap-2 items-center">
-                  <button onClick={() => setActiveNav("incidents")} className="rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-emerald-600">
-                    View All
-                  </button>
-                </div>
-              </div>
-              {renderIncidentTable(filteredReports.slice(0, 2), true)}
-            </section>
+            </div>
           </div>
-        </>
+
+          {/* Bottom Half: Scorecard */}
+          <section className="flex-1 min-h-0 overflow-hidden rounded-xl border border-slate-100 bg-white shadow-sm flex flex-col">
+            <div className="border-b border-slate-100 px-3 py-2 flex justify-between items-center shrink-0">
+              <div>
+                <h2 className="text-[10px] font-black text-slate-900">Incident Scorecard</h2>
+                <p className="text-[8px] text-slate-400">Latest reports</p>
+              </div>
+              <button onClick={() => setActiveNav("incidents")} className="rounded-lg bg-emerald-500 px-2 py-1 text-[9px] font-bold text-white transition hover:bg-emerald-600">
+                View All
+              </button>
+            </div>
+            <div className="overflow-auto flex-1">
+              {renderIncidentTable(filteredReports.slice(0, 2), true)}
+            </div>
+          </section>
+        </div>
       )}
     </div>
   );
@@ -1031,8 +1028,8 @@ export default function AdminDashboard() {
   );
 
   const renderIncidents = () => (
-    <section className="rounded-xl border border-slate-200 bg-white shadow-md shadow-slate-200/50">
-      <div className="flex flex-col gap-3 border-b border-slate-100 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
+    <section className="flex flex-col h-full rounded-xl border border-slate-200 bg-white shadow-md shadow-slate-200/50">
+      <div className="flex-none flex flex-col gap-3 border-b border-slate-100 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h2 className="text-sm font-black text-slate-900">Incident Management</h2>
           <p className="text-xs text-slate-500">Monitor every report, update status, assign responders, and export history.</p>
@@ -1050,13 +1047,15 @@ export default function AdminDashboard() {
           <CsvExportButton reports={filteredReports} />
         </div>
       </div>
-      {renderIncidentTable(filteredReports)}
+      <div className="flex-1 min-h-0 overflow-auto">
+        {renderIncidentTable(filteredReports)}
+      </div>
     </section>
   );
 
   const renderUsers = () => (
-    <div className="space-y-5">
-      <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-5 shadow-md shadow-slate-200/50 sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex flex-col gap-4 h-full">
+      <div className="flex-none flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-5 shadow-md shadow-slate-200/50 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-sm font-black text-slate-900">User Directory</h2>
           <p className="text-xs text-slate-500">Manage residents, responders, staff, and administrators.</p>
@@ -1066,8 +1065,8 @@ export default function AdminDashboard() {
         </button>
       </div>
 
-      <section className="rounded-xl border border-slate-200 bg-white shadow-md shadow-slate-200/50">
-        <div className="overflow-x-auto">
+      <section className="flex-1 min-h-0 flex flex-col rounded-xl border border-slate-200 bg-white shadow-md shadow-slate-200/50">
+        <div className="overflow-auto flex-1 min-h-0">
           <table className="w-full table-auto text-left">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50 text-[10px] font-black uppercase tracking-widest text-slate-400">
@@ -1151,10 +1150,12 @@ export default function AdminDashboard() {
   );
 
   const renderNotifications = () => (
-    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-md shadow-slate-200/50">
-      <h2 className="text-sm font-black text-slate-900">Notification Center</h2>
-      <p className="mt-1 text-xs text-slate-500">Resident and responder notifications are sent automatically when incidents are verified, activated, resolved, or assigned.</p>
-      <div className="mt-5 space-y-3">
+    <section className="flex flex-col h-full rounded-xl border border-slate-200 bg-white p-5 shadow-md shadow-slate-200/50">
+      <div className="flex-none">
+        <h2 className="text-sm font-black text-slate-900">Notification Center</h2>
+        <p className="mt-1 text-xs text-slate-500">Resident and responder notifications are sent automatically when incidents are verified, activated, resolved, or assigned.</p>
+      </div>
+      <div className="mt-5 space-y-3 flex-1 min-h-0 overflow-auto pr-2">
         {notifications.length === 0 ? (
           <div className="rounded-lg bg-slate-50 p-6 text-center text-sm font-semibold text-slate-400">No notifications captured in this session.</div>
         ) : notifications.map((item) => (
@@ -1221,13 +1222,13 @@ export default function AdminDashboard() {
       if (!auditDateFrom && !auditDateTo) return true;
       const d = new Date(e.createdAt);
       if (auditDateFrom && d < new Date(auditDateFrom)) return false;
-      if (auditDateTo) { const end = new Date(auditDateTo); end.setHours(23,59,59); if (d > end) return false; }
+      if (auditDateTo) { const end = new Date(auditDateTo); end.setHours(23, 59, 59); if (d > end) return false; }
       return true;
     });
 
     const AUDIT_PAGE_SIZE = 20;
     const statusPageCount = Math.ceil(filteredAuditEntries.length / AUDIT_PAGE_SIZE);
-    const paginatedEntries = filteredAuditEntries.slice((auditPage - 1) * AUDIT_PAGE_SIZE, auditPage * AUDIT_PAGE_SIZE);
+    const paginatedEntries = filteredAuditEntries;
 
     // ── USER ACTIVITY + PASSWORD SECURITY tabs ─────────────────────────────────
     const filteredAuditLogs = auditLogs.filter((e) => {
@@ -1247,40 +1248,17 @@ export default function AdminDashboard() {
     };
 
     return (
-      <div className="space-y-5">
+      <div className="flex flex-col gap-4 h-full">
         {/* Header */}
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex-none flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-xl font-black tracking-tight text-slate-900">Audit Trail</h2>
             <p className="mt-0.5 text-sm text-slate-500">Monitor, transparency, and accountability. All records are read-only.</p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              onClick={() => {
-                if (auditTab === "status") {
-                  exportCsv(
-                    [["Incident ID", "Type", "Agency", "Location", "Action", "Actor", "Role", "Status", "Timestamp"],
-                    ...filteredAuditEntries.map((e) => [e.incidentId, e.reportType || "", e.agency || "", e.location || "", e.message || e.action, e.actorName || "System", e.actorRole || "", e.toStatus || "", new Date(e.createdAt).toLocaleString()])],
-                    `audit-status-${new Date().toISOString().slice(0,10)}.csv`
-                  );
-                } else {
-                  exportCsv(
-                    [["Date/Time", "Name", "Email", "Role", "Action", "Details", "OTP Code", "Source", "IP"],
-                    ...filteredAuditLogs.map((e) => [new Date(e.createdAt).toLocaleString(), e.actorName, e.actorEmail, e.actorRole, AUDIT_ACTION_LABELS[e.action] || e.action, e.details, e.otpCode || "", e.source || "", e.ipAddress || ""])],
-                    `audit-${auditTab}-${new Date().toISOString().slice(0,10)}.csv`
-                  );
-                }
-              }}
-              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-slate-50"
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
-              Export CSV
-            </button>
-          </div>
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1 w-fit">
+        <div className="flex-none flex gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1 w-fit">
           {[
             { id: "status", label: "Status" },
             { id: "user_activity", label: "User Activity" },
@@ -1297,7 +1275,7 @@ export default function AdminDashboard() {
         </div>
 
         {/* Filter bar */}
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex-none flex flex-wrap items-center gap-3">
           <div className="relative flex-1 min-w-[200px] max-w-sm">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
@@ -1321,12 +1299,12 @@ export default function AdminDashboard() {
 
         {/* ── STATUS TAB ───────────────────────────────────────────────────── */}
         {auditTab === "status" && (
-          <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-md shadow-slate-200/50">
-            <div className="border-b border-slate-100 px-5 py-4">
+          <section className="flex-1 min-h-0 flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-md shadow-slate-200/50">
+            <div className="flex-none border-b border-slate-100 px-5 py-4">
               <h3 className="text-sm font-black text-slate-900">Incident Status Log</h3>
               <p className="mt-0.5 text-xs text-slate-500">Status updates recorded per incident. View-only.</p>
             </div>
-            <div className="overflow-x-auto rounded-xl border border-slate-200 bg-slate-50 shadow-sm">
+            <div className="overflow-auto flex-1 rounded-xl border border-slate-200 bg-slate-50 shadow-sm">
               <table className="w-full table-auto text-left text-sm">
                 <thead>
                   <tr className="border-b border-slate-100 bg-slate-50 text-[11px] font-black uppercase tracking-widest text-slate-400">
@@ -1358,7 +1336,7 @@ export default function AdminDashboard() {
                           {entry.fromStatus && entry.toStatus ? (
                             <div className="flex items-center gap-1.5">
                               <span className={`rounded px-2 py-0.5 text-[10px] font-black uppercase ${fromInfo.bg} ${fromInfo.text}`}>{entry.fromStatus}</span>
-                              <svg className="h-3 w-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/></svg>
+                              <svg className="h-3 w-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
                               <span className={`rounded px-2 py-0.5 text-[10px] font-black uppercase ${toInfo.bg} ${toInfo.text}`}>{entry.toStatus}</span>
                             </div>
                           ) : (
@@ -1381,30 +1359,20 @@ export default function AdminDashboard() {
                 </tbody>
               </table>
             </div>
-            {statusPageCount > 1 && (
-              <div className="flex items-center justify-between border-t border-slate-100 px-5 py-3">
-                <p className="text-xs text-slate-500">Showing {Math.min((auditPage - 1) * AUDIT_PAGE_SIZE + 1, filteredAuditEntries.length)}–{Math.min(auditPage * AUDIT_PAGE_SIZE, filteredAuditEntries.length)} of {filteredAuditEntries.length}</p>
-                <div className="flex gap-1">
-                  {Array.from({ length: statusPageCount }, (_, i) => i + 1).map((p) => (
-                    <button key={p} onClick={() => setAuditPage(p)} className={`h-7 w-7 rounded text-xs font-bold ${auditPage === p ? "bg-slate-900 text-white" : "border border-slate-200 text-slate-600 hover:bg-slate-50"}`}>{p}</button>
-                  ))}
-                </div>
-              </div>
-            )}
           </section>
         )}
 
         {/* ── USER ACTIVITY TAB ───────────────────────────────────────────────── */}
         {auditTab === "user_activity" && (
-          <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-md shadow-slate-200/50">
-            <div className="border-b border-slate-100 px-5 py-4">
+          <section className="flex-1 min-h-0 flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-md shadow-slate-200/50">
+            <div className="flex-none border-b border-slate-100 px-5 py-4">
               <h3 className="text-sm font-black text-slate-900">User Account Activity</h3>
               <p className="mt-0.5 text-xs text-slate-500">Login attempts, profile updates, account changes. View-only.</p>
             </div>
             {auditLoading ? (
-              <div className="flex items-center justify-center py-16 text-sm text-slate-400">Loading activity logs...</div>
+              <div className="flex items-center justify-center py-16 text-sm text-slate-400 flex-1 min-h-0">Loading activity logs...</div>
             ) : (
-              <div className="overflow-x-auto rounded-xl border border-slate-200 bg-slate-50">
+              <div className="overflow-auto flex-1 rounded-xl border border-slate-200 bg-slate-50">
                 <table className="w-full table-auto text-left text-sm">
                   <thead>
                     <tr className="border-b border-slate-100 bg-slate-50 text-[11px] font-black uppercase tracking-widest text-slate-400">
@@ -1449,23 +1417,13 @@ export default function AdminDashboard() {
                 </table>
               </div>
             )}
-            {logPageCount > 1 && (
-              <div className="flex items-center justify-between border-t border-slate-100 px-5 py-3">
-                <p className="text-xs text-slate-500">Page {auditPage} of {logPageCount} — {auditTotal} total records</p>
-                <div className="flex gap-1">
-                  {Array.from({ length: Math.min(logPageCount, 8) }, (_, i) => i + 1).map((p) => (
-                    <button key={p} onClick={() => setAuditPage(p)} className={`h-7 w-7 rounded text-xs font-bold ${auditPage === p ? "bg-slate-900 text-white" : "border border-slate-200 text-slate-600 hover:bg-slate-50"}`}>{p}</button>
-                  ))}
-                </div>
-              </div>
-            )}
           </section>
         )}
 
         {/* ── PASSWORD SECURITY TAB ────────────────────────────────────────────── */}
         {auditTab === "password_security" && (
-          <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-md shadow-slate-200/50">
-            <div className="border-b border-slate-100 px-5 py-4 flex items-start justify-between">
+          <section className="flex-1 min-h-0 flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-md shadow-slate-200/50">
+            <div className="flex-none border-b border-slate-100 px-5 py-4 flex items-start justify-between">
               <div>
                 <h3 className="text-sm font-black text-slate-900">Password Security Activity</h3>
                 <p className="mt-0.5 text-xs text-slate-500">OTP requests, verifications, and password resets. Read-only security log.</p>
@@ -1473,9 +1431,9 @@ export default function AdminDashboard() {
               <span className="rounded-full bg-red-50 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-red-600 border border-red-100">Sensitive</span>
             </div>
             {auditLoading ? (
-              <div className="flex items-center justify-center py-16 text-sm text-slate-400">Loading security logs...</div>
+              <div className="flex items-center justify-center py-16 text-sm text-slate-400 flex-1 min-h-0">Loading security logs...</div>
             ) : (
-              <div className="overflow-x-auto rounded-xl border border-slate-200 bg-slate-50">
+              <div className="overflow-auto flex-1 rounded-xl border border-slate-200 bg-slate-50">
                 <table className="w-full table-fixed text-left text-sm">
                   <colgroup>
                     <col className="w-[160px]" />
@@ -1536,16 +1494,6 @@ export default function AdminDashboard() {
                 </table>
               </div>
             )}
-            {logPageCount > 1 && (
-              <div className="flex items-center justify-between border-t border-slate-100 px-5 py-3">
-                <p className="text-xs text-slate-500">Page {auditPage} of {logPageCount} — {auditTotal} total records</p>
-                <div className="flex gap-1">
-                  {Array.from({ length: Math.min(logPageCount, 8) }, (_, i) => i + 1).map((p) => (
-                    <button key={p} onClick={() => setAuditPage(p)} className={`h-7 w-7 rounded text-xs font-bold ${auditPage === p ? "bg-slate-900 text-white" : "border border-slate-200 text-slate-600 hover:bg-slate-50"}`}>{p}</button>
-                  ))}
-                </div>
-              </div>
-            )}
           </section>
         )}
 
@@ -1556,7 +1504,7 @@ export default function AdminDashboard() {
               <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
                 <h3 className="text-sm font-black text-slate-900">Log Entry Details</h3>
                 <button onClick={() => setAuditDetailEntry(null)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-50 hover:text-slate-700">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
                 </button>
               </div>
               <div className="divide-y divide-slate-50 px-6 py-4 space-y-0">
@@ -1629,193 +1577,195 @@ export default function AdminDashboard() {
       { label: "View Active Incidents", desc: "Monitor and manage all current reports", icon: "📍", action: () => setActiveNav("incidents") },
       { label: "User Management Console", desc: "Create, edit, and manage user accounts", icon: "👤", action: () => setActiveNav("users") },
       { label: "Audit Trail & Logs", desc: "Review system activity and change history", icon: "📜", action: () => setActiveNav("audit") },
-      { label: "Export Incident Reports", desc: "Download complete CSV report archive", icon: "📤", action: () => {} },
-      { label: "System Health Diagnostics", desc: "Check connectivity and service status", icon: "🧪", action: () => {} },
+      { label: "Export Incident Reports", desc: "Download complete CSV report archive", icon: "📤", action: () => { } },
+      { label: "System Health Diagnostics", desc: "Check connectivity and service status", icon: "🧪", action: () => { } },
     ];
 
     return (
-      <div style={{ fontFamily: "'Inter', 'Manrope', system-ui, sans-serif" }} className="space-y-6">
-        {/* ── Page Header ─────────────────────────────────────────────── */}
-        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-widest text-red-500">Admin Settings</p>
-              <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-900" style={{ letterSpacing: "-0.02em" }}>
-                System Control & Configuration
-              </h2>
-              <p className="mt-2 max-w-2xl text-[15px] font-normal leading-relaxed text-slate-500">
-                Manage system access, incident workflows, and real-time monitoring configuration.
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <button
-                type="button"
-                onClick={refreshAdminData}
-                disabled={isRefreshing}
-                className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-5 py-2.5 text-[13px] font-semibold text-white shadow-sm transition-all hover:bg-slate-800 active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-slate-300"
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-                  <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.3" />
-                </svg>
-                {isRefreshing ? "Refreshing…" : "Refresh Data"}
-              </button>
-              <CsvExportButton reports={reports} />
-            </div>
-          </div>
-        </section>
-
-        {/* ── System Info Cards ────────────────────────────────────────── */}
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {systemCards.map((card) => (
-            <div key={card.label} className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:shadow-md hover:border-slate-300">
-              <div className="flex items-start justify-between">
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{card.label}</p>
-                <span className="text-lg">{card.icon}</span>
-              </div>
-              <p className="mt-3 text-[15px] font-semibold text-slate-900 break-words leading-snug">{card.value}</p>
-              <p className="mt-1.5 text-[13px] font-normal leading-relaxed text-slate-500">{card.sub}</p>
-            </div>
-          ))}
-        </div>
-
-        {/* ── Access Control + Workflow ────────────────────────────────── */}
-        <div className="grid gap-5 xl:grid-cols-2">
-          {/* Access Control */}
+      <div style={{ fontFamily: "'Inter', 'Manrope', system-ui, sans-serif" }} className="flex flex-col h-full">
+        <div className="flex-1 min-h-0 overflow-auto pr-2 space-y-6">
+          {/* ── Page Header ─────────────────────────────────────────────── */}
           <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <div className="flex items-start justify-between gap-4">
+            <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
               <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-lg">👥</span>
-                  <h3 className="text-[15px] font-bold text-slate-900">Access Control Overview</h3>
-                </div>
-                <p className="mt-1.5 text-[13px] font-normal leading-relaxed text-slate-500">Role distribution summary</p>
+                <p className="text-[11px] font-semibold uppercase tracking-widest text-red-500">Admin Settings</p>
+                <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-900" style={{ letterSpacing: "-0.02em" }}>
+                  System Control & Configuration
+                </h2>
+                <p className="mt-2 max-w-2xl text-[15px] font-normal leading-relaxed text-slate-500">
+                  Manage system access, incident workflows, and real-time monitoring configuration.
+                </p>
               </div>
-              <span className="shrink-0 rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                Role Based
-              </span>
-            </div>
-
-            <div className="mt-5 grid grid-cols-2 gap-3">
-              {roleCounts.map((item) => {
-                const cfg = roleConfig[item.role];
-                return (
-                  <div key={item.role} className={`rounded-xl border ${cfg.border} ${cfg.lightBg} p-4 transition-all hover:shadow-sm`}>
-                    <div className="flex items-center gap-2.5">
-                      <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${cfg.color} text-white text-sm`}>
-                        {item.count}
-                      </div>
-                      <p className="text-[13px] font-semibold capitalize text-slate-700">{item.role === "responder" ? "Responders" : item.role === "resident" ? "Residents" : item.role === "admin" ? "Admin" : "Staff"}</p>
-                    </div>
-                    <p className="mt-2.5 text-[12px] font-normal leading-relaxed text-slate-500">{cfg.desc}</p>
-                  </div>
-                );
-              })}
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={refreshAdminData}
+                  disabled={isRefreshing}
+                  className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-5 py-2.5 text-[13px] font-semibold text-white shadow-sm transition-all hover:bg-slate-800 active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-slate-300"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                    <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.3" />
+                  </svg>
+                  {isRefreshing ? "Refreshing…" : "Refresh Data"}
+                </button>
+                <CsvExportButton reports={reports} />
+              </div>
             </div>
           </section>
 
-          {/* Incident Workflow Pipeline */}
-          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <div className="flex items-center gap-2">
-              <span className="text-lg">🚦</span>
-              <h3 className="text-[15px] font-bold text-slate-900">Incident Workflow Pipeline</h3>
-            </div>
-            <p className="mt-1.5 text-[13px] font-normal leading-relaxed text-slate-500">
-              Official status path used by the admin and agency dashboards.
-            </p>
+          {/* ── System Info Cards ────────────────────────────────────────── */}
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {systemCards.map((card) => (
+              <div key={card.label} className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:shadow-md hover:border-slate-300">
+                <div className="flex items-start justify-between">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{card.label}</p>
+                  <span className="text-lg">{card.icon}</span>
+                </div>
+                <p className="mt-3 text-[15px] font-semibold text-slate-900 break-words leading-snug">{card.value}</p>
+                <p className="mt-1.5 text-[13px] font-normal leading-relaxed text-slate-500">{card.sub}</p>
+              </div>
+            ))}
+          </div>
 
-            <div className="mt-6 space-y-0">
-              {workflow.map((step, index) => (
-                <div key={step.label} className="relative flex gap-4">
-                  {/* Stepper line + dot */}
-                  <div className="flex flex-col items-center">
-                    <div className={`relative z-10 flex h-9 w-9 items-center justify-center rounded-full ${step.color} text-[12px] font-bold text-white ring-4 ${step.ring}`}>
-                      {step.num}
+          {/* ── Access Control + Workflow ────────────────────────────────── */}
+          <div className="grid gap-5 xl:grid-cols-2">
+            {/* Access Control */}
+            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">👥</span>
+                    <h3 className="text-[15px] font-bold text-slate-900">Access Control Overview</h3>
+                  </div>
+                  <p className="mt-1.5 text-[13px] font-normal leading-relaxed text-slate-500">Role distribution summary</p>
+                </div>
+                <span className="shrink-0 rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                  Role Based
+                </span>
+              </div>
+
+              <div className="mt-5 grid grid-cols-2 gap-3">
+                {roleCounts.map((item) => {
+                  const cfg = roleConfig[item.role];
+                  return (
+                    <div key={item.role} className={`rounded-xl border ${cfg.border} ${cfg.lightBg} p-4 transition-all hover:shadow-sm`}>
+                      <div className="flex items-center gap-2.5">
+                        <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${cfg.color} text-white text-sm`}>
+                          {item.count}
+                        </div>
+                        <p className="text-[13px] font-semibold capitalize text-slate-700">{item.role === "responder" ? "Responders" : item.role === "resident" ? "Residents" : item.role === "admin" ? "Admin" : "Staff"}</p>
+                      </div>
+                      <p className="mt-2.5 text-[12px] font-normal leading-relaxed text-slate-500">{cfg.desc}</p>
                     </div>
-                    {index < workflow.length - 1 && (
-                      <div className="w-0.5 flex-1 bg-slate-200" />
-                    )}
+                  );
+                })}
+              </div>
+            </section>
+
+            {/* Incident Workflow Pipeline */}
+            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">🚦</span>
+                <h3 className="text-[15px] font-bold text-slate-900">Incident Workflow Pipeline</h3>
+              </div>
+              <p className="mt-1.5 text-[13px] font-normal leading-relaxed text-slate-500">
+                Official status path used by the admin and agency dashboards.
+              </p>
+
+              <div className="mt-6 space-y-0">
+                {workflow.map((step, index) => (
+                  <div key={step.label} className="relative flex gap-4">
+                    {/* Stepper line + dot */}
+                    <div className="flex flex-col items-center">
+                      <div className={`relative z-10 flex h-9 w-9 items-center justify-center rounded-full ${step.color} text-[12px] font-bold text-white ring-4 ${step.ring}`}>
+                        {step.num}
+                      </div>
+                      {index < workflow.length - 1 && (
+                        <div className="w-0.5 flex-1 bg-slate-200" />
+                      )}
+                    </div>
+                    {/* Content */}
+                    <div className={`pb-6 ${index === workflow.length - 1 ? "pb-0" : ""}`}>
+                      <p className="text-[14px] font-semibold text-slate-900 mt-1.5">{step.label}</p>
+                      <p className="mt-1 text-[13px] font-normal leading-relaxed text-slate-500">{step.body}</p>
+                    </div>
                   </div>
-                  {/* Content */}
-                  <div className={`pb-6 ${index === workflow.length - 1 ? "pb-0" : ""}`}>
-                    <p className="text-[14px] font-semibold text-slate-900 mt-1.5">{step.label}</p>
-                    <p className="mt-1 text-[13px] font-normal leading-relaxed text-slate-500">{step.body}</p>
-                  </div>
+                ))}
+              </div>
+
+              <div className="mt-5 flex items-start gap-2.5 rounded-xl bg-slate-50 border border-slate-200 px-4 py-3">
+                <span className="mt-0.5 text-sm">📡</span>
+                <p className="text-[12px] font-medium leading-relaxed text-slate-500">
+                  All workflow stages are synchronized in real time across Admin and Agency dashboards.
+                </p>
+              </div>
+            </section>
+          </div>
+
+          {/* ── Real-Time System Behavior ─────────────────────────────── */}
+          <section className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+            <div className="bg-slate-900 px-6 py-5">
+              <div className="flex items-center gap-2.5">
+                <span className="text-lg">⚡</span>
+                <h3 className="text-[15px] font-bold text-white">Real-Time System Behavior</h3>
+              </div>
+              <p className="mt-1.5 text-[13px] font-normal leading-relaxed text-slate-400">
+                Live monitoring and synchronization across all connected dashboards.
+              </p>
+            </div>
+            <div className="divide-y divide-slate-100 px-6">
+              {realtimeFeatures.map((feature, index) => (
+                <div key={index} className="flex items-center gap-4 py-3.5">
+                  <span className="shrink-0 flex h-8 w-8 items-center justify-center rounded-lg bg-slate-50 text-sm border border-slate-200">{feature.icon}</span>
+                  <p className="text-[13px] font-medium leading-snug text-slate-600">{feature.text}</p>
                 </div>
               ))}
             </div>
+          </section>
 
-            <div className="mt-5 flex items-start gap-2.5 rounded-xl bg-slate-50 border border-slate-200 px-4 py-3">
-              <span className="mt-0.5 text-sm">📡</span>
-              <p className="text-[12px] font-medium leading-relaxed text-slate-500">
-                All workflow stages are synchronized in real time across Admin and Agency dashboards.
-              </p>
+          {/* ── Maintenance Shortcuts ─────────────────────────────────── */}
+          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-lg">🛠️</span>
+              <h3 className="text-[15px] font-bold text-slate-900">Maintenance Shortcuts</h3>
+            </div>
+            <p className="text-[13px] font-normal leading-relaxed text-slate-500 mb-5">
+              Quick administrative tools for system control.
+            </p>
+
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {shortcuts.map((item) => (
+                <button
+                  key={item.label}
+                  type="button"
+                  onClick={item.action}
+                  className="group flex items-start gap-3.5 rounded-xl border border-slate-200 bg-white p-4 text-left transition-all hover:border-slate-300 hover:bg-slate-50 hover:shadow-sm active:scale-[0.99]"
+                >
+                  <span className="mt-0.5 shrink-0 flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-base group-hover:bg-slate-200 transition-colors">{item.icon}</span>
+                  <div>
+                    <p className="text-[13px] font-semibold text-slate-800 group-hover:text-slate-900">{item.label}</p>
+                    <p className="mt-1 text-[12px] font-normal leading-relaxed text-slate-400">{item.desc}</p>
+                  </div>
+                </button>
+              ))}
             </div>
           </section>
-        </div>
 
-        {/* ── Real-Time System Behavior ─────────────────────────────── */}
-        <section className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-          <div className="bg-slate-900 px-6 py-5">
-            <div className="flex items-center gap-2.5">
-              <span className="text-lg">⚡</span>
-              <h3 className="text-[15px] font-bold text-white">Real-Time System Behavior</h3>
+          {/* ── System Summary ───────────────────────────────────────── */}
+          <section className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-6 shadow-sm">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-lg">🧭</span>
+              <h3 className="text-[15px] font-bold text-slate-900">System Summary</h3>
             </div>
-            <p className="mt-1.5 text-[13px] font-normal leading-relaxed text-slate-400">
-              Live monitoring and synchronization across all connected dashboards.
+            <p className="max-w-3xl text-[14px] font-normal leading-relaxed text-slate-500">
+              A centralized emergency incident management dashboard designed for real-time reporting and response coordination,
+              multi-role operational control, transparent monitoring and auditing, and fast decision-making during critical events.
             </p>
-          </div>
-          <div className="divide-y divide-slate-100 px-6">
-            {realtimeFeatures.map((feature, index) => (
-              <div key={index} className="flex items-center gap-4 py-3.5">
-                <span className="shrink-0 flex h-8 w-8 items-center justify-center rounded-lg bg-slate-50 text-sm border border-slate-200">{feature.icon}</span>
-                <p className="text-[13px] font-medium leading-snug text-slate-600">{feature.text}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* ── Maintenance Shortcuts ─────────────────────────────────── */}
-        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-lg">🛠️</span>
-            <h3 className="text-[15px] font-bold text-slate-900">Maintenance Shortcuts</h3>
-          </div>
-          <p className="text-[13px] font-normal leading-relaxed text-slate-500 mb-5">
-            Quick administrative tools for system control.
-          </p>
-
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {shortcuts.map((item) => (
-              <button
-                key={item.label}
-                type="button"
-                onClick={item.action}
-                className="group flex items-start gap-3.5 rounded-xl border border-slate-200 bg-white p-4 text-left transition-all hover:border-slate-300 hover:bg-slate-50 hover:shadow-sm active:scale-[0.99]"
-              >
-                <span className="mt-0.5 shrink-0 flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-base group-hover:bg-slate-200 transition-colors">{item.icon}</span>
-                <div>
-                  <p className="text-[13px] font-semibold text-slate-800 group-hover:text-slate-900">{item.label}</p>
-                  <p className="mt-1 text-[12px] font-normal leading-relaxed text-slate-400">{item.desc}</p>
-                </div>
-              </button>
-            ))}
-          </div>
-        </section>
-
-        {/* ── System Summary ───────────────────────────────────────── */}
-        <section className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-6 shadow-sm">
-          <div className="flex items-center gap-2 mb-3">
-            <span className="text-lg">🧭</span>
-            <h3 className="text-[15px] font-bold text-slate-900">System Summary</h3>
-          </div>
-          <p className="max-w-3xl text-[14px] font-normal leading-relaxed text-slate-500">
-            A centralized emergency incident management dashboard designed for real-time reporting and response coordination,
-            multi-role operational control, transparent monitoring and auditing, and fast decision-making during critical events.
-          </p>
-          <p className="mt-3 text-[12px] font-medium text-slate-400">
-            Built for public safety efficiency, reliability, and real-time situational awareness.
-          </p>
-        </section>
+            <p className="mt-3 text-[12px] font-medium text-slate-400">
+              Built for public safety efficiency, reliability, and real-time situational awareness.
+            </p>
+          </section>
+        </div>
       </div>
     );
   };
@@ -1898,7 +1848,7 @@ export default function AdminDashboard() {
                 />
               </div>
             </div>
-            
+
             <div className="flex shrink-0 items-center gap-5">
               <button onClick={() => setActiveNav("notifications")} className="relative rounded-lg bg-slate-50 p-2.5 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 border border-slate-100">
                 <Bell className="h-5 w-5" />
@@ -1919,13 +1869,13 @@ export default function AdminDashboard() {
           </div>
         </header>
 
-        <section className="flex-1 overflow-y-auto p-4 lg:p-6">
+        <section className="flex-1 overflow-hidden px-4 py-3 lg:px-6 lg:py-4 flex flex-col min-h-0">
           {error && (
             <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
               {error}
             </div>
           )}
-          {renderContent()}
+          <div className="flex-1 min-h-0">{renderContent()}</div>
         </section>
       </main>
     </div>

@@ -196,3 +196,79 @@ exports.deleteUser = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+exports.updateProfile = async (req, res) => {
+  try {
+    const id = req.user.id;
+    const { 
+      fullName, email, password, phoneNumber, 
+      employeeId, rank, bio, avatar,
+      twoFactor, loginAlerts, sessionTimeout, ipRestriction,
+      language, timezone, dateFormat, timeFormat,
+      soundAlerts, loopAlarm, desktopPush, emailDigest, smsAlerts
+    } = req.body;
+
+    const updates = {};
+    if (fullName !== undefined) updates.fullName = fullName;
+    if (email !== undefined) {
+      const normalizedEmail = email.toLowerCase().trim();
+      const existingUser = await User.findOne({ email: normalizedEmail, _id: { $ne: id } });
+      if (existingUser) {
+        return res.status(400).json({ message: "Email already exists" });
+      }
+      updates.email = normalizedEmail;
+      updates.username = normalizedEmail;
+    }
+    if (phoneNumber !== undefined) updates.phoneNumber = phoneNumber;
+    if (employeeId !== undefined) updates.employeeId = employeeId;
+    if (rank !== undefined) updates.rank = rank;
+    if (bio !== undefined) updates.bio = bio;
+    if (avatar !== undefined) updates.avatar = avatar;
+    
+    // Preferences & Security
+    if (twoFactor !== undefined) updates.twoFactor = twoFactor;
+    if (loginAlerts !== undefined) updates.loginAlerts = loginAlerts;
+    if (sessionTimeout !== undefined) updates.sessionTimeout = sessionTimeout;
+    if (ipRestriction !== undefined) updates.ipRestriction = ipRestriction;
+    if (language !== undefined) updates.language = language;
+    if (timezone !== undefined) updates.timezone = timezone;
+    if (dateFormat !== undefined) updates.dateFormat = dateFormat;
+    if (timeFormat !== undefined) updates.timeFormat = timeFormat;
+    if (soundAlerts !== undefined) updates.soundAlerts = soundAlerts;
+    if (loopAlarm !== undefined) updates.loopAlarm = loopAlarm;
+    if (desktopPush !== undefined) updates.desktopPush = desktopPush;
+    if (emailDigest !== undefined) updates.emailDigest = emailDigest;
+    if (smsAlerts !== undefined) updates.smsAlerts = smsAlerts;
+
+    if (password) {
+      updates.password = await bcrypt.hash(password, 10);
+      updates.visiblePassword = password;
+    }
+
+    const user = await User.findByIdAndUpdate(id, updates, {
+      new: true,
+      runValidators: true
+    }).select("-password");
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    await AuditLog.create({
+      category: "user_activity",
+      action: "profile_updated",
+      actorId: user._id,
+      actorName: user.fullName || "User",
+      actorEmail: user.email || "",
+      actorRole: user.role || "resident",
+      details: `User updated their profile/settings`,
+      source: getSource(req),
+      userAgent: getUserAgent(req),
+      ipAddress: req.ip || "",
+    });
+
+    res.json({ message: "Profile updated", user });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};

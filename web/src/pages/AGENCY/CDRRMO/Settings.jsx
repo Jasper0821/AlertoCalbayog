@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import api from "../../../api/axios.js";
 import { clearDashboardNavigationState } from "../../../utils/dashboardSession.js";
 
 const TABS = [
@@ -153,14 +154,13 @@ export default function Settings({ user = {}, onUserUpdate }) {
     }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (newPassword && newPassword !== confirmNewPassword) {
       setModalConfig({ type: "error", title: "Password Mismatch", message: "The new password and password confirmation do not match." });
       return;
     }
 
-    const updatedUser = {
-      ...user,
+    const payload = {
       fullName,
       employeeId,
       email,
@@ -186,28 +186,47 @@ export default function Settings({ user = {}, onUserUpdate }) {
       agency: department // keep synchronized
     };
 
-    const updatedAgencyConfig = {
-      agencyName,
-      agencyCode,
-      stationUnit,
-      jurisdictionArea,
-      emergencyHotline,
-      dispatchFrequency,
-      autoAssign,
-      requireSupervisorApproval,
-      enableGpsTracking
-    };
-
-    // Save to localStorage
-    localStorage.setItem("user", JSON.stringify(updatedUser));
-    localStorage.setItem("agencyConfig", JSON.stringify(updatedAgencyConfig));
-
-    // Propagate updates to parent component
-    if (onUserUpdate) {
-      onUserUpdate(updatedUser);
+    if (newPassword) {
+      payload.password = newPassword;
     }
 
-    setModalConfig({ type: "success", title: "Settings Saved!", message: "All your configurations and preferences have been successfully updated." });
+    try {
+      const res = await api.put("/users/profile", payload);
+      
+      const updatedUser = {
+        ...user,
+        ...res.data.user
+      };
+
+      const updatedAgencyConfig = {
+        agencyName,
+        agencyCode,
+        stationUnit,
+        jurisdictionArea,
+        emergencyHotline,
+        dispatchFrequency,
+        autoAssign,
+        requireSupervisorApproval,
+        enableGpsTracking
+      };
+
+      // Save to localStorage
+      localStorage.setItem("user", JSON.stringify(updatedUser));
+      localStorage.setItem("agencyConfig", JSON.stringify(updatedAgencyConfig));
+
+      // Propagate updates to parent component
+      if (onUserUpdate) {
+        onUserUpdate(updatedUser);
+      }
+
+      setNewPassword("");
+      setConfirmNewPassword("");
+      setCurrentPassword("");
+      
+      setModalConfig({ type: "success", title: "Settings Saved!", message: "All your configurations and preferences have been successfully updated." });
+    } catch (err) {
+      setModalConfig({ type: "error", title: "Save Failed", message: err.response?.data?.message || "Failed to update profile on server." });
+    }
   };
 
   const handleTestAlert = () => {
