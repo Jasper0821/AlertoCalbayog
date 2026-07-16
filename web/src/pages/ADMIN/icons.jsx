@@ -57,6 +57,25 @@ export function UsersIcon(props) {
   );
 }
 
+export function ResidentIcon(props) {
+  return (
+    <Icon {...props}>
+      <circle cx="12" cy="7" r="3.5" />
+      <path d="M5 21v-1.5a7 7 0 0 1 14 0V21" />
+    </Icon>
+  );
+}
+
+export function ResponderIcon(props) {
+  return (
+    <Icon {...props}>
+      <path d="M12 3 19 6v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6l7-3Z" />
+      <path d="M12 8v6" />
+      <path d="M9 11h6" />
+    </Icon>
+  );
+}
+
 export function AuditIcon(props) {
   return (
     <Icon {...props}>

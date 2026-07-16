@@ -20,6 +20,8 @@ import {
   ReportIcon as AlertTriangle,
   AnalyticsIcon as BarChart2,
   UsersIcon as Users,
+  ResidentIcon,
+  ResponderIcon,
   AuditIcon as ClipboardList,
   SettingsIcon as Settings,
   BellIcon as Bell,
@@ -92,7 +94,9 @@ const NAV = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "incidents", label: "Incidents", icon: AlertTriangle },
   { id: "analytics", label: "Analytics", icon: BarChart2 },
-  { id: "users", label: "Users", icon: Users },
+  { id: "users", label: "User Management", icon: Users },
+  { id: "residents", label: "Residents", icon: ResidentIcon },
+  { id: "responders", label: "Responders", icon: ResponderIcon },
   { id: "audit", label: "Audit Trail", icon: ClipboardList },
   { id: "settings", label: "Settings", icon: Settings },
 ];
@@ -322,6 +326,7 @@ export default function AdminDashboard() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [agencyFilter, setAgencyFilter] = useState("all");
+  const [userCategoryFilter, setUserCategoryFilter] = useState("all");
   const [userForm, setUserForm] = useState(emptyUserForm);
   const [editingUserId, setEditingUserId] = useState(null);
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
@@ -331,7 +336,7 @@ export default function AdminDashboard() {
   const [savingReportId, setSavingReportId] = useState("");
   // Audit Trail state
   const [auditLogs, setAuditLogs] = useState([]);
-  const [auditTab, setAuditTab] = useState(() => localStorage.getItem("adminAuditTab") || "status"); // "status" | "user_activity" | "password_security"
+  const [auditTab, setAuditTab] = useState("user_activity"); // "status" | "user_activity" | "password_security"
   const [auditSearch, setAuditSearch] = useState("");
   const [auditDateFrom, setAuditDateFrom] = useState("");
   const [auditDateTo, setAuditDateTo] = useState("");
@@ -506,6 +511,12 @@ export default function AdminDashboard() {
 
   const responders = useMemo(() => users.filter((user) => user.role === "responder"), [users]);
 
+  const filteredUsers = useMemo(() => (
+    userCategoryFilter === "all"
+      ? users
+      : users.filter((user) => (user.role || "resident").toLowerCase() === userCategoryFilter)
+  ), [userCategoryFilter, users]);
+
   const filteredReports = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     return reports.filter((report, index) => {
@@ -672,13 +683,12 @@ export default function AdminDashboard() {
       agency: user.agency || "NONE",
       phoneNumber: user.phoneNumber || "",
     });
-    setActiveNav("users");
     setIsUserModalOpen(true);
   };
 
-  const openAddUserModal = () => {
+  const openAddUserModal = (role = "resident") => {
     setEditingUserId(null);
-    setUserForm(emptyUserForm);
+    setUserForm({ ...emptyUserForm, role });
     setIsUserModalOpen(true);
     setError("");
   };
@@ -739,8 +749,8 @@ export default function AdminDashboard() {
   const statCards = [
     { label: "Total Incidents", value: stats.total, sub: "All submitted reports", bg: "bg-emerald-50", text: "text-emerald-500", icon: LayoutDashboard },
     { label: "Pending", value: stats.pending, sub: "Needs verification", bg: "bg-teal-50", text: "text-teal-500", icon: AlertTriangle },
-    { label: "Verified", value: stats.verified, sub: "Validated reports", bg: "bg-blue-50", text: "text-blue-500", icon: ClipboardList },
-    { label: "Resolved", value: stats.resolved, sub: "Closed response loop", bg: "bg-indigo-50", text: "text-indigo-500", icon: Settings },
+    { label: "Total Users", value: stats.users, sub: "All registered accounts", bg: "bg-blue-50", text: "text-blue-500", icon: Users },
+    { label: "Responders", value: stats.responders, sub: "Agency responder accounts", bg: "bg-indigo-50", text: "text-indigo-500", icon: Users },
   ];
 
   const renderStatCards = () => (
@@ -1053,16 +1063,46 @@ export default function AdminDashboard() {
     </section>
   );
 
-  const renderUsers = () => (
+  const renderUsers = (category = "all") => {
+    const directoryUsers = category === "all"
+      ? filteredUsers
+      : users.filter((user) => (user.role || "resident").toLowerCase() === category);
+    const directoryTitle = category === "resident" ? "Resident Directory"
+      : category === "responder" ? "Responder Directory"
+      : "User Management";
+    const directoryDescription = category === "resident"
+      ? "Manage resident accounts that submit emergency reports and receive updates."
+      : category === "responder"
+        ? "Manage responder accounts assigned to emergency agencies."
+        : "Manage residents, responders, staff, and administrators.";
+
+    return (
     <div className="flex flex-col gap-4 h-full">
       <div className="flex-none flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-5 shadow-md shadow-slate-200/50 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-sm font-black text-slate-900">User Directory</h2>
-          <p className="text-xs text-slate-500">Manage residents, responders, staff, and administrators.</p>
+          <h2 className="text-sm font-black text-slate-900">{directoryTitle}</h2>
+          <p className="text-xs text-slate-500">{directoryDescription}</p>
         </div>
-        <button type="button" onClick={openAddUserModal} className="inline-flex items-center justify-center rounded-lg bg-red-600 px-4 py-2 text-xs font-black text-white shadow-sm transition hover:bg-red-700 active:scale-[0.98]">
-          Add User
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          {category === "all" && (
+            <select
+              value={userCategoryFilter}
+              onChange={(event) => setUserCategoryFilter(event.target.value)}
+              aria-label="Filter users by category"
+              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 outline-none transition hover:border-slate-300 focus:border-red-500 focus:ring-2 focus:ring-red-600/10"
+            >
+              <option value="all">All categories</option>
+              <option value="resident">Residents</option>
+              <option value="responder">Responders</option>
+              <option value="admin">Admins</option>
+            </select>
+          )}
+          {category === "all" && (
+            <button type="button" onClick={openAddUserModal} className="inline-flex items-center justify-center rounded-lg bg-red-600 px-4 py-2 text-xs font-black text-white shadow-sm transition hover:bg-red-700 active:scale-[0.98]">
+              Add User
+            </button>
+          )}
+        </div>
       </div>
 
       <section className="flex-1 min-h-0 flex flex-col rounded-xl border border-slate-200 bg-white shadow-md shadow-slate-200/50">
@@ -1071,32 +1111,39 @@ export default function AdminDashboard() {
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50 text-[10px] font-black uppercase tracking-widest text-slate-400">
                 <th className="px-4 py-3">Name</th>
-                <th className="px-4 py-3">Role</th>
+                <th className="px-4 py-3">Category</th>
                 <th className="px-4 py-3">Agency</th>
                 <th className="px-4 py-3">Password</th>
                 <th className="px-4 py-3">Contact</th>
-                <th className="px-4 py-3">Actions</th>
+                {category === "all" && <th className="px-4 py-3">Actions</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {users.map((user) => (
+              {directoryUsers.map((user) => (
                 <tr key={user._id} className="text-sm text-slate-700">
                   <td className="px-4 py-3">
                     <p className="font-bold text-slate-900">{user.fullName}</p>
                     <p className="text-xs text-slate-400">{user.email}</p>
                   </td>
-                  <td className="px-4 py-3 capitalize">{user.role}</td>
+                  <td className="px-4 py-3 capitalize">{user.role || "resident"}</td>
                   <td className="px-4 py-3">{user.agency || "NONE"}</td>
                   <td className="px-4 py-3 break-all text-xs font-medium text-slate-700">{user.visiblePassword || "—"}</td>
                   <td className="px-4 py-3">{user.phoneNumber || "N/A"}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex flex-wrap gap-2">
-                      <button onClick={() => editUser(user)} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-black text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 active:scale-[0.98]">Edit</button>
-                      <button onClick={() => deleteUser(user._id)} className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-black text-red-700 transition hover:border-red-300 hover:bg-red-100 active:scale-[0.98]">Remove</button>
-                    </div>
-                  </td>
+                  {category === "all" && (
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap gap-2">
+                        <button onClick={() => editUser(user)} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-black text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 active:scale-[0.98]">Edit</button>
+                        <button onClick={() => deleteUser(user._id)} className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-black text-red-700 transition hover:border-red-300 hover:bg-red-100 active:scale-[0.98]">Remove</button>
+                      </div>
+                    </td>
+                  )}
                 </tr>
               ))}
+              {directoryUsers.length === 0 && (
+                <tr>
+                  <td colSpan={category === "all" ? 6 : 5} className="px-4 py-8 text-center text-sm text-slate-400">No {category === "all" ? "users in this category" : `${category}s`} found.</td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -1147,7 +1194,8 @@ export default function AdminDashboard() {
         </div>
       )}
     </div>
-  );
+    );
+  };
 
   const renderNotifications = () => (
     <section className="flex flex-col h-full rounded-xl border border-slate-200 bg-white p-5 shadow-md shadow-slate-200/50">
@@ -1247,13 +1295,52 @@ export default function AdminDashboard() {
       fetchAuditLogs({ page: 1 });
     };
 
+    const viewAllAuditLogs = (tab) => {
+      setAuditTab(tab);
+      setAuditSearch("");
+      setAuditDateFrom("");
+      setAuditDateTo("");
+      setAuditPage(1);
+      if (tab !== "status") {
+        fetchAuditLogs({ tab, search: "", dateFrom: "", dateTo: "", page: 1 });
+      }
+    };
+
+    const exportAuditLogs = () => {
+      const rows = auditTab === "status"
+        ? filteredAuditEntries.map((entry) => ({
+          user: entry.actorName || "System",
+          action: entry.action || `${entry.fromStatus || ""} → ${entry.toStatus || ""}`,
+          timestamp: entry.createdAt || "",
+          ipAddress: entry.ipAddress || "",
+          type: "status",
+        }))
+        : filteredAuditLogs.map((log) => ({
+          user: log.actorEmail || log.actorName || "—",
+          action: log.details || AUDIT_ACTION_LABELS[log.action] || log.action || "—",
+          timestamp: log.createdAt || "",
+          ipAddress: log.ipAddress || "—",
+          type: AUDIT_ACTION_LABELS[log.action] || log.action || "activity",
+        }));
+      const headers = ["User", "Action", "Timestamp", "IP Address", "Type"];
+      const csv = [headers, ...rows.map((row) => [row.user, row.action, row.timestamp, row.ipAddress, row.type])]
+        .map((row) => row.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(","))
+        .join("\n");
+      const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "audit-logs.csv";
+      link.click();
+      URL.revokeObjectURL(url);
+    };
+
     return (
-      <div className="flex flex-col gap-4 h-full">
+      <div className="flex flex-col gap-4 h-full overflow-auto p-1">
         {/* Header */}
         <div className="flex-none flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 className="text-xl font-black tracking-tight text-slate-900">Audit Trail</h2>
-            <p className="mt-0.5 text-sm text-slate-500">Monitor, transparency, and accountability. All records are read-only.</p>
+            <h2 className="text-xl font-black tracking-tight text-slate-900">Audit Logs</h2>
+            <p className="mt-0.5 text-sm text-slate-500">Complete administrator activity history</p>
           </div>
         </div>
 
@@ -1275,34 +1362,38 @@ export default function AdminDashboard() {
         </div>
 
         {/* Filter bar */}
-        <div className="flex-none flex flex-wrap items-center gap-3">
-          <div className="relative flex-1 min-w-[200px] max-w-sm">
+        <div className="flex-none flex flex-wrap items-center gap-2">
+          <div className="relative min-w-[220px] flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
               value={auditSearch}
               onChange={(e) => setAuditSearch(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleAuditSearch()}
               placeholder={auditTab === "status" ? "Search incident, agency, actor..." : "Search name, email, action..."}
-              className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10"
+              className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-xs outline-none shadow-sm focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10"
             />
           </div>
-          <input type="date" value={auditDateFrom} onChange={(e) => setAuditDateFrom(e.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10" />
-          <span className="text-xs text-slate-400">to</span>
-          <input type="date" value={auditDateTo} onChange={(e) => setAuditDateTo(e.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10" />
-          <button onClick={handleAuditSearch} className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-bold text-white transition hover:bg-slate-700">
-            Filter
+          <input type="date" aria-label="Start date" value={auditDateFrom} onChange={(e) => setAuditDateFrom(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs text-slate-700 outline-none focus:border-emerald-500" />
+          <input type="date" aria-label="End date" value={auditDateTo} onChange={(e) => setAuditDateTo(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs text-slate-700 outline-none focus:border-emerald-500" />
+          <button onClick={handleAuditSearch} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-black text-slate-800 shadow-sm transition hover:bg-slate-50">
+            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 5h16l-6 7v5l-4 2v-7L4 5Z" /></svg> Filter
           </button>
-          <button onClick={() => { setAuditSearch(""); setAuditDateFrom(""); setAuditDateTo(""); setAuditPage(1); }} className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-500 transition hover:bg-slate-50">
-            Clear
+          <button onClick={exportAuditLogs} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-black text-slate-800 shadow-sm transition hover:bg-slate-50">
+            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 3v11m0 0 4-4m-4 4-4-4M5 21h14" /></svg> Export
           </button>
         </div>
 
         {/* ── STATUS TAB ───────────────────────────────────────────────────── */}
         {auditTab === "status" && (
-          <section className="flex-1 min-h-0 flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-md shadow-slate-200/50">
-            <div className="flex-none border-b border-slate-100 px-5 py-4">
-              <h3 className="text-sm font-black text-slate-900">Incident Status Log</h3>
-              <p className="mt-0.5 text-xs text-slate-500">Status updates recorded per incident. View-only.</p>
+          <section className="flex-1 min-h-0 flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm shadow-slate-200/70">
+            <div className="flex flex-none items-start justify-between border-b border-slate-100 px-5 py-4">
+              <div>
+                <h3 className="text-sm font-black text-slate-900">Incident Status Log</h3>
+                <p className="mt-0.5 text-xs text-slate-500">Status updates recorded per incident. View-only.</p>
+              </div>
+              <button type="button" onClick={() => viewAllAuditLogs("status")} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-black text-slate-700 transition hover:bg-slate-50">
+                View All
+              </button>
             </div>
             <div className="overflow-auto flex-1 rounded-xl border border-slate-200 bg-slate-50 shadow-sm">
               <table className="w-full table-auto text-left text-sm">
@@ -1315,12 +1406,11 @@ export default function AdminDashboard() {
                     <th className="px-3 py-2">Status</th>
                     <th className="px-3 py-2">Actor</th>
                     <th className="px-3 py-2">When</th>
-                    <th className="px-3 py-2">Details</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
                   {paginatedEntries.length === 0 ? (
-                    <tr><td colSpan={8} className="px-5 py-10 text-center text-sm text-slate-400">No status log entries found.</td></tr>
+                    <tr><td colSpan={7} className="px-5 py-10 text-center text-sm text-slate-400">No status log entries found.</td></tr>
                   ) : paginatedEntries.map((entry, idx) => {
                     const fromInfo = getStatusInfo(entry.fromStatus);
                     const toInfo = getStatusInfo(entry.toStatus);
@@ -1348,11 +1438,6 @@ export default function AdminDashboard() {
                           <p className="text-[10px] font-medium capitalize text-slate-400">{entry.actorRole || ""}</p>
                         </td>
                         <td className="px-3 py-2 text-xs text-slate-500">{new Date(entry.createdAt).toLocaleString()}</td>
-                        <td className="px-3 py-2">
-                          <button onClick={() => setAuditDetailEntry(entry)} className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-600 transition hover:bg-slate-50">
-                            View
-                          </button>
-                        </td>
                       </tr>
                     );
                   })}
@@ -1365,34 +1450,38 @@ export default function AdminDashboard() {
         {/* ── USER ACTIVITY TAB ───────────────────────────────────────────────── */}
         {auditTab === "user_activity" && (
           <section className="flex-1 min-h-0 flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-md shadow-slate-200/50">
-            <div className="flex-none border-b border-slate-100 px-5 py-4">
-              <h3 className="text-sm font-black text-slate-900">User Account Activity</h3>
-              <p className="mt-0.5 text-xs text-slate-500">Login attempts, profile updates, account changes. View-only.</p>
+            <div className="flex flex-none items-start justify-between border-b border-slate-100 px-5 py-4">
+              <div>
+                <h3 className="text-sm font-black text-slate-900">User Account Activity</h3>
+                <p className="mt-0.5 text-xs text-slate-500">Login attempts, profile updates, and account changes.</p>
+              </div>
+              <button type="button" onClick={() => viewAllAuditLogs("user_activity")} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-black text-slate-700 transition hover:bg-slate-50">
+                View All
+              </button>
             </div>
             {auditLoading ? (
               <div className="flex items-center justify-center py-16 text-sm text-slate-400 flex-1 min-h-0">Loading activity logs...</div>
             ) : (
-              <div className="overflow-auto flex-1 rounded-xl border border-slate-200 bg-slate-50">
+              <div className="overflow-auto flex-1">
                 <table className="w-full table-auto text-left text-sm">
                   <thead>
-                    <tr className="border-b border-slate-100 bg-slate-50 text-[11px] font-black uppercase tracking-widest text-slate-400">
-                      <th className="px-4 py-3">Date</th>
-                      <th className="px-4 py-3">Name</th>
+                    <tr className="border-b border-slate-200 text-[10px] font-black uppercase tracking-widest text-slate-500">
+                      <th className="px-4 py-3">Timestamp</th>
+                      <th className="px-4 py-3">User</th>
                       <th className="px-4 py-3">Email</th>
                       <th className="px-4 py-3">Role</th>
+                      <th className="px-4 py-3">Type</th>
                       <th className="px-4 py-3">Action</th>
-                      <th className="px-4 py-3">Details</th>
-                      <th className="px-4 py-3">IP</th>
-                      <th className="px-4 py-3"></th>
+                      <th className="px-4 py-3">IP Address</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-50">
+                  <tbody className="divide-y divide-slate-200">
                     {actLogs.length === 0 ? (
-                      <tr><td colSpan={8} className="px-4 py-8 text-center text-sm text-slate-400">No user activity logs found.</td></tr>
+                      <tr><td colSpan={7} className="px-4 py-8 text-center text-sm text-slate-400">No user activity logs found.</td></tr>
                     ) : actLogs.map((log, idx) => {
                       const style = AUDIT_ACTION_STYLES[log.action] || { bg: "bg-slate-50", text: "text-slate-600", dot: "bg-slate-400" };
                       return (
-                        <tr key={idx} className="hover:bg-slate-50/60 transition-colors">
+                        <tr key={idx} className="hover:bg-slate-50 transition-colors">
                           <td className="px-4 py-3 text-xs text-slate-500">{new Date(log.createdAt).toLocaleString()}</td>
                           <td className="px-4 py-3 text-xs font-bold text-slate-800">{log.actorName || "—"}</td>
                           <td className="px-4 py-3 max-w-[140px] truncate text-xs text-slate-600">{log.actorEmail || "—"}</td>
@@ -1403,13 +1492,8 @@ export default function AdminDashboard() {
                               {AUDIT_ACTION_LABELS[log.action] || log.action}
                             </span>
                           </td>
-                          <td className="px-4 py-3 max-w-[160px] truncate text-xs text-slate-600">{log.details || "—"}</td>
+                          <td className="px-4 py-3 max-w-[160px] truncate text-xs text-slate-600">{AUDIT_ACTION_LABELS[log.action] || log.action || "—"}</td>
                           <td className="px-4 py-3 max-w-[110px] truncate text-xs font-mono text-slate-400">{log.ipAddress || "—"}</td>
-                          <td className="px-5 py-3">
-                            <button onClick={() => setAuditDetailEntry(log)} className="rounded-lg border border-slate-200 bg-white px-3 py-1 text-[11px] font-bold text-slate-600 transition hover:bg-slate-50">
-                              View
-                            </button>
-                          </td>
                         </tr>
                       );
                     })}
@@ -1428,23 +1512,18 @@ export default function AdminDashboard() {
                 <h3 className="text-sm font-black text-slate-900">Password Security Activity</h3>
                 <p className="mt-0.5 text-xs text-slate-500">OTP requests, verifications, and password resets. Read-only security log.</p>
               </div>
-              <span className="rounded-full bg-red-50 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-red-600 border border-red-100">Sensitive</span>
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={() => viewAllAuditLogs("password_security")} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-black text-slate-700 transition hover:bg-slate-50">
+                  View All
+                </button>
+                <span className="rounded-full bg-red-50 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-red-600 border border-red-100">Sensitive</span>
+              </div>
             </div>
             {auditLoading ? (
               <div className="flex items-center justify-center py-16 text-sm text-slate-400 flex-1 min-h-0">Loading security logs...</div>
             ) : (
-              <div className="overflow-auto flex-1 rounded-xl border border-slate-200 bg-slate-50">
-                <table className="w-full table-fixed text-left text-sm">
-                  <colgroup>
-                    <col className="w-[160px]" />
-                    <col className="w-[120px]" />
-                    <col className="w-[170px]" />
-                    <col className="w-[90px]" />
-                    <col className="w-[110px]" />
-                    <col className="w-[120px]" />
-                    <col className="w-[220px]" />
-                    <col className="w-[80px]" />
-                  </colgroup>
+              <div className="overflow-x-auto flex-1 rounded-xl border border-slate-200 bg-slate-50">
+                <table className="w-full min-w-[720px] table-auto text-left text-sm">
                   <thead>
                     <tr className="border-b border-slate-100 bg-slate-50 text-[11px] font-black uppercase tracking-widest text-slate-400">
                       <th className="px-3 py-2">Date</th>
@@ -1453,13 +1532,11 @@ export default function AdminDashboard() {
                       <th className="px-3 py-2">Role</th>
                       <th className="px-3 py-2">Action</th>
                       <th className="px-3 py-2">OTP</th>
-                      <th className="px-3 py-2">Details</th>
-                      <th className="px-3 py-2"></th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
                     {pwdLogs.length === 0 ? (
-                      <tr><td colSpan={9} className="px-4 py-8 text-center text-sm text-slate-400">No password security events recorded.</td></tr>
+                      <tr><td colSpan={6} className="px-4 py-8 text-center text-sm text-slate-400">No password security events recorded.</td></tr>
                     ) : pwdLogs.map((log, idx) => {
                       const style = AUDIT_ACTION_STYLES[log.action] || { bg: "bg-slate-50", text: "text-slate-600", dot: "bg-slate-400" };
                       return (
@@ -1480,12 +1557,6 @@ export default function AdminDashboard() {
                             ) : (
                               <span className="text-[11px] text-slate-300">N/A</span>
                             )}
-                          </td>
-                          <td className="px-4 py-3 max-w-[220px] truncate text-xs text-slate-600">{log.details || "—"}</td>
-                          <td className="px-3 py-2">
-                            <button onClick={() => setAuditDetailEntry(log)} className="rounded-lg border border-slate-200 bg-white px-3 py-1 text-[11px] font-bold text-slate-600 transition hover:bg-slate-50">
-                              View
-                            </button>
                           </td>
                         </tr>
                       );
@@ -1775,6 +1846,8 @@ export default function AdminDashboard() {
     if (activeNav === "incidents") return renderIncidents();
     if (activeNav === "analytics") return renderAnalytics();
     if (activeNav === "users") return renderUsers();
+    if (activeNav === "residents") return renderUsers("resident");
+    if (activeNav === "responders") return renderUsers("responder");
     if (activeNav === "notifications") return renderNotifications();
     if (activeNav === "audit") return renderAudit();
     return renderSettings();
