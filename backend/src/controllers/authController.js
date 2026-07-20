@@ -76,6 +76,7 @@ exports.register = async (req, res) => {
       role: role || "resident",
       agency: agency || "NONE",
       phoneNumber,
+      status: role === "responder" ? "pending" : "approved",
     });
 
     await AuditLog.create({
@@ -99,6 +100,22 @@ exports.register = async (req, res) => {
       type: "user_event",
       metadata: { userId: user._id.toString(), role: user.role, agency: user.agency },
     });
+
+    // Responders need admin approval before they can log in
+    if (user.role === "responder") {
+      return res.status(201).json({
+        message: "Registration submitted. Your account is pending admin approval.",
+        pendingApproval: true,
+        user: {
+          id: user._id,
+          fullName: user.fullName,
+          email: user.email,
+          role: user.role,
+          agency: user.agency,
+          status: user.status,
+        },
+      });
+    }
 
     res.status(201).json({
       message: "User registered successfully",
@@ -132,6 +149,34 @@ exports.login = async (req, res) => {
         ipAddress: getIp(req),
       });
       return res.status(404).json({ message: "User not found" });
+    }
+
+    if (user.role === "responder" && user.status === "pending") {
+      await AuditLog.create({
+        category: "user_activity",
+        action: "login_failed",
+        actorId: user._id,
+        actorName: user.fullName,
+        actorEmail: user.email,
+        actorRole: user.role,
+        details: "Login blocked: responder account pending approval.",
+        ipAddress: getIp(req),
+      });
+      return res.status(403).json({ message: "Your responder account is pending admin approval." });
+    }
+
+    if (user.role === "responder" && user.status === "declined") {
+      await AuditLog.create({
+        category: "user_activity",
+        action: "login_failed",
+        actorId: user._id,
+        actorName: user.fullName,
+        actorEmail: user.email,
+        actorRole: user.role,
+        details: "Login blocked: responder account registration declined.",
+        ipAddress: getIp(req),
+      });
+      return res.status(403).json({ message: "Your responder account registration request was declined." });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);

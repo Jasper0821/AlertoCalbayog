@@ -134,3 +134,13 @@ export function MenuIcon(props) {
     </Icon>
   );
 }
+
+export function ArchiveIcon(props) {
+  return (
+    <Icon {...props}>
+      <polyline points="21 8 21 21 3 21 3 8" />
+      <rect x="1.5" y="3" width="21" height="5" rx="1" />
+      <line x1="10" y1="12" x2="14" y2="12" />
+    </Icon>
+  );
+}

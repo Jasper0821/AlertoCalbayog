@@ -34,24 +34,30 @@ function Register() {
  const agency = formData.get("agency");
 
  try {
- const res = await api.post("/auth/register", {
- fullName,
- email,
- password,
- phoneNumber,
- agency: agency ||"CDRRMO",
- role:"responder",
- });
+  const res = await api.post("/auth/register", {
+   fullName,
+   email,
+   password,
+   phoneNumber,
+   agency: agency || "CDRRMO",
+   role: "responder",
+  });
 
- setSuccessMessage("Account created successfully! Redirecting to login...");
-
- setTimeout(() => {
- navigate("/login");
- }, 1500);
- } catch (err) {
- setError(err.response?.data?.message ||"Registration failed. Please try again.");
- setIsSubmitting(false);
- }
+  if (res.data?.pendingApproval) {
+   setSuccessMessage("Registration submitted! Your account is pending admin approval. You will be notified once approved.");
+   setTimeout(() => {
+    navigate("/login");
+   }, 3000);
+  } else {
+   setSuccessMessage("Account created successfully! Redirecting to login...");
+   setTimeout(() => {
+    navigate("/login");
+   }, 1500);
+  }
+  } catch (err) {
+  setError(err.response?.data?.message || "Registration failed. Please try again.");
+  setIsSubmitting(false);
+  }
  };
 
  return (

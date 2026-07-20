@@ -37,6 +37,11 @@ const userSchema = new mongoose.Schema(
     },
     phoneNumber: {
       type: String
+    },
+    status: {
+      type: String,
+      enum: ["pending", "approved", "declined"],
+      default: "approved"
     }
   },
   { timestamps: true }
