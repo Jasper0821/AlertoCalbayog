@@ -206,7 +206,8 @@ exports.updateProfile = async (req, res) => {
       employeeId, rank, bio, avatar,
       twoFactor, loginAlerts, sessionTimeout, ipRestriction,
       language, timezone, dateFormat, timeFormat,
-      soundAlerts, loopAlarm, desktopPush, emailDigest, smsAlerts
+      soundAlerts, loopAlarm, desktopPush, emailDigest, smsAlerts,
+      agency
     } = req.body;
 
     const updates = {};
@@ -225,6 +226,7 @@ exports.updateProfile = async (req, res) => {
     if (rank !== undefined) updates.rank = rank;
     if (bio !== undefined) updates.bio = bio;
     if (avatar !== undefined) updates.avatar = avatar;
+    if (agency !== undefined && req.user.role === "admin") updates.agency = agency;
     
     // Preferences & Security
     if (twoFactor !== undefined) updates.twoFactor = twoFactor;

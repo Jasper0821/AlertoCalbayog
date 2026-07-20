@@ -1502,17 +1502,6 @@ export default function AdminDashboard() {
       fetchAuditLogs({ page: 1 });
     };
 
-    const viewAllAuditLogs = (tab) => {
-      setAuditTab(tab);
-      setAuditSearch("");
-      setAuditDateFrom("");
-      setAuditDateTo("");
-      setAuditPage(1);
-      if (tab !== "status") {
-        fetchAuditLogs({ tab, search: "", dateFrom: "", dateTo: "", page: 1 });
-      }
-    };
-
     const exportAuditLogs = () => {
       const rows = auditTab === "status"
         ? filteredAuditEntries.map((entry) => ({
@@ -1580,11 +1569,6 @@ export default function AdminDashboard() {
               className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-xs outline-none shadow-sm focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10"
             />
           </div>
-          <input type="date" aria-label="Start date" value={auditDateFrom} onChange={(e) => setAuditDateFrom(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs text-slate-700 outline-none focus:border-emerald-500" />
-          <input type="date" aria-label="End date" value={auditDateTo} onChange={(e) => setAuditDateTo(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs text-slate-700 outline-none focus:border-emerald-500" />
-          <button onClick={handleAuditSearch} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-black text-slate-800 shadow-sm transition hover:bg-slate-50">
-            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 5h16l-6 7v5l-4 2v-7L4 5Z" /></svg> Filter
-          </button>
           <button onClick={exportAuditLogs} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-black text-slate-800 shadow-sm transition hover:bg-slate-50">
             <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 3v11m0 0 4-4m-4 4-4-4M5 21h14" /></svg> Export
           </button>
@@ -1593,14 +1577,11 @@ export default function AdminDashboard() {
         {/* ── STATUS TAB ───────────────────────────────────────────────────── */}
         {auditTab === "status" && (
           <section className="flex-1 min-h-0 flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm shadow-slate-200/70">
-            <div className="flex flex-none items-start justify-between border-b border-slate-100 px-5 py-4">
+            <div className="flex flex-none items-start border-b border-slate-100 px-5 py-4">
               <div>
                 <h3 className="text-sm font-black text-slate-900">Incident Status Log</h3>
                 <p className="mt-0.5 text-xs text-slate-500">Status updates recorded per incident. View-only.</p>
               </div>
-              <button type="button" onClick={() => viewAllAuditLogs("status")} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-black text-slate-700 transition hover:bg-slate-50">
-                View All
-              </button>
             </div>
             <div className="overflow-auto flex-1 rounded-xl border border-slate-200 bg-slate-50 shadow-sm">
               <table className="w-full table-auto text-left text-sm">
@@ -1613,11 +1594,12 @@ export default function AdminDashboard() {
                     <th className="px-3 py-2">Status</th>
                     <th className="px-3 py-2">Actor</th>
                     <th className="px-3 py-2">When</th>
+                    <th className="px-3 py-2 text-right">Details</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
                   {paginatedEntries.length === 0 ? (
-                    <tr><td colSpan={7} className="px-5 py-10 text-center text-sm text-slate-400">No status log entries found.</td></tr>
+                    <tr><td colSpan={8} className="px-5 py-10 text-center text-sm text-slate-400">No status log entries found.</td></tr>
                   ) : paginatedEntries.map((entry, idx) => {
                     const fromInfo = getStatusInfo(entry.fromStatus);
                     const toInfo = getStatusInfo(entry.toStatus);
@@ -1645,6 +1627,9 @@ export default function AdminDashboard() {
                           <p className="text-[10px] font-medium capitalize text-slate-400">{entry.actorRole || ""}</p>
                         </td>
                         <td className="px-3 py-2 text-xs text-slate-500">{new Date(entry.createdAt).toLocaleString()}</td>
+                        <td className="px-3 py-2 text-right">
+                          <button type="button" onClick={() => setAuditDetailEntry(entry)} className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-black text-slate-700 transition hover:bg-slate-100">View</button>
+                        </td>
                       </tr>
                     );
                   })}
@@ -1657,14 +1642,11 @@ export default function AdminDashboard() {
         {/* ── USER ACTIVITY TAB ───────────────────────────────────────────────── */}
         {auditTab === "user_activity" && (
           <section className="flex-1 min-h-0 flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-md shadow-slate-200/50">
-            <div className="flex flex-none items-start justify-between border-b border-slate-100 px-5 py-4">
+            <div className="flex flex-none items-start border-b border-slate-100 px-5 py-4">
               <div>
                 <h3 className="text-sm font-black text-slate-900">User Account Activity</h3>
                 <p className="mt-0.5 text-xs text-slate-500">Login attempts, profile updates, and account changes.</p>
               </div>
-              <button type="button" onClick={() => viewAllAuditLogs("user_activity")} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-black text-slate-700 transition hover:bg-slate-50">
-                View All
-              </button>
             </div>
             {auditLoading ? (
               <div className="flex items-center justify-center py-16 text-sm text-slate-400 flex-1 min-h-0">Loading activity logs...</div>
@@ -1680,11 +1662,12 @@ export default function AdminDashboard() {
                       <th className="px-4 py-3">Type</th>
                       <th className="px-4 py-3">Action</th>
                       <th className="px-4 py-3">IP Address</th>
+                      <th className="px-4 py-3 text-right">Details</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200">
                     {actLogs.length === 0 ? (
-                      <tr><td colSpan={7} className="px-4 py-8 text-center text-sm text-slate-400">No user activity logs found.</td></tr>
+                      <tr><td colSpan={8} className="px-4 py-8 text-center text-sm text-slate-400">No user activity logs found.</td></tr>
                     ) : actLogs.map((log, idx) => {
                       const style = AUDIT_ACTION_STYLES[log.action] || { bg: "bg-slate-50", text: "text-slate-600", dot: "bg-slate-400" };
                       return (
@@ -1701,6 +1684,9 @@ export default function AdminDashboard() {
                           </td>
                           <td className="px-4 py-3 max-w-[160px] truncate text-xs text-slate-600">{AUDIT_ACTION_LABELS[log.action] || log.action || "—"}</td>
                           <td className="px-4 py-3 max-w-[110px] truncate text-xs font-mono text-slate-400">{log.ipAddress || "—"}</td>
+                          <td className="px-4 py-3 text-right">
+                            <button type="button" onClick={() => setAuditDetailEntry(log)} className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-black text-slate-700 transition hover:bg-slate-100">View</button>
+                          </td>
                         </tr>
                       );
                     })}
@@ -1720,9 +1706,6 @@ export default function AdminDashboard() {
                 <p className="mt-0.5 text-xs text-slate-500">OTP requests, verifications, and password resets. Read-only security log.</p>
               </div>
               <div className="flex items-center gap-2">
-                <button type="button" onClick={() => viewAllAuditLogs("password_security")} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-black text-slate-700 transition hover:bg-slate-50">
-                  View All
-                </button>
                 <span className="rounded-full bg-red-50 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-red-600 border border-red-100">Sensitive</span>
               </div>
             </div>
@@ -1739,11 +1722,12 @@ export default function AdminDashboard() {
                       <th className="px-3 py-2">Role</th>
                       <th className="px-3 py-2">Action</th>
                       <th className="px-3 py-2">OTP</th>
+                      <th className="px-3 py-2 text-right">Details</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
                     {pwdLogs.length === 0 ? (
-                      <tr><td colSpan={6} className="px-4 py-8 text-center text-sm text-slate-400">No password security events recorded.</td></tr>
+                      <tr><td colSpan={7} className="px-4 py-8 text-center text-sm text-slate-400">No password security events recorded.</td></tr>
                     ) : pwdLogs.map((log, idx) => {
                       const style = AUDIT_ACTION_STYLES[log.action] || { bg: "bg-slate-50", text: "text-slate-600", dot: "bg-slate-400" };
                       return (
@@ -1765,6 +1749,9 @@ export default function AdminDashboard() {
                               <span className="text-[11px] text-slate-300">N/A</span>
                             )}
                           </td>
+                          <td className="px-4 py-3 text-right">
+                            <button type="button" onClick={() => setAuditDetailEntry(log)} className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-black text-slate-700 transition hover:bg-slate-100">View</button>
+                          </td>
                         </tr>
                       );
                     })}
@@ -1777,15 +1764,15 @@ export default function AdminDashboard() {
 
         {/* Detail Modal */}
         {auditDetailEntry && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 px-4" onClick={() => setAuditDetailEntry(null)}>
-            <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
-              <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4" onClick={() => setAuditDetailEntry(null)}>
+            <div className="flex max-h-[calc(100dvh-2rem)] w-full max-w-md flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
                 <h3 className="text-sm font-black text-slate-900">Log Entry Details</h3>
                 <button onClick={() => setAuditDetailEntry(null)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-50 hover:text-slate-700">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
                 </button>
               </div>
-              <div className="divide-y divide-slate-50 px-6 py-4 space-y-0">
+              <div className="divide-y divide-slate-50 space-y-0 overflow-y-auto px-4 py-2">
                 {[
                   ["Timestamp", auditDetailEntry.createdAt ? new Date(auditDetailEntry.createdAt).toLocaleString() : "—"],
                   ["Actor", auditDetailEntry.actorName || "System"],
@@ -1802,14 +1789,14 @@ export default function AdminDashboard() {
                   ["IP Address", auditDetailEntry.ipAddress || "—"],
                   ["Details", auditDetailEntry.details || auditDetailEntry.message || "—"],
                 ].map(([label, value]) => value !== "—" && (
-                  <div key={label} className="flex justify-between gap-4 py-2.5">
-                    <span className="text-xs font-black uppercase tracking-widest text-slate-400 shrink-0">{label}</span>
-                    <span className="text-xs font-semibold text-slate-700 text-right">{value}</span>
+                  <div key={label} className="flex justify-between gap-3 py-2">
+                    <span className="shrink-0 text-[10px] font-black uppercase tracking-wider text-slate-400">{label}</span>
+                    <span className="break-words text-right text-xs font-semibold text-slate-700">{value}</span>
                   </div>
                 ))}
               </div>
-              <div className="border-t border-slate-100 px-6 py-4">
-                <button onClick={() => setAuditDetailEntry(null)} className="w-full rounded-lg bg-slate-900 py-2.5 text-sm font-bold text-white transition hover:bg-slate-700">
+              <div className="border-t border-slate-100 px-4 py-3">
+                <button onClick={() => setAuditDetailEntry(null)} className="w-full rounded-lg bg-slate-900 py-2 text-sm font-bold text-white transition hover:bg-slate-700">
                   Close
                 </button>
               </div>

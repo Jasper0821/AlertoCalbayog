@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { STATUS_STYLES, TYPE_ICONS, getPriority, getIncidentId, PRIORITY_STYLES } from "../../../utils/incidentFormatters.js";
+import IncidentDetailModal from "./IncidentDetailModal.jsx";
 
 export default function QueuingSystem({ reports = [], onStatusChange }) {
   const [resolvingIncidentId, setResolvingIncidentId] = useState(null);
+  const [selectedReport, setSelectedReport] = useState(null);
 
   // Only display active queues (pending & active), resolved ones go to Incident History
   const activeReports = reports.filter(r => 
@@ -43,8 +45,11 @@ export default function QueuingSystem({ reports = [], onStatusChange }) {
               <th className="px-6 py-4">Incident ID</th>
               <th className="px-6 py-4">Type</th>
               <th className="px-6 py-4">Location</th>
+              <th className="px-6 py-4">Reporter</th>
+              <th className="px-6 py-4">Contact No.</th>
               <th className="px-6 py-4">Time</th>
               <th className="px-6 py-4">Status</th>
+              <th className="px-6 py-4">Action</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -81,6 +86,8 @@ export default function QueuingSystem({ reports = [], onStatusChange }) {
                   <td className="px-6 py-4 text-slate-500 truncate max-w-xs" title={loc}>
                     {loc || "Unknown Location"}
                   </td>
+                  <td className="px-6 py-4 text-slate-600">{report.userId?.fullName || "Anonymous"}</td>
+                  <td className="px-6 py-4 text-slate-600 font-mono text-xs">{report.userId?.phoneNumber || report.phoneNumber || "N/A"}</td>
                   <td className="px-6 py-4 text-slate-500 font-medium">{timeStr}</td>
                   <td className="px-6 py-4">
                     {isResolved ? (
@@ -103,12 +110,24 @@ export default function QueuingSystem({ reports = [], onStatusChange }) {
                       </div>
                     )}
                   </td>
+                  <td className="px-6 py-4">
+                    <button
+                      onClick={() => setSelectedReport(report)}
+                      className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold text-violet-700 bg-violet-50 border border-violet-200 hover:bg-violet-100 transition-colors"
+                    >
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      </svg>
+                      View
+                    </button>
+                  </td>
                 </tr>
               );
             })}
             {activeReports.length === 0 && (
               <tr>
-                <td colSpan="5" className="px-6 py-8 text-center text-slate-400">
+                <td colSpan="8" className="px-6 py-8 text-center text-slate-400">
                   No active incidents in the queue.
                 </td>
               </tr>
@@ -169,6 +188,8 @@ export default function QueuingSystem({ reports = [], onStatusChange }) {
           </div>
         </div>
       )}
+
+      <IncidentDetailModal report={selectedReport} onClose={() => setSelectedReport(null)} />
     </div>
   );
 }

@@ -123,9 +123,16 @@ exports.register = async (req, res) => {
       user: {
         id: user._id,
         fullName: user.fullName,
+        username: user.username,
         email: user.email,
         role: user.role,
         agency: user.agency,
+        phoneNumber: user.phoneNumber,
+        status: user.status,
+        avatar: user.avatar,
+        employeeId: user.employeeId,
+        rank: user.rank,
+        bio: user.bio,
       },
     });
   } catch (error) {
@@ -213,9 +220,16 @@ exports.login = async (req, res) => {
       user: {
         id: user._id,
         fullName: user.fullName,
+        username: user.username,
         email: user.email,
         role: user.role,
         agency: user.agency,
+        phoneNumber: user.phoneNumber,
+        status: user.status,
+        avatar: user.avatar,
+        employeeId: user.employeeId,
+        rank: user.rank,
+        bio: user.bio,
       },
     });
   } catch (error) {

@@ -36,6 +36,10 @@ const emergencyReportSchema = new mongoose.Schema(
       enum: ["pending", "responding", "resolved", "closed", "cancelled"],
       default: "pending"
     },
+    resolvedAt: {
+      type: Date,
+      default: null
+    },
     location: {
       latitude: {
         type: Number,
