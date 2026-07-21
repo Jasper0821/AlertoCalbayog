@@ -97,7 +97,7 @@ exports.createUser = async (req, res) => {
 exports.updateUser = async (req, res) => {
   try {
     const { id } = req.params;
-    const { fullName, email, password, role, agency, phoneNumber } = req.body;
+    const { fullName, email, password, role, agency, phoneNumber, status } = req.body;
 
     const updates = {};
     if (fullName !== undefined) updates.fullName = fullName;
@@ -113,6 +113,7 @@ exports.updateUser = async (req, res) => {
     if (role !== undefined) updates.role = role;
     if (agency !== undefined) updates.agency = agency;
     if (phoneNumber !== undefined) updates.phoneNumber = phoneNumber;
+    if (status !== undefined) updates.status = status;
     if (password) {
       updates.password = await bcrypt.hash(password, 10);
       updates.visiblePassword = password;

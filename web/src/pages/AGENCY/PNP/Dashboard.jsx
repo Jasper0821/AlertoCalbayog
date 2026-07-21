@@ -410,11 +410,16 @@ function AdminDashboard() {
       }
     });
 
+    socket.on("reportDeleted", ({ id }) => {
+      setReports(prev => prev.filter(r => r._id !== id));
+    });
+
     return () => {
       socket.emit("leaveRoom", room);
       socket.emit("leaveRoom", "admin");
       socket.off("newEmergencyAlert");
       socket.off("reportStatusChanged");
+      socket.off("reportDeleted");
       socket.disconnect();
     };
   }, [user.agency, user.soundAlerts, user.loopAlarm]);

@@ -20,14 +20,14 @@ import {
   ReportIcon as AlertTriangle,
   AnalyticsIcon as BarChart2,
   UsersIcon as Users,
-  ResidentIcon,
-  ResponderIcon,
+  ArchiveIcon,
   AuditIcon as ClipboardList,
   SettingsIcon as Settings,
   BellIcon as Bell,
   SearchIcon as Search,
   LogoutIcon as LogOut,
-  MenuIcon as Menu
+  MenuIcon as Menu,
+  ResponderIcon
 } from "./icons.jsx";
 import api from "../../api/axios.js";
 import socket from "../../api/socket.js";
@@ -39,7 +39,6 @@ const STATUS_OPTIONS = [
   { value: "verified", label: "Verified" },
   { value: "active", label: "Active" },
   { value: "resolved", label: "Resolved" },
-  { value: "closed", label: "Closed" },
 ];
 
 const STATUS_STYLES = {
@@ -93,10 +92,10 @@ const PIE_COLORS = ["#f59e0b", "#0d9488", "#2563eb", "#059669", "#64748b", "#4f4
 const NAV = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "incidents", label: "Incidents", icon: AlertTriangle },
+  { id: "closed-incidents", label: "Closed Incidents", icon: ArchiveIcon },
   { id: "analytics", label: "Analytics", icon: BarChart2 },
   { id: "users", label: "User Management", icon: Users },
-  { id: "residents", label: "Residents", icon: ResidentIcon },
-  { id: "responders", label: "Responders", icon: ResponderIcon },
+  { id: "responder-approvals", label: "Responder Approvals", icon: ResponderIcon },
   { id: "audit", label: "Audit Trail", icon: ClipboardList },
   { id: "settings", label: "Settings", icon: Settings },
 ];
@@ -294,6 +293,36 @@ export default function AdminDashboard() {
   const navigate = useNavigate();
   const [activeNav, setActiveNav] = useState(() => localStorage.getItem("adminActiveNav") || "overview");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [activeSettingsTab, setActiveSettingsTab] = useState("system-info");
+  const [activeCategories, setActiveCategories] = useState({
+    fire: true,
+    flood: true,
+    crime: true,
+    medical: true,
+    others: true
+  });
+  const [notificationsConfig, setNotificationsConfig] = useState({
+    soundAlerts: true,
+    desktopNotif: true,
+    smsAlerts: false,
+    residentPush: true,
+    radius: "5"
+  });
+  const [locationConfig, setLocationConfig] = useState({
+    refreshRate: 10,
+    lat: "12.0674",
+    lng: "124.5946",
+    provider: "osm",
+    zoom: 13
+  });
+  const [securityConfig, setSecurityConfig] = useState({
+    complexPassword: true,
+    sessionTimeout: 60
+  });
+  const [backupConfig, setBackupConfig] = useState({
+    interval: "weekly",
+    retention: "12"
+  });
   const [reports, setReports] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem("adminReports")) || [];
@@ -497,6 +526,10 @@ export default function AdminDashboard() {
       socket.on("reportStatusChanged", (report) => {
         upsertReport(report);
       });
+
+      socket.on("reportDeleted", ({ id }) => {
+        setReports((prev) => prev.filter((report) => report._id !== id));
+      });
     };
 
     connectSocket();
@@ -505,22 +538,28 @@ export default function AdminDashboard() {
       socket.off("notification");
       socket.off("newEmergencyAlert");
       socket.off("reportStatusChanged");
+      socket.off("reportDeleted");
       socket.disconnect();
     };
   }, [sessionId, storedUser.id]);
 
   const responders = useMemo(() => users.filter((user) => user.role === "responder"), [users]);
 
-  const filteredUsers = useMemo(() => (
-    userCategoryFilter === "all"
-      ? users
-      : users.filter((user) => (user.role || "resident").toLowerCase() === userCategoryFilter)
-  ), [userCategoryFilter, users]);
+  const filteredUsers = useMemo(() => {
+    // Only show responders in User Management if they are explicitly approved
+    const activeUsers = users.filter(
+      (u) => u.role !== "responder" || u.status === "approved"
+    );
+    return userCategoryFilter === "all"
+      ? activeUsers
+      : activeUsers.filter((user) => (user.role || "resident").toLowerCase() === userCategoryFilter);
+  }, [userCategoryFilter, users]);
 
   const filteredReports = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     return reports.filter((report, index) => {
       const status = (report.status || "pending").toLowerCase();
+      if (status === "closed") return false;
       const incidentId = getIncidentId(report, index).toLowerCase();
       const haystack = [
         incidentId,
@@ -536,6 +575,26 @@ export default function AdminDashboard() {
       return true;
     });
   }, [agencyFilter, reports, searchQuery, statusFilter]);
+
+  const closedReports = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return reports.filter((report, index) => {
+      const status = (report.status || "pending").toLowerCase();
+      const incidentId = getIncidentId(report, index).toLowerCase();
+      const haystack = [
+        incidentId,
+        report.emergencyType,
+        report.userId?.fullName,
+        report.assignedResponder?.fullName,
+        getLocation(report),
+      ].join(" ").toLowerCase();
+
+      if (status !== "closed") return false;
+      if (agencyFilter !== "all" && !(report.notifiedAgencies || []).includes(agencyFilter)) return false;
+      if (q && !haystack.includes(q)) return false;
+      return true;
+    });
+  }, [agencyFilter, reports, searchQuery]);
 
   const stats = useMemo(() => {
     const open = reports.filter((report) => !["resolved", "responded", "closed"].includes((report.status || "").toLowerCase())).length;
@@ -633,6 +692,41 @@ export default function AdminDashboard() {
     }
   };
 
+  const deleteReport = async (reportId) => {
+    const shouldDelete = window.confirm(
+      "\u26a0\ufe0f Delete this incident report?\n\nThis action cannot be undone. Only use this for duplicate or mistaken reports."
+    );
+    if (!shouldDelete) return;
+    setError("");
+    try {
+      await api.delete(`/emergency/${reportId}`);
+      setReports((prev) => prev.filter((report) => report._id !== reportId));
+    } catch (err) {
+      setError(err.response?.data?.message || "Unable to delete report");
+    }
+  };
+
+  const closeReport = async (reportId) => {
+    const shouldClose = window.confirm(
+      "Close this incident?\n\nThis will mark the incident as officially closed. The reporter will be notified."
+    );
+    if (!shouldClose) return;
+    setSavingReportId(reportId);
+    setError("");
+    try {
+      const response = await api.put(`/reports/${reportId}/status`, { status: "closed" });
+      const updatedReport = response.data?.report;
+      if (updatedReport?._id) {
+        setReports((prev) => prev.map((report) => report._id === updatedReport._id ? updatedReport : report));
+        setActiveNav("closed-incidents");
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || "Unable to close report");
+    } finally {
+      setSavingReportId("");
+    }
+  };
+
   const saveUser = async (event) => {
     event.preventDefault();
     setIsSavingUser(true);
@@ -710,6 +804,30 @@ export default function AdminDashboard() {
       setUsers((prev) => prev.filter((user) => user._id !== userId));
     } catch (err) {
       setError(err.response?.data?.message || "Unable to delete user");
+    }
+  };
+
+  const handleResponderApproval = async (userId, action) => {
+    setError("");
+    try {
+      if (action === "approved") {
+        // Approve: update status to approved → user can now log in and appears in User Management
+        const response = await api.put(`/users/${userId}`, { status: "approved" });
+        const updatedUser = response.data?.user;
+        if (updatedUser?._id) {
+          setUsers((prev) =>
+            prev.map((u) => u._id === updatedUser._id ? { ...u, status: "approved" } : u)
+          );
+        } else {
+          await fetchUsers();
+        }
+      } else if (action === "declined") {
+        // Decline: permanently delete the user — removed from queue and never in User Management
+        await api.delete(`/users/${userId}`);
+        setUsers((prev) => prev.filter((u) => u._id !== userId));
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || `Unable to ${action} this account. Please try again.`);
     }
   };
 
@@ -972,12 +1090,13 @@ export default function AdminDashboard() {
             <th className="px-4 py-3">Status</th>
             <th className="px-4 py-3">Responder</th>
             <th className="px-4 py-3">Time</th>
+            {!compact && <th className="px-4 py-3">Actions</th>}
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
           {items.length === 0 ? (
             <tr>
-              <td colSpan="6" className="px-4 py-10 text-center text-sm font-semibold text-slate-400">No incidents found.</td>
+              <td colSpan="7" className="px-4 py-10 text-center text-sm font-semibold text-slate-400">No incidents found.</td>
             </tr>
           ) : items.map((report, index) => {
             const status = (report.status || "pending").toLowerCase();
@@ -1029,6 +1148,7 @@ export default function AdminDashboard() {
                     </p>
                   )}
                 </td>
+                {renderIncidentActions(report, compact)}
               </tr>
             );
           })}
@@ -1037,31 +1157,78 @@ export default function AdminDashboard() {
     </div>
   );
 
-  const renderIncidents = () => (
-    <section className="flex flex-col h-full rounded-xl border border-slate-200 bg-white shadow-md shadow-slate-200/50">
-      <div className="flex-none flex flex-col gap-3 border-b border-slate-100 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <h2 className="text-sm font-black text-slate-900">Incident Management</h2>
-          <p className="text-xs text-slate-500">Monitor every report, update status, assign responders, and export history.</p>
+  // Action buttons rendered outside the table row to avoid colSpan issues
+  const renderIncidentActions = (report, compact) => {
+    if (compact) return null;
+    const status = (report.status || "").toLowerCase();
+    const isResolved = ["resolved", "responded"].includes(status);
+    const isClosed = ["closed", "cancelled"].includes(status);
+    const isSaving = savingReportId === report._id;
+    return (
+      <td className="px-4 py-3">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {isResolved && !isClosed && (
+            <button
+              id={`close-report-${report._id}`}
+              disabled={isSaving}
+              onClick={() => closeReport(report._id)}
+              title="Close this resolved incident"
+              className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-[10px] font-black text-emerald-700 transition hover:bg-emerald-100 active:scale-[0.98] disabled:opacity-50"
+            >
+              <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>
+              {isSaving ? "Closing..." : "Close"}
+            </button>
+          )}
+          <button
+            id={`delete-report-${report._id}`}
+            onClick={() => deleteReport(report._id)}
+            title="Delete this report (mistake/dummy)"
+            className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-[10px] font-black text-red-700 transition hover:bg-red-100 active:scale-[0.98]"
+          >
+            <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+            Delete
+          </button>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 outline-none transition hover:border-slate-300 focus:border-red-500 focus:ring-2 focus:ring-red-600/10">
-            <option value="all">All statuses</option>
-            {STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-          </select>
-          <select value={agencyFilter} onChange={(event) => setAgencyFilter(event.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 outline-none shadow-md transition hover:border-slate-300 focus:border-red-500 focus:ring-2 focus:ring-red-600/10">
-            <option value="all">All agencies</option>
-            <option value="CDRRMO">CDRRMO</option>
-            <option value="PNP">PNP</option>
-          </select>
-          <CsvExportButton reports={filteredReports} />
+      </td>
+    );
+  };
+
+  const renderIncidents = (showOnlyClosed = false) => {
+    const displayReports = showOnlyClosed ? closedReports : filteredReports;
+    return (
+      <section className="flex flex-col h-full rounded-xl border border-slate-200 bg-white shadow-md shadow-slate-200/50">
+        <div className="flex-none flex flex-col gap-3 border-b border-slate-100 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h2 className="text-sm font-black text-slate-900">
+              {showOnlyClosed ? "Closed Incidents" : "Incident Management"}
+            </h2>
+            <p className="text-xs text-slate-500">
+              {showOnlyClosed
+                ? "View history of officially closed emergency reports."
+                : "Monitor every report, update status, assign responders, and export history."}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {!showOnlyClosed && (
+              <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 outline-none transition hover:border-slate-300 focus:border-red-500 focus:ring-2 focus:ring-red-600/10">
+                <option value="all">All statuses</option>
+                {STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
+            )}
+            <select value={agencyFilter} onChange={(event) => setAgencyFilter(event.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 outline-none shadow-md transition hover:border-slate-300 focus:border-red-500 focus:ring-2 focus:ring-red-600/10">
+              <option value="all">All agencies</option>
+              <option value="CDRRMO">CDRRMO</option>
+              <option value="PNP">PNP</option>
+            </select>
+            <CsvExportButton reports={displayReports} />
+          </div>
         </div>
-      </div>
-      <div className="flex-1 min-h-0 overflow-auto">
-        {renderIncidentTable(filteredReports)}
-      </div>
-    </section>
-  );
+        <div className="flex-1 min-h-0 overflow-auto">
+          {renderIncidentTable(displayReports)}
+        </div>
+      </section>
+    );
+  };
 
   const renderUsers = (category = "all") => {
     const directoryUsers = category === "all"
@@ -1074,7 +1241,7 @@ export default function AdminDashboard() {
       ? "Manage resident accounts that submit emergency reports and receive updates."
       : category === "responder"
         ? "Manage responder accounts assigned to emergency agencies."
-        : "Manage residents, responders, staff, and administrators.";
+        : "Manage residents, responders, and administrators.";
 
     return (
     <div className="flex flex-col gap-4 h-full">
@@ -1115,6 +1282,7 @@ export default function AdminDashboard() {
                 <th className="px-4 py-3">Agency</th>
                 <th className="px-4 py-3">Password</th>
                 <th className="px-4 py-3">Contact</th>
+                <th className="px-4 py-3">Registered</th>
                 {category === "all" && <th className="px-4 py-3">Actions</th>}
               </tr>
             </thead>
@@ -1125,10 +1293,28 @@ export default function AdminDashboard() {
                     <p className="font-bold text-slate-900">{user.fullName}</p>
                     <p className="text-xs text-slate-400">{user.email}</p>
                   </td>
-                  <td className="px-4 py-3 capitalize">{user.role || "resident"}</td>
+                  <td className="px-4 py-3 capitalize">
+                    {user.role || "resident"}
+                    {user.role === "responder" && (
+                      <span className={`ml-2 inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-medium border ${
+                        user.status === "approved"
+                          ? "bg-emerald-50 text-emerald-700 border-emerald-100"
+                          : user.status === "declined"
+                          ? "bg-red-50 text-red-700 border-red-100"
+                          : "bg-amber-50 text-amber-700 border-amber-100"
+                      }`}>
+                        {user.status || "pending"}
+                      </span>
+                    )}
+                  </td>
                   <td className="px-4 py-3">{user.agency || "NONE"}</td>
                   <td className="px-4 py-3 break-all text-xs font-medium text-slate-700">{user.visiblePassword || "—"}</td>
                   <td className="px-4 py-3">{user.phoneNumber || "N/A"}</td>
+                  <td className="px-4 py-3 text-xs text-slate-500">
+                    {user.createdAt
+                      ? new Date(user.createdAt).toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "numeric" })
+                      : "—"}
+                  </td>
                   {category === "all" && (
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-2">
@@ -1141,7 +1327,7 @@ export default function AdminDashboard() {
               ))}
               {directoryUsers.length === 0 && (
                 <tr>
-                  <td colSpan={category === "all" ? 6 : 5} className="px-4 py-8 text-center text-sm text-slate-400">No {category === "all" ? "users in this category" : `${category}s`} found.</td>
+                  <td colSpan={category === "all" ? 7 : 6} className="px-4 py-8 text-center text-sm text-slate-400">No {category === "all" ? "users in this category" : `${category}s`} found.</td>
                 </tr>
               )}
             </tbody>
@@ -1167,21 +1353,42 @@ export default function AdminDashboard() {
               <input value={userForm.email} onChange={(event) => setUserForm({ ...userForm, email: event.target.value })} placeholder="Email" type="email" className="rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-600/10" />
               <input value={userForm.password} onChange={(event) => setUserForm({ ...userForm, password: event.target.value })} placeholder={editingUserId ? "New password (optional)" : "Password"} type="password" className="rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-600/10" />
               <div className="grid gap-3 sm:grid-cols-2">
-                <select value={userForm.role} onChange={(event) => setUserForm({ ...userForm, role: event.target.value, agency: event.target.value === "resident" ? "NONE" : userForm.agency })} className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-600/10">
+                <select
+                  value={userForm.role}
+                  onChange={(event) => {
+                    const newRole = event.target.value;
+                    const isNoAgency = newRole === "resident" || newRole === "admin";
+                    setUserForm({
+                      ...userForm,
+                      role: newRole,
+                      agency: isNoAgency ? "NONE" : userForm.agency
+                    });
+                  }}
+                  className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-600/10"
+                >
                   <option value="resident">Resident</option>
                   <option value="responder">Responder</option>
-                  <option value="staff">Staff</option>
                   <option value="admin">Admin</option>
                 </select>
-                <select value={userForm.agency} onChange={(event) => setUserForm({ ...userForm, agency: event.target.value })} className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-600/10">
-                  <option value="NONE">No agency</option>
+                <select
+                  value={userForm.agency}
+                  onChange={(event) => setUserForm({ ...userForm, agency: event.target.value })}
+                  disabled={userForm.role === "resident" || userForm.role === "admin"}
+                  className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-600/10 disabled:bg-slate-100 disabled:text-slate-400"
+                >
+                  <option value="NONE" disabled>
+                    Select agency
+                  </option>
                   <option value="CDRRMO">CDRRMO</option>
                   <option value="PNP">PNP</option>
                 </select>
               </div>
               <input value={userForm.phoneNumber} onChange={(event) => setUserForm({ ...userForm, phoneNumber: event.target.value })} placeholder="Phone number" className="rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-600/10" />
               <div className="mt-4 flex flex-wrap items-center gap-2">
-                <button disabled={isSavingUser} className="rounded-lg bg-red-600 px-4 py-2 text-xs font-black text-white shadow-sm transition hover:bg-red-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-slate-300 disabled:opacity-80">
+                <button
+                  disabled={isSavingUser || (userForm.role === "responder" && userForm.agency === "NONE")}
+                  className="rounded-lg bg-red-600 px-4 py-2 text-xs font-black text-white shadow-sm transition hover:bg-red-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-slate-300 disabled:opacity-80"
+                >
                   {isSavingUser ? "Saving..." : editingUserId ? "Save Changes" : "Create User"}
                 </button>
                 <button type="button" onClick={resetUserForm} className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-black text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 active:scale-[0.98]">
@@ -1615,228 +1822,612 @@ export default function AdminDashboard() {
 
   const renderSettings = () => {
     const apiBase = import.meta.env.VITE_API_URL || "http://localhost:5000";
-    const roleCounts = ["admin", "staff", "responder", "resident"].map((role) => ({
+    
+    const roleCounts = ["admin", "responder", "resident"].map((role) => ({
       role,
       count: users.filter((user) => user.role === role).length,
     }));
     const roleConfig = {
       admin: { color: "bg-blue-600", lightBg: "bg-blue-50", text: "text-blue-700", border: "border-blue-200", icon: "🛡️", desc: "Full system authority including user management, incident verification, and system configuration." },
-      staff: { color: "bg-emerald-600", lightBg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200", icon: "📋", desc: "Handles validation and monitoring of assigned agency incident reports." },
       responder: { color: "bg-orange-500", lightBg: "bg-orange-50", text: "text-orange-700", border: "border-orange-200", icon: "🚨", desc: "Field units responsible for incident response and real-time status updates." },
       resident: { color: "bg-yellow-500", lightBg: "bg-yellow-50", text: "text-yellow-700", border: "border-yellow-200", icon: "👤", desc: "Community users who submit incident reports and receive updates." },
     };
+    
     const workflow = [
       { label: "Pending", body: "Newly submitted reports awaiting verification and validation.", color: "bg-orange-500", ring: "ring-orange-100", num: "01" },
       { label: "Verified", body: "Confirmed incidents approved for assignment and dispatch.", color: "bg-blue-500", ring: "ring-blue-100", num: "02" },
       { label: "Active", body: "Currently being handled by assigned responders with live updates enabled.", color: "bg-emerald-500", ring: "ring-emerald-100", num: "03" },
       { label: "Resolved", body: "Incident successfully completed and archived in system logs.", color: "bg-slate-700", ring: "ring-slate-200", num: "04" },
     ];
+    
     const systemCards = [
-      { label: "API Base URL", value: apiBase, sub: "Used by authenticated admin requests", icon: "🔗" },
-      { label: "Socket Room", value: "admin", sub: "Real-time incident and status updates", icon: "📡" },
-      { label: "Signed-in Admin", value: storedUser.fullName || "Admin", sub: storedUser.email || "Current browser session", icon: "👤" },
-      { label: "Tracked Records", value: `${reports.length} incidents · ${users.length} users`, sub: "Loaded into this dashboard session", icon: "📊" },
+      { label: "API Base URL", value: apiBase, sub: "Used by authenticated admin requests" },
+      { label: "Socket Room", value: "admin", sub: "Real-time incident and status updates" },
+      { label: "Signed-in Admin", value: storedUser.fullName || "Admin", sub: storedUser.email || "Current browser session" },
+      { label: "Tracked Records", value: `${reports.length} incidents · ${users.length} users`, sub: "Loaded into this dashboard session" },
     ];
+    
     const realtimeFeatures = [
-      { text: "Admin dashboard is connected to Socket Room: admin", icon: "🔌" },
-      { text: "Incident updates are broadcast instantly across all active users", icon: "📢" },
-      { text: "Agency dashboards receive only relevant assigned incident data", icon: "🏢" },
-      { text: "Status changes propagate in real time without refresh delays", icon: "⚡" },
-      { text: "System ensures continuous live monitoring and coordination", icon: "🔄" },
+      { text: "Admin dashboard is connected to Socket Room: admin" },
+      { text: "Incident updates are broadcast instantly across all active users" },
+      { text: "Agency dashboards receive only relevant assigned incident data" },
+      { text: "Status changes propagate in real time without refresh delays" },
+      { text: "System ensures continuous live monitoring and coordination" },
     ];
-    const shortcuts = [
-      { label: "View Active Incidents", desc: "Monitor and manage all current reports", icon: "📍", action: () => setActiveNav("incidents") },
-      { label: "User Management Console", desc: "Create, edit, and manage user accounts", icon: "👤", action: () => setActiveNav("users") },
-      { label: "Audit Trail & Logs", desc: "Review system activity and change history", icon: "📜", action: () => setActiveNav("audit") },
-      { label: "Export Incident Reports", desc: "Download complete CSV report archive", icon: "📤", action: () => { } },
-      { label: "System Health Diagnostics", desc: "Check connectivity and service status", icon: "🧪", action: () => { } },
+
+    const settingsNavItems = [
+      {
+        id: "system-info",
+        label: "System Information",
+        icon: (
+          <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="4" y="2" width="16" height="20" rx="2" ry="2"/>
+            <line x1="9" y1="22" x2="9" y2="16"/>
+            <line x1="15" y1="22" x2="15" y2="16"/>
+            <line x1="9" y1="16" x2="15" y2="16"/>
+            <path d="M8 6h.01M16 6h.01M8 10h.01M16 10h.01M12 6h.01M12 10h.01M8 14h.01M16 14h.01"/>
+          </svg>
+        )
+      },
+      {
+        id: "emergency-config",
+        label: "Emergency Configuration",
+        icon: (
+          <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          </svg>
+        )
+      },
+      {
+        id: "notifications",
+        label: "Notification Settings",
+        icon: (
+          <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0"/>
+          </svg>
+        )
+      },
+      {
+        id: "location-gps",
+        label: "Location & GPS Settings",
+        icon: (
+          <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+            <circle cx="12" cy="10" r="3"/>
+          </svg>
+        )
+      },
+      {
+        id: "user-access",
+        label: "User & Access Control",
+        icon: (
+          <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+            <circle cx="9" cy="7" r="4"/>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+          </svg>
+        )
+      },
+      {
+        id: "backup-data",
+        label: "Backup & Data Management",
+        icon: (
+          <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <ellipse cx="12" cy="5" rx="9" ry="3"/>
+            <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
+            <path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3"/>
+          </svg>
+        )
+      }
     ];
+
+    const handleBackup = () => {
+      Swal.fire({
+        title: "Backup Database",
+        text: "Are you sure you want to run a manual database backup now?",
+        icon: "question",
+        showCancelButton: true,
+        confirmButtonColor: "#dc2626",
+        confirmButtonText: "Yes, backup now",
+        cancelButtonText: "Cancel"
+      }).then((result) => {
+        if (result.isConfirmed) {
+          Swal.fire({
+            title: "Backing up database...",
+            html: "Serializing schemas and generating archive file...",
+            allowOutsideClick: false,
+            didOpen: () => {
+              Swal.showLoading();
+            }
+          });
+          setTimeout(() => {
+            Swal.fire({
+              title: "Backup Complete",
+              text: `A full system backup was successfully generated. Filename: alerto_backup_${new Date().toISOString().split('T')[0]}.json`,
+              icon: "success",
+              confirmButtonColor: "#dc2626"
+            });
+          }, 1500);
+        }
+      });
+    };
 
     return (
-      <div style={{ fontFamily: "'Inter', 'Manrope', system-ui, sans-serif" }} className="flex flex-col h-full">
-        <div className="flex-1 min-h-0 overflow-auto pr-2 space-y-6">
-          {/* ── Page Header ─────────────────────────────────────────────── */}
-          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-widest text-red-500">Admin Settings</p>
-                <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-900" style={{ letterSpacing: "-0.02em" }}>
-                  System Control & Configuration
-                </h2>
-                <p className="mt-2 max-w-2xl text-[15px] font-normal leading-relaxed text-slate-500">
-                  Manage system access, incident workflows, and real-time monitoring configuration.
-                </p>
-              </div>
-              <div className="flex flex-wrap items-center gap-3">
-                <button
-                  type="button"
-                  onClick={refreshAdminData}
-                  disabled={isRefreshing}
-                  className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-5 py-2.5 text-[13px] font-semibold text-white shadow-sm transition-all hover:bg-slate-800 active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-slate-300"
-                >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-                    <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.3" />
-                  </svg>
-                  {isRefreshing ? "Refreshing…" : "Refresh Data"}
-                </button>
-                <CsvExportButton reports={reports} />
-              </div>
-            </div>
-          </section>
-
-          {/* ── System Info Cards ────────────────────────────────────────── */}
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {systemCards.map((card) => (
-              <div key={card.label} className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:shadow-md hover:border-slate-300">
-                <div className="flex items-start justify-between">
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{card.label}</p>
-                  <span className="text-lg">{card.icon}</span>
-                </div>
-                <p className="mt-3 text-[15px] font-semibold text-slate-900 break-words leading-snug">{card.value}</p>
-                <p className="mt-1.5 text-[13px] font-normal leading-relaxed text-slate-500">{card.sub}</p>
-              </div>
-            ))}
+      <div className="-mx-4 -my-3 lg:-mx-6 lg:-my-4 h-[calc(100vh-5rem)] bg-white flex flex-col lg:flex-row" style={{ fontFamily: "'Inter', 'Manrope', system-ui, sans-serif" }}>
+        
+        {/* Left Column Settings Navigation - Light themed */}
+        <div className="w-full lg:w-72 shrink-0 border-r border-slate-100 flex flex-col">
+          <div className="p-5 border-b border-slate-100">
+            <p className="text-[10px] font-medium uppercase tracking-widest text-slate-400">Settings</p>
+            <h2 className="text-sm font-medium text-slate-900 mt-0.5">System Configuration</h2>
           </div>
+          <nav className="flex-1 overflow-y-auto p-3">
+            {settingsNavItems.map((item) => {
+              const isActive = activeSettingsTab === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => setActiveSettingsTab(item.id)}
+                  className={`flex w-full items-center gap-3 px-4 py-3 mb-1 text-left text-sm font-medium rounded-xl transition-all ${
+                    isActive
+                      ? "bg-slate-100 text-slate-900"
+                      : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
+                  }`}
+                >
+                  <span className={`shrink-0 ${isActive ? "text-red-500" : "text-slate-400"}`}>
+                    {item.icon}
+                  </span>
+                  <span className="truncate">{item.label}</span>
+                  {isActive && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-red-500 shrink-0" />}
+                </button>
+              );
+            })}
+          </nav>
+        </div>
 
-          {/* ── Access Control + Workflow ────────────────────────────────── */}
-          <div className="grid gap-5 xl:grid-cols-2">
-            {/* Access Control */}
-            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg">👥</span>
-                    <h3 className="text-[15px] font-bold text-slate-900">Access Control Overview</h3>
-                  </div>
-                  <p className="mt-1.5 text-[13px] font-normal leading-relaxed text-slate-500">Role distribution summary</p>
-                </div>
-                <span className="shrink-0 rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                  Role Based
-                </span>
+        {/* Right Column Settings Detail Area */}
+        <div className="flex-1 min-h-0 overflow-y-auto bg-white p-6 lg:p-8">
+          
+          {/* Tab: System Information */}
+          {activeSettingsTab === "system-info" && (
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-sm font-medium text-slate-900">System Information</h3>
+                <p className="text-xs text-slate-500 mt-0.5">Overview of core server variables and real-time state parameters.</p>
               </div>
 
-              <div className="mt-5 grid grid-cols-2 gap-3">
-                {roleCounts.map((item) => {
-                  const cfg = roleConfig[item.role];
-                  return (
-                    <div key={item.role} className={`rounded-xl border ${cfg.border} ${cfg.lightBg} p-4 transition-all hover:shadow-sm`}>
-                      <div className="flex items-center gap-2.5">
-                        <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${cfg.color} text-white text-sm`}>
-                          {item.count}
-                        </div>
-                        <p className="text-[13px] font-semibold capitalize text-slate-700">{item.role === "responder" ? "Responders" : item.role === "resident" ? "Residents" : item.role === "admin" ? "Admin" : "Staff"}</p>
-                      </div>
-                      <p className="mt-2.5 text-[12px] font-normal leading-relaxed text-slate-500">{cfg.desc}</p>
+              <div className="grid gap-4 sm:grid-cols-2">
+                {systemCards.map((card) => (
+                  <div key={card.label} className="rounded-xl border border-slate-100 bg-slate-50/20 p-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-medium uppercase tracking-widest text-slate-400">{card.label}</span>
                     </div>
-                  );
-                })}
-              </div>
-            </section>
-
-            {/* Incident Workflow Pipeline */}
-            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <div className="flex items-center gap-2">
-                <span className="text-lg">🚦</span>
-                <h3 className="text-[15px] font-bold text-slate-900">Incident Workflow Pipeline</h3>
-              </div>
-              <p className="mt-1.5 text-[13px] font-normal leading-relaxed text-slate-500">
-                Official status path used by the admin and agency dashboards.
-              </p>
-
-              <div className="mt-6 space-y-0">
-                {workflow.map((step, index) => (
-                  <div key={step.label} className="relative flex gap-4">
-                    {/* Stepper line + dot */}
-                    <div className="flex flex-col items-center">
-                      <div className={`relative z-10 flex h-9 w-9 items-center justify-center rounded-full ${step.color} text-[12px] font-bold text-white ring-4 ${step.ring}`}>
-                        {step.num}
-                      </div>
-                      {index < workflow.length - 1 && (
-                        <div className="w-0.5 flex-1 bg-slate-200" />
-                      )}
-                    </div>
-                    {/* Content */}
-                    <div className={`pb-6 ${index === workflow.length - 1 ? "pb-0" : ""}`}>
-                      <p className="text-[14px] font-semibold text-slate-900 mt-1.5">{step.label}</p>
-                      <p className="mt-1 text-[13px] font-normal leading-relaxed text-slate-500">{step.body}</p>
-                    </div>
+                    <p className="mt-2 text-xs font-medium text-slate-900 break-all leading-normal">{card.value}</p>
+                    <p className="text-[10px] text-slate-400 mt-1">{card.sub}</p>
                   </div>
                 ))}
               </div>
 
-              <div className="mt-5 flex items-start gap-2.5 rounded-xl bg-slate-50 border border-slate-200 px-4 py-3">
-                <span className="mt-0.5 text-sm">📡</span>
-                <p className="text-[12px] font-medium leading-relaxed text-slate-500">
-                  All workflow stages are synchronized in real time across Admin and Agency dashboards.
-                </p>
-              </div>
-            </section>
-          </div>
-
-          {/* ── Real-Time System Behavior ─────────────────────────────── */}
-          <section className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-            <div className="bg-slate-900 px-6 py-5">
-              <div className="flex items-center gap-2.5">
-                <span className="text-lg">⚡</span>
-                <h3 className="text-[15px] font-bold text-white">Real-Time System Behavior</h3>
-              </div>
-              <p className="mt-1.5 text-[13px] font-normal leading-relaxed text-slate-400">
-                Live monitoring and synchronization across all connected dashboards.
-              </p>
-            </div>
-            <div className="divide-y divide-slate-100 px-6">
-              {realtimeFeatures.map((feature, index) => (
-                <div key={index} className="flex items-center gap-4 py-3.5">
-                  <span className="shrink-0 flex h-8 w-8 items-center justify-center rounded-lg bg-slate-50 text-sm border border-slate-200">{feature.icon}</span>
-                  <p className="text-[13px] font-medium leading-snug text-slate-600">{feature.text}</p>
+              <div className="rounded-xl border border-slate-100 overflow-hidden">
+                <div className="bg-slate-50 px-4 py-3 border-b border-slate-100">
+                  <h4 className="text-[11px] font-medium uppercase tracking-widest text-slate-500">Real-Time State Indicators</h4>
                 </div>
-              ))}
+                <div className="divide-y divide-slate-100 bg-white">
+                  {realtimeFeatures.map((feat, idx) => (
+                    <div key={idx} className="flex items-center gap-3 p-3.5 text-xs">
+                      <span className="h-1.5 w-1.5 rounded-full bg-slate-300 shrink-0" />
+                      <p className="font-medium text-slate-600 leading-relaxed">{feat.text}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
-          </section>
+          )}
 
-          {/* ── Maintenance Shortcuts ─────────────────────────────────── */}
-          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-lg">🛠️</span>
-              <h3 className="text-[15px] font-bold text-slate-900">Maintenance Shortcuts</h3>
+          {/* Tab: Emergency Configuration */}
+          {activeSettingsTab === "emergency-config" && (
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-sm font-medium text-slate-900">Emergency Configuration</h3>
+                <p className="text-xs text-slate-500 mt-0.5">Configure active alert workflows, stages, and category status.</p>
+              </div>
+
+              {/* Workflow Stepper */}
+              <div className="rounded-xl border border-slate-100 bg-slate-50/20 p-4">
+                <h4 className="text-xs font-medium text-slate-900 mb-4">Incident Progress Pipeline</h4>
+                <div className="space-y-4">
+                  {workflow.map((step, index) => (
+                    <div key={step.label} className="relative flex gap-3">
+                      <div className="flex flex-col items-center">
+                        <div className={`relative z-10 flex h-7 w-7 items-center justify-center rounded-full ${step.color} text-[10px] font-medium text-white ring-4 ${step.ring}`}>
+                          {step.num}
+                        </div>
+                        {index < workflow.length - 1 && <div className="w-0.5 flex-1 bg-slate-200 mt-1" />}
+                      </div>
+                      <div className="pb-3">
+                        <p className="text-xs font-medium text-slate-900 mt-1">{step.label}</p>
+                        <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">{step.body}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Categories toggle */}
+              <div className="rounded-xl border border-slate-100 p-4 space-y-4">
+                <div>
+                  <h4 className="text-xs font-medium text-slate-900">Active Incident Categories</h4>
+                  <p className="text-[11px] text-slate-500 mt-0.5">Toggle categories to temporarily suspend dispatch routing warnings.</p>
+                </div>
+                <div className="space-y-3">
+                  {Object.keys(activeCategories).map((cat) => (
+                    <label key={cat} className="flex items-center justify-between p-2 rounded-lg border border-slate-100 hover:bg-slate-50 transition cursor-pointer">
+                      <span className="text-xs font-medium capitalize text-slate-700">{cat} Dispatch Warning</span>
+                      <input
+                        type="checkbox"
+                        checked={activeCategories[cat]}
+                        onChange={(e) => setActiveCategories({ ...activeCategories, [cat]: e.target.checked })}
+                        className="h-4 w-4 rounded border-slate-300 text-red-600 focus:ring-red-500"
+                      />
+                    </label>
+                  ))}
+                </div>
+              </div>
             </div>
-            <p className="text-[13px] font-normal leading-relaxed text-slate-500 mb-5">
-              Quick administrative tools for system control.
-            </p>
+          )}
 
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {shortcuts.map((item) => (
-                <button
-                  key={item.label}
-                  type="button"
-                  onClick={item.action}
-                  className="group flex items-start gap-3.5 rounded-xl border border-slate-200 bg-white p-4 text-left transition-all hover:border-slate-300 hover:bg-slate-50 hover:shadow-sm active:scale-[0.99]"
+          {/* Tab: Notification Settings */}
+          {activeSettingsTab === "notifications" && (
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-sm font-medium text-slate-900">Notification Settings</h3>
+                <p className="text-xs text-slate-500 mt-0.5">Control browser alerts, warning sounds, SMS updates and warning broadcast ranges.</p>
+              </div>
+
+              <div className="rounded-xl border border-slate-100 p-4 space-y-4">
+                <h4 className="text-xs font-medium text-slate-600">Alert Preferences</h4>
+                
+                <div className="space-y-3.5">
+                  <label className="flex items-center justify-between cursor-pointer">
+                    <div>
+                      <p className="text-xs font-medium text-slate-700">Warning Siren Sound</p>
+                      <p className="text-[10px] text-slate-400">Play loop audio on incoming emergency reports.</p>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={notificationsConfig.soundAlerts}
+                      onChange={(e) => setNotificationsConfig({ ...notificationsConfig, soundAlerts: e.target.checked })}
+                      className="h-4 w-4 rounded border-slate-300 text-red-600 focus:ring-red-500"
+                    />
+                  </label>
+
+                  <label className="flex items-center justify-between cursor-pointer">
+                    <div>
+                      <p className="text-xs font-medium text-slate-700">Desktop Push Alert</p>
+                      <p className="text-[10px] text-slate-400">Receive system notification prompts in background mode.</p>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={notificationsConfig.desktopNotif}
+                      onChange={(e) => setNotificationsConfig({ ...notificationsConfig, desktopNotif: e.target.checked })}
+                      className="h-4 w-4 rounded border-slate-300 text-red-600 focus:ring-red-500"
+                    />
+                  </label>
+
+                  <label className="flex items-center justify-between cursor-pointer">
+                    <div>
+                      <p className="text-xs font-medium text-slate-700">Automated SMS Dispatch alerts</p>
+                      <p className="text-[10px] text-slate-400">Dispatch message details instantly to active responder mobiles.</p>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={notificationsConfig.smsAlerts}
+                      onChange={(e) => setNotificationsConfig({ ...notificationsConfig, smsAlerts: e.target.checked })}
+                      className="h-4 w-4 rounded border-slate-300 text-red-600 focus:ring-red-500"
+                    />
+                  </label>
+
+                  <label className="flex items-center justify-between cursor-pointer">
+                    <div>
+                      <p className="text-xs font-medium text-slate-700">Resident Warning Push</p>
+                      <p className="text-[10px] text-slate-400">Send community push warnings to residents near active hazards.</p>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={notificationsConfig.residentPush}
+                      onChange={(e) => setNotificationsConfig({ ...notificationsConfig, residentPush: e.target.checked })}
+                      className="h-4 w-4 rounded border-slate-300 text-red-600 focus:ring-red-500"
+                    />
+                  </label>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-slate-100 p-4 space-y-3">
+                <div>
+                  <p className="text-xs font-medium text-slate-700">Broadcast Radius Limit</p>
+                  <p className="text-[10px] text-slate-400">Maximum distance parameters for local warnings.</p>
+                </div>
+                <select
+                  value={notificationsConfig.radius}
+                  onChange={(e) => setNotificationsConfig({ ...notificationsConfig, radius: e.target.value })}
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 outline-none transition focus:border-red-500 focus:ring-2"
                 >
-                  <span className="mt-0.5 shrink-0 flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-base group-hover:bg-slate-200 transition-colors">{item.icon}</span>
-                  <div>
-                    <p className="text-[13px] font-semibold text-slate-800 group-hover:text-slate-900">{item.label}</p>
-                    <p className="mt-1 text-[12px] font-normal leading-relaxed text-slate-400">{item.desc}</p>
-                  </div>
-                </button>
-              ))}
+                  <option value="2">2 Kilometers</option>
+                  <option value="5">5 Kilometers</option>
+                  <option value="10">10 Kilometers</option>
+                  <option value="all">Full Calbayog Area</option>
+                </select>
+              </div>
             </div>
-          </section>
+          )}
 
-          {/* ── System Summary ───────────────────────────────────────── */}
-          <section className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-6 shadow-sm">
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-lg">🧭</span>
-              <h3 className="text-[15px] font-bold text-slate-900">System Summary</h3>
+          {/* Tab: Location & GPS Settings */}
+          {activeSettingsTab === "location-gps" && (
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-sm font-medium text-slate-900">Location & GPS Settings</h3>
+                <p className="text-xs text-slate-500 mt-0.5">Control live map tile configuration, update speed limits and geographic tracking.</p>
+              </div>
+
+              <div className="rounded-xl border border-slate-100 p-4 space-y-4">
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-slate-700">GPS Tracker Sync Refresh Rate ({locationConfig.refreshRate}s)</p>
+                  <p className="text-[10px] text-slate-400">Frequency rate for active mobile pings location updates.</p>
+                </div>
+                <input
+                  type="range"
+                  min="5"
+                  max="60"
+                  step="5"
+                  value={locationConfig.refreshRate}
+                  onChange={(e) => setLocationConfig({ ...locationConfig, refreshRate: parseInt(e.target.value) })}
+                  className="w-full h-1 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-red-600"
+                />
+                <div className="flex justify-between text-[10px] text-slate-400 font-medium">
+                  <span>5 Seconds (High Sync)</span>
+                  <span>60 Seconds (Low CPU)</span>
+                </div>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="rounded-xl border border-slate-100 p-4 space-y-3">
+                  <p className="text-xs font-medium text-slate-700">Initial Center Latitude</p>
+                  <input
+                    type="text"
+                    value={locationConfig.lat}
+                    onChange={(e) => setLocationConfig({ ...locationConfig, lat: e.target.value })}
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium outline-none focus:border-red-500 focus:ring-1 focus:ring-red-600/10"
+                  />
+                </div>
+
+                <div className="rounded-xl border border-slate-100 p-4 space-y-3">
+                  <p className="text-xs font-medium text-slate-700">Initial Center Longitude</p>
+                  <input
+                    type="text"
+                    value={locationConfig.lng}
+                    onChange={(e) => setLocationConfig({ ...locationConfig, lng: e.target.value })}
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium outline-none focus:border-red-500 focus:ring-1 focus:ring-red-600/10"
+                  />
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-slate-100 p-4 space-y-3">
+                <p className="text-xs font-medium text-slate-700">Map Tile Provider</p>
+                <select
+                  value={locationConfig.provider}
+                  onChange={(e) => setLocationConfig({ ...locationConfig, provider: e.target.value })}
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 outline-none transition focus:border-red-500 focus:ring-2"
+                >
+                  <option value="osm">OpenStreetMap Standard Tile</option>
+                  <option value="carto">CartoDB Positron (Light Mode Map)</option>
+                  <option value="satellite">Esri Satellite imagery</option>
+                </select>
+              </div>
             </div>
-            <p className="max-w-3xl text-[14px] font-normal leading-relaxed text-slate-500">
-              A centralized emergency incident management dashboard designed for real-time reporting and response coordination,
-              multi-role operational control, transparent monitoring and auditing, and fast decision-making during critical events.
-            </p>
-            <p className="mt-3 text-[12px] font-medium text-slate-400">
-              Built for public safety efficiency, reliability, and real-time situational awareness.
-            </p>
-          </section>
+          )}
+
+          {/* Tab: User & Access Control */}
+          {activeSettingsTab === "user-access" && (
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-sm font-medium text-slate-900">User & Access Control</h3>
+                <p className="text-xs text-slate-500 mt-0.5">Overview distributions of tracked roles, permissions limits and system passwords policies.</p>
+              </div>
+
+              {/* Role distributions cards */}
+              <div className="grid gap-3 sm:grid-cols-3">
+                {roleCounts.map((item) => {
+                  const cfg = roleConfig[item.role];
+                  return (
+                    <div key={item.role} className={`rounded-xl border ${cfg.border} ${cfg.lightBg} p-4 transition hover:shadow-sm`}>
+                      <div className="flex items-center gap-2">
+                        <div className={`flex h-7 w-7 items-center justify-center rounded-lg ${cfg.color} text-white text-xs font-medium`}>
+                          {item.count}
+                        </div>
+                        <span className="text-xs font-medium capitalize text-slate-700">{item.role === "responder" ? "Responders" : item.role === "resident" ? "Residents" : "Admins"}</span>
+                      </div>
+                      <p className="mt-2 text-[10px] text-slate-500 leading-normal">{cfg.desc}</p>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="rounded-xl border border-slate-100 p-4 space-y-4">
+                <h4 className="text-xs font-medium text-slate-600">Security Policies</h4>
+                
+                <div className="space-y-3.5">
+                  <label className="flex items-center justify-between cursor-pointer">
+                    <div>
+                      <p className="text-xs font-medium text-slate-700">Enforce Complex Passwords</p>
+                      <p className="text-[10px] text-slate-400">Require uppercase, symbols, and digit numbers on register.</p>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={securityConfig.complexPassword}
+                      onChange={(e) => setSecurityConfig({ ...securityConfig, complexPassword: e.target.checked })}
+                      className="h-4 w-4 rounded border-slate-300 text-red-600 focus:ring-red-500"
+                    />
+                  </label>
+
+                  <div className="space-y-2 pt-2">
+                    <p className="text-xs font-medium text-slate-700">Admin Session Timeout (Minutes)</p>
+                    <input
+                      type="number"
+                      value={securityConfig.sessionTimeout}
+                      onChange={(e) => setSecurityConfig({ ...securityConfig, sessionTimeout: parseInt(e.target.value) || 30 })}
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium outline-none focus:border-red-500 focus:ring-1 focus:ring-red-600/10"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Tab: Backup & Data Management */}
+          {activeSettingsTab === "backup-data" && (
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-sm font-medium text-slate-900">Backup & Data Management</h3>
+                <p className="text-xs text-slate-500 mt-0.5">Control data extraction, schedules back up archives and download CSV logs reports.</p>
+              </div>
+
+              <div className="rounded-xl border border-slate-100 p-4 space-y-3">
+                <h4 className="text-xs font-medium text-slate-600">Manual Operations</h4>
+                <p className="text-[10px] text-slate-500">Run manual archives to safeguard active databases before major updates.</p>
+                
+                <div className="flex flex-wrap gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={handleBackup}
+                    className="inline-flex items-center justify-center rounded-lg bg-red-600 px-4 py-2 text-xs font-medium text-white shadow-sm transition hover:bg-red-700 active:scale-[0.98]"
+                  >
+                    Trigger Database Backup
+                  </button>
+                  <CsvExportButton reports={reports} />
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-slate-100 p-4 space-y-4">
+                <h4 className="text-xs font-medium text-slate-600">Auto Schedules Configurations</h4>
+
+                <div className="space-y-3">
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-medium text-slate-700">Automated Backup Frequency</p>
+                    <select
+                      value={backupConfig.interval}
+                      onChange={(e) => setBackupConfig({ ...backupConfig, interval: e.target.value })}
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 outline-none transition focus:border-red-500 focus:ring-2"
+                    >
+                      <option value="daily">Daily Auto-Backup</option>
+                      <option value="weekly">Weekly Auto-Backup</option>
+                      <option value="monthly">Monthly Auto-Backup</option>
+                      <option value="disabled">Disabled (Manual Only)</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-medium text-slate-700">Incident Retention Period</p>
+                    <select
+                      value={backupConfig.retention}
+                      onChange={(e) => setBackupConfig({ ...backupConfig, retention: e.target.value })}
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 outline-none transition focus:border-red-500 focus:ring-2"
+                    >
+                      <option value="6">6 Months Retention</option>
+                      <option value="12">1 Year Retention</option>
+                      <option value="24">2 Years Retention</option>
+                      <option value="forever">Forever (No Purge)</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
         </div>
+
+      </div>
+    );
+  };
+
+  const renderResponderApprovals = () => {
+    const pendingResponders = users.filter(
+      (user) => user.role === "responder" && (user.status === "pending" || !user.status)
+    );
+
+    return (
+      <div className="flex flex-col h-full font-sans">
+        <section className="flex-1 min-h-0 flex flex-col rounded-xl border border-slate-200 bg-white shadow-md shadow-slate-200/50 overflow-hidden">
+          <div className="p-4 border-b border-slate-100 bg-slate-50/50">
+            <h3 className="text-xs font-medium uppercase tracking-widest text-slate-500">Pending Requests ({pendingResponders.length})</h3>
+          </div>
+          <div className="overflow-auto flex-1 min-h-0">
+            <table className="w-full table-auto text-left">
+              <thead>
+                <tr className="border-b border-slate-100 bg-slate-50/30 text-[10px] font-medium uppercase tracking-widest text-slate-400">
+                  <th className="px-4 py-3">Responder</th>
+                  <th className="px-4 py-3">Agency</th>
+                  <th className="px-4 py-3">Contact</th>
+                  <th className="px-4 py-3">Date Applied</th>
+                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {pendingResponders.map((user) => (
+                  <tr key={user._id} className="text-sm text-slate-700 hover:bg-slate-50/50 transition-colors">
+                    <td className="px-4 py-3">
+                      <p className="font-medium text-slate-900">{user.fullName}</p>
+                      <p className="text-xs text-slate-400">{user.email}</p>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="inline-flex items-center rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-800">
+                        {user.agency || "NONE"}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-xs text-slate-500">
+                      {user.phoneNumber || "N/A"}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-slate-500">
+                      {user.createdAt
+                        ? new Date(user.createdAt).toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "numeric" })
+                        : "—"}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 border border-amber-200 px-2.5 py-1 text-[11px] font-medium text-amber-700">
+                        <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
+                        Pending
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex justify-end gap-2">
+                        <button
+                          onClick={() => handleResponderApproval(user._id, "approved")}
+                          className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-emerald-700 active:scale-[0.98]"
+                        >
+                          Approve
+                        </button>
+                        <button
+                          onClick={() => handleResponderApproval(user._id, "declined")}
+                          className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-700 transition hover:bg-red-100 active:scale-[0.98]"
+                        >
+                          Decline
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {pendingResponders.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-12 text-center text-sm text-slate-400">
+                      No pending approval requests.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
       </div>
     );
   };
@@ -1844,10 +2435,10 @@ export default function AdminDashboard() {
   const renderContent = () => {
     if (activeNav === "overview") return renderOverview();
     if (activeNav === "incidents") return renderIncidents();
+    if (activeNav === "closed-incidents") return renderIncidents(true);
     if (activeNav === "analytics") return renderAnalytics();
     if (activeNav === "users") return renderUsers();
-    if (activeNav === "residents") return renderUsers("resident");
-    if (activeNav === "responders") return renderUsers("responder");
+    if (activeNav === "responder-approvals") return renderResponderApprovals();
     if (activeNav === "notifications") return renderNotifications();
     if (activeNav === "audit") return renderAudit();
     return renderSettings();

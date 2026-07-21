@@ -186,11 +186,24 @@ exports.deleteMyReport = async (req, res) => {
       return res.status(404).json({ message: "Report not found" });
     }
 
-    if (report.userId.toString() !== req.user.id) {
+    // Admins can delete any report; residents can only delete their own
+    const isAdmin = req.user.role === "admin";
+    if (!isAdmin && report.userId.toString() !== req.user.id) {
       return res.status(403).json({ message: "You can only delete your own reports" });
     }
 
+    const notifiedAgencies = report.notifiedAgencies || [];
+
     await EmergencyReport.findByIdAndDelete(id);
+
+    // Emit real-time deletion event to all connected dashboards
+    const io = req.app.get("io");
+    if (io) {
+      io.to("admin").emit("reportDeleted", { id });
+      notifiedAgencies.forEach((agency) => {
+        io.to(agency).emit("reportDeleted", { id });
+      });
+    }
 
     res.json({ message: "Report deleted successfully" });
   } catch (error) {

@@ -9,6 +9,10 @@ cdrrmo
 cdrrmo@gmail.com
 Testtest123
 
+pnp
+pnp@gmail.com
+Testtest123 
+
 admin
 admin@alertocalbayog.com
 admin123

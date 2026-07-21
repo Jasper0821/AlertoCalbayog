@@ -11,6 +11,7 @@ function Login() {
   const [loginSuccess, setLoginSuccess] = useState(false);
   const [dashboardLabel, setDashboardLabel] = useState("");
   const [error, setError] = useState("");
+  const [pendingToast, setPendingToast] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -70,7 +71,14 @@ function Login() {
         navigate(route);
       }, 500);
     } catch (err) {
-      setError(err.response?.data?.message || "Login failed. Please try again.");
+      const msg = err.response?.data?.message || "Login failed. Please try again.";
+      const status = err.response?.status;
+      if (status === 403 && msg.toLowerCase().includes("pending")) {
+        setPendingToast(true);
+        setTimeout(() => setPendingToast(false), 5000);
+      } else {
+        setError(msg);
+      }
       setIsSubmitting(false);
     }
   };
@@ -253,6 +261,42 @@ function Login() {
         )}
 
       </div>
+
+      {/* Pending Approval Toast */}
+      {pendingToast && (
+        <div
+          className="fixed top-5 right-5 z-[300] flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3.5 shadow-lg shadow-amber-100/50"
+          style={{ maxWidth: 340, animation: "slideInRight 0.3s ease" }}
+        >
+          <span className="mt-0.5 shrink-0 text-amber-500">
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="10" />
+              <path strokeLinecap="round" d="M12 6v6l4 2" />
+            </svg>
+          </span>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-semibold text-amber-800">Account Pending Approval</p>
+            <p className="mt-0.5 text-[11px] text-amber-700 leading-relaxed">
+              Your responder account is awaiting admin approval. Please wait for confirmation before logging in.
+            </p>
+          </div>
+          <button
+            onClick={() => setPendingToast(false)}
+            className="shrink-0 text-amber-400 hover:text-amber-600 transition-colors"
+          >
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+          <style>{`
+            @keyframes slideInRight {
+              from { opacity: 0; transform: translateX(60px); }
+              to   { opacity: 1; transform: translateX(0); }
+            }
+          `}</style>
+        </div>
+      )}
+
       <Footer />
     </main>
   );
