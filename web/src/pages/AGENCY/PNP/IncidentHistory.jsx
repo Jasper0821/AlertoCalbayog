@@ -234,7 +234,7 @@ export default function IncidentHistory({ reports = [] }) {
           <table className="w-full text-left">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200">
-                {["Incident ID", "Type", "Location", "Reporter", "Contact No.", "Date & Time", "Priority", "Status", "Action"].map(h => (
+                {["Incident ID", "Type", "Barangay", "Reporter", "Contact No.", "Date", "Time", "Priority", "Status", "Action"].map(h => (
                   <th key={h} className="px-5 py-3.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">{h}</th>
                 ))}
               </tr>
@@ -252,7 +252,7 @@ export default function IncidentHistory({ reports = [] }) {
                 const statusInfo = getIncidentStatusInfo(r.status);
                 const priority = getPriority(r);
                 const incId = getIncidentId(r, i);
-                const loc = typeof r.location === "string" ? r.location : (r.location?.name || "Unknown");
+                const barangay = r.location?.barangay || (typeof r.location === "string" ? r.location : "Unknown");
                 const date = r.createdAt ? new Date(r.createdAt) : new Date();
 
                 return (
@@ -267,7 +267,7 @@ export default function IncidentHistory({ reports = [] }) {
                       </div>
                     </td>
                     <td className="px-5 py-3.5">
-                      <span className="text-xs text-slate-600">{loc}</span>
+                      <span className="text-xs text-slate-600">{barangay}</span>
                     </td>
                     <td className="px-5 py-3.5">
                       <span className="text-xs text-slate-600">{r.userId?.fullName || "Unknown"}</span>
@@ -276,8 +276,10 @@ export default function IncidentHistory({ reports = [] }) {
                       <span className="text-xs font-mono text-slate-600">{r.userId?.phoneNumber || r.phoneNumber || "N/A"}</span>
                     </td>
                     <td className="px-5 py-3.5">
-                      <p className="text-xs text-slate-600">{date.toLocaleDateString()}</p>
-                      <p className="text-[10px] text-slate-400 mt-0.5">{date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p>
+                      <span className="text-xs text-slate-600 whitespace-nowrap">{date.toLocaleDateString("en-PH", { day: "numeric", month: "short", year: "numeric" })}</span>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <span className="text-xs text-slate-600">{date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
                     </td>
                     <td className="px-5 py-3.5">
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${PRIORITY_STYLES[priority]}`}>

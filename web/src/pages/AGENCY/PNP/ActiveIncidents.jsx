@@ -29,9 +29,10 @@ export default function ActiveIncidents({ reports = [] }) {
             <tr className="bg-slate-50/70 border-b border-slate-200 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
               <th className="px-6 py-4">Incident ID</th>
               <th className="px-6 py-4">Type</th>
-              <th className="px-6 py-4">Location</th>
+              <th className="px-6 py-4">Barangay</th>
               <th className="px-6 py-4">Reporter</th>
               <th className="px-6 py-4">Contact No.</th>
+              <th className="px-6 py-4">Date</th>
               <th className="px-6 py-4">Time</th>
               <th className="px-6 py-4">Status</th>
               <th className="px-6 py-4">Action</th>
@@ -40,16 +41,16 @@ export default function ActiveIncidents({ reports = [] }) {
           <tbody className="divide-y divide-slate-100">
             {activeReports.map((report, idx) => {
               const statusInfo = getIncidentStatusInfo(report.status);
-              const location =
-                report.location?.name ||
-                [report.location?.barangay, report.location?.street].filter(Boolean).join(", ") ||
-                (typeof report.location === "string" ? report.location : "Unknown");
               const timeStr = report.createdAt
                 ? new Date(report.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })
                 : "--:--";
+              const dateStr = report.createdAt
+                ? new Date(report.createdAt).toLocaleDateString("en-PH", { day: "numeric", month: "short", year: "numeric" })
+                : "—";
               const incId = report.incidentId || `INC-2024-${String(90 - idx).padStart(3, "0")}`;
               const phone = report.userId?.phoneNumber || report.phoneNumber || "N/A";
               const reporter = report.userId?.fullName || "Anonymous";
+              const barangay = report.location?.barangay || (typeof report.location === "string" ? report.location : "Unknown");
 
               return (
                 <tr key={report._id || idx} className="hover:bg-slate-50/40 transition-colors text-sm text-slate-700">
@@ -60,9 +61,10 @@ export default function ActiveIncidents({ reports = [] }) {
                       <span className="font-semibold text-slate-700 capitalize">{report.emergencyType || "Crime"}</span>
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-slate-600 font-medium max-w-[160px] truncate" title={location}>{location}</td>
+                  <td className="px-6 py-4 text-slate-600 font-medium">{barangay}</td>
                   <td className="px-6 py-4 text-slate-600">{reporter}</td>
                   <td className="px-6 py-4 text-slate-600 font-mono text-xs">{phone}</td>
+                  <td className="px-6 py-4 text-slate-500 font-medium whitespace-nowrap">{dateStr}</td>
                   <td className="px-6 py-4 text-slate-500 font-medium">{timeStr}</td>
                   <td className="px-6 py-4">
                     <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full ${statusInfo.className}`}>
@@ -88,7 +90,7 @@ export default function ActiveIncidents({ reports = [] }) {
 
             {activeReports.length === 0 && (
               <tr>
-                <td colSpan="8" className="px-6 py-14 text-center">
+                <td colSpan="9" className="px-6 py-14 text-center">
                   <div className="flex flex-col items-center gap-3">
                     <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center">
                       <svg className="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">

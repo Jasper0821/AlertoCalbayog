@@ -2437,17 +2437,17 @@ export default function AdminDashboard() {
         <button className="fixed inset-0 z-40 bg-slate-950/40 lg:hidden" onClick={() => setIsSidebarOpen(false)} aria-label="Close menu" />
       )}
 
-      <aside className={`fixed inset-y-0 left-0 z-50 flex flex-col overflow-hidden bg-[#052e16] text-white border-r border-emerald-900 transition-all duration-300 lg:static lg:translate-x-0 ${isSidebarOpen ? "w-64 translate-x-0" : "w-64 -translate-x-full lg:translate-x-0 shadow-xl lg:shadow-none"}`}>
+      <aside className={`fixed inset-y-0 left-0 z-50 flex flex-col bg-[#052e16] text-white border-r border-emerald-900 transition-all duration-300 lg:static lg:translate-x-0 overflow-x-hidden group/sidebar ${isSidebarOpen ? "w-64 translate-x-0" : "w-64 lg:w-20 hover:lg:w-64 -translate-x-full shadow-xl lg:shadow-none"}`}>
         <div className="flex h-20 shrink-0 items-center gap-4 px-5 border-b border-emerald-800/50">
           <img src="/logo.png" alt="Alerto Calbayog" className="h-10 w-10 shrink-0 object-contain" />
-          <div className="flex flex-col whitespace-nowrap">
+          <div className={`flex flex-col whitespace-nowrap transition-opacity duration-300 ${isSidebarOpen ? "opacity-100" : "lg:opacity-0 lg:group-hover/sidebar:opacity-100 opacity-100"}`}>
             <p className="text-base font-black tracking-tight text-white">Alerto Calbayog</p>
             <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-200/80">Admin Console</p>
           </div>
         </div>
 
         <nav className="flex-1 space-y-1.5 overflow-y-auto overflow-x-hidden p-3 mt-2">
-          <p className="px-3 mb-3 text-[10px] font-black uppercase tracking-widest text-emerald-400/80">Menu</p>
+          <p className={`px-3 mb-3 text-[10px] font-black uppercase tracking-widest text-emerald-400/80 transition-opacity duration-300 ${isSidebarOpen ? "opacity-100" : "lg:opacity-0 lg:group-hover/sidebar:opacity-100 opacity-100"}`}>Menu</p>
           {NAV.map((item) => {
             const Icon = item.icon;
             const isActive = activeNav === item.id;
@@ -2462,7 +2462,7 @@ export default function AdminDashboard() {
               >
                 {isActive && <div className="absolute left-0 top-1/2 h-1/2 w-1 -translate-y-1/2 rounded-r-full bg-emerald-400" />}
                 <Icon className={`h-5 w-5 shrink-0 ${isActive ? "text-white" : "text-emerald-400/70"}`} />
-                <span className="whitespace-nowrap">{item.label}</span>
+                <span className={`whitespace-nowrap transition-opacity duration-300 ${isSidebarOpen ? "opacity-100" : "lg:opacity-0 lg:group-hover/sidebar:opacity-100 opacity-100"}`}>{item.label}</span>
               </button>
             );
           })}
@@ -2471,7 +2471,7 @@ export default function AdminDashboard() {
         <div className="p-4 border-t border-emerald-800/50">
           <button onClick={logout} className="flex w-full items-center gap-4 rounded-xl px-3 py-3 text-left text-sm font-bold text-emerald-100/70 transition-colors hover:bg-red-500/10 hover:text-red-400 group">
             <LogOut className="h-5 w-5 shrink-0 text-emerald-400/70 group-hover:text-red-400" />
-            <span className="whitespace-nowrap">Logout</span>
+            <span className={`whitespace-nowrap transition-opacity duration-300 ${isSidebarOpen ? "opacity-100" : "lg:opacity-0 lg:group-hover/sidebar:opacity-100 opacity-100"}`}>Logout</span>
           </button>
         </div>
       </aside>

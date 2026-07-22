@@ -44,9 +44,10 @@ export default function QueuingSystem({ reports = [], onStatusChange }) {
             <tr className="bg-slate-50/70 border-b border-slate-200 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
               <th className="px-6 py-4">Incident ID</th>
               <th className="px-6 py-4">Type</th>
-              <th className="px-6 py-4">Location</th>
+              <th className="px-6 py-4">Barangay</th>
               <th className="px-6 py-4">Reporter</th>
               <th className="px-6 py-4">Contact No.</th>
+              <th className="px-6 py-4">Date</th>
               <th className="px-6 py-4">Time</th>
               <th className="px-6 py-4">Status</th>
               <th className="px-6 py-4">Action</th>
@@ -60,14 +61,15 @@ export default function QueuingSystem({ reports = [], onStatusChange }) {
               const typeLabel = type === "crime" ? "Crime" : "Crime";
               
               // Location formatting
-              const loc = typeof report.location === "string" 
-                ? report.location 
-                : `${report.location?.barangay || ""}, ${report.location?.street || ""}`.replace(/^,\s*/, "");
+              const barangay = report.location?.barangay || (typeof report.location === "string" ? report.location : "Unknown");
 
               // Time formatting
               const timeStr = report.createdAt 
                 ? new Date(report.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
                 : "--:--";
+              const dateStr = report.createdAt
+                ? new Date(report.createdAt).toLocaleDateString("en-PH", { day: "numeric", month: "short", year: "numeric" })
+                : "—";
 
               const incId = report.incidentId || `INC-2024-${String(90 - idx).padStart(3, "0")}`;
 
@@ -83,11 +85,12 @@ export default function QueuingSystem({ reports = [], onStatusChange }) {
                       <span className="font-semibold text-slate-700">{typeLabel}</span>
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-slate-500 truncate max-w-xs" title={loc}>
-                    {loc || "Unknown Location"}
+                  <td className="px-6 py-4 text-slate-500 font-medium">
+                    {barangay}
                   </td>
                   <td className="px-6 py-4 text-slate-600">{report.userId?.fullName || "Anonymous"}</td>
                   <td className="px-6 py-4 text-slate-600 font-mono text-xs">{report.userId?.phoneNumber || report.phoneNumber || "N/A"}</td>
+                  <td className="px-6 py-4 text-slate-500 font-medium whitespace-nowrap">{dateStr}</td>
                   <td className="px-6 py-4 text-slate-500 font-medium">{timeStr}</td>
                   <td className="px-6 py-4">
                     {isResolved ? (
@@ -127,7 +130,7 @@ export default function QueuingSystem({ reports = [], onStatusChange }) {
             })}
             {activeReports.length === 0 && (
               <tr>
-                <td colSpan="8" className="px-6 py-8 text-center text-slate-400">
+                <td colSpan="9" className="px-6 py-8 text-center text-slate-400">
                   No active incidents in the queue.
                 </td>
               </tr>
