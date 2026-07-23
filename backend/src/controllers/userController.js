@@ -2,6 +2,27 @@ const User = require("../models/User");
 const AuditLog = require("../models/AuditLog");
 const Notification = require("../models/Notification");
 const bcrypt = require("bcryptjs");
+const { getSettingValue } = require("./settingsController");
+
+// Validates password complexity based on the stored securityConfig setting
+const checkPasswordComplexity = async (password) => {
+  const securityConfig = await getSettingValue("securityConfig");
+  if (securityConfig && securityConfig.complexPassword) {
+    if (!password || password.length < 8) {
+      return "Password must be at least 8 characters long.";
+    }
+    if (!/[A-Z]/.test(password)) {
+      return "Password must contain at least one uppercase letter.";
+    }
+    if (!/[0-9]/.test(password)) {
+      return "Password must contain at least one number.";
+    }
+    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
+      return "Password must contain at least one special character.";
+    }
+  }
+  return null;
+};
 
 function getSource(req) {
   const appSource = req.headers["x-app-source"] || req.headers["x-source"];
@@ -52,6 +73,12 @@ exports.createUser = async (req, res) => {
     const existingUser = await User.findOne({ email: normalizedEmail });
     if (existingUser) {
       return res.status(400).json({ message: "Email already exists" });
+    }
+
+    // Enforce password complexity policy from system settings
+    const complexityError = await checkPasswordComplexity(password);
+    if (complexityError) {
+      return res.status(400).json({ message: complexityError });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);

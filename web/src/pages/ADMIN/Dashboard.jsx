@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Bar,
@@ -31,6 +31,7 @@ import {
 } from "./icons.jsx";
 import api from "../../api/axios.js";
 import socket from "../../api/socket.js";
+import Swal from "sweetalert2";
 import { getValidCalbayogBarangay } from "../../utils/barangays.js";
 import { clearDashboardNavigationState } from "../../utils/dashboardSession.js";
 
@@ -323,6 +324,10 @@ export default function AdminDashboard() {
     interval: "weekly",
     retention: "12"
   });
+  const [serverBackups, setServerBackups] = useState([]);
+  const [isTrashModalOpen, setIsTrashModalOpen] = useState(false);
+  const [deletedReports, setDeletedReports] = useState([]);
+  const [isFetchingDeleted, setIsFetchingDeleted] = useState(false);
   const [reports, setReports] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem("adminReports")) || [];
@@ -445,10 +450,330 @@ export default function AdminDashboard() {
     }
   };
 
+  // Session timeout timer ref so we can clear it on re-save
+  const sessionTimerRef = useRef(null);
+  const sessionWarnRef = useRef(null);
+
+  const scheduleSessionTimeout = (minutes) => {
+    // Clear any existing timers
+    if (sessionTimerRef.current) clearTimeout(sessionTimerRef.current);
+    if (sessionWarnRef.current) clearTimeout(sessionWarnRef.current);
+    if (!minutes || minutes <= 0) return;
+
+    const totalMs = minutes * 60 * 1000;
+    const warnMs = totalMs - 2 * 60 * 1000; // warn 2 min before
+
+    if (warnMs > 0) {
+      sessionWarnRef.current = setTimeout(() => {
+        Swal.fire({
+          toast: true,
+          position: "top-end",
+          icon: "warning",
+          title: "Session expiring in 2 minutes",
+          text: "You will be automatically logged out soon due to inactivity timeout.",
+          showConfirmButton: false,
+          timer: 10000,
+          timerProgressBar: true,
+        });
+      }, warnMs);
+    }
+
+    sessionTimerRef.current = setTimeout(() => {
+      Swal.fire({
+        icon: "warning",
+        title: "Session Expired",
+        text: "Your session has timed out for security. You will be logged out now.",
+        confirmButtonColor: "#dc2626",
+        confirmButtonText: "OK",
+        allowOutsideClick: false,
+      }).then(() => {
+        localStorage.clear();
+        navigate("/login");
+      });
+    }, totalMs);
+  };
+
+  const fetchSettings = async () => {
+    try {
+      const response = await api.get("/settings");
+      if (response.data) {
+        if (response.data.backupConfig) setBackupConfig(response.data.backupConfig);
+        if (response.data.locationConfig) setLocationConfig(response.data.locationConfig);
+        if (response.data.securityConfig) {
+          setSecurityConfig(response.data.securityConfig);
+          // Apply session timeout from DB value
+          scheduleSessionTimeout(response.data.securityConfig.sessionTimeout);
+        }
+        if (response.data.notificationsConfig) setNotificationsConfig(response.data.notificationsConfig);
+        if (response.data.activeCategories) setActiveCategories(response.data.activeCategories);
+      }
+    } catch (err) {
+      console.error("Failed to load settings:", err);
+      Swal.fire({
+        toast: true,
+        position: "top-end",
+        icon: "warning",
+        title: "Could not load system settings",
+        text: "Using default values. Check your connection.",
+        showConfirmButton: false,
+        timer: 5000,
+        timerProgressBar: true,
+      });
+    }
+  };
+
+  const saveSettings = async (key, value) => {
+    try {
+      await api.post("/settings", { key, value });
+      // If saving securityConfig, re-schedule the session timer with new value
+      if (key === "securityConfig" && value.sessionTimeout) {
+        scheduleSessionTimeout(value.sessionTimeout);
+      }
+      Swal.fire({
+        toast: true,
+        position: "top-end",
+        icon: "success",
+        title: "Settings saved successfully",
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true,
+      });
+    } catch (err) {
+      Swal.fire({
+        icon: "error",
+        title: "Failed to save settings",
+        text: err.response?.data?.message || err.message,
+      });
+    }
+  };
+
+  const fetchServerBackups = async () => {
+    try {
+      const response = await api.get("/backup/list");
+      setServerBackups(response.data);
+    } catch (err) {
+      console.error("Failed to load server backups:", err);
+    }
+  };
+
+  const handleRestoreUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const backupData = JSON.parse(event.target.result);
+        
+        if (!backupData.version || !backupData.collections) {
+          throw new Error("Invalid backup file format. Missing collections or version metadata.");
+        }
+
+        Swal.fire({
+          title: "Restore Database",
+          html: "<div class='text-left text-xs space-y-2'><p class='font-semibold text-red-600'>WARNING: This will wipe all current incidents, messages, tracking logs, and users (except your active admin account) and replace them with the backup data!</p><p>Are you sure you want to proceed?</p></div>",
+          icon: "warning",
+          showCancelButton: true,
+          confirmButtonColor: "#dc2626",
+          confirmButtonText: "Yes, restore now",
+          cancelButtonText: "Cancel"
+        }).then(async (result) => {
+          if (result.isConfirmed) {
+            Swal.fire({
+              title: "Restoring database...",
+              html: "Wiping existing schemas and importing backup documents. Please wait...",
+              allowOutsideClick: false,
+              didOpen: () => {
+                Swal.showLoading();
+              }
+            });
+
+            try {
+              const response = await api.post("/backup/restore/upload", { backupData });
+              
+              Swal.fire({
+                title: "Restore Successful",
+                text: response.data.message || "Database successfully restored.",
+                icon: "success",
+                confirmButtonColor: "#dc2626"
+              }).then(() => {
+                window.location.reload();
+              });
+            } catch (err) {
+              Swal.fire({
+                title: "Restore Failed",
+                text: err.response?.data?.message || err.message,
+                icon: "error",
+                confirmButtonColor: "#dc2626"
+              });
+            }
+          }
+        });
+
+      } catch (err) {
+        Swal.fire({
+          title: "Invalid Backup File",
+          text: err.message,
+          icon: "error",
+          confirmButtonColor: "#dc2626"
+        });
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  };
+
+  const handleRestoreFromFile = (filename) => {
+    Swal.fire({
+      title: "Restore from Server Backup",
+      html: `<div class='text-left text-xs space-y-2'><p class='font-semibold text-red-600'>WARNING: This will overwrite your current database with the backup file <strong>${filename}</strong>!</p><p>Are you sure you want to proceed?</p></div>`,
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#dc2626",
+      confirmButtonText: "Yes, restore now",
+      cancelButtonText: "Cancel"
+    }).then(async (result) => {
+      if (result.isConfirmed) {
+        Swal.fire({
+          title: "Restoring database...",
+          html: `Importing data from ${filename}. Please wait...`,
+          allowOutsideClick: false,
+          didOpen: () => {
+            Swal.showLoading();
+          }
+        });
+
+        try {
+          const response = await api.post(`/backup/restore/file/${filename}`);
+          
+          Swal.fire({
+            title: "Restore Successful",
+            text: response.data.message || "Database successfully restored.",
+            icon: "success",
+            confirmButtonColor: "#dc2626"
+          }).then(() => {
+            window.location.reload();
+          });
+        } catch (err) {
+          Swal.fire({
+            title: "Restore Failed",
+            text: err.response?.data?.message || err.message,
+            icon: "error",
+            confirmButtonColor: "#dc2626"
+          });
+        }
+      }
+    });
+  };
+
+  const handleDownloadServerBackup = async (filename) => {
+    try {
+      const response = await api.get(`/backup/download/${filename}`, {
+        responseType: "blob"
+      });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", filename);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      Swal.fire({
+        title: "Download Failed",
+        text: err.message,
+        icon: "error",
+        confirmButtonColor: "#dc2626"
+      });
+    }
+  };
+
+  const handleDeleteServerBackup = (filename) => {
+    Swal.fire({
+      title: "Delete Backup File",
+      text: `Are you sure you want to permanently delete the backup file "${filename}" from the server?`,
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#dc2626",
+      confirmButtonText: "Yes, delete it",
+      cancelButtonText: "Cancel"
+    }).then(async (result) => {
+      if (result.isConfirmed) {
+        try {
+          await api.delete(`/backup/${filename}`);
+          await fetchServerBackups();
+          Swal.fire({
+            title: "Deleted",
+            text: "Backup file deleted successfully from server.",
+            icon: "success",
+            confirmButtonColor: "#dc2626"
+          });
+        } catch (err) {
+          Swal.fire({
+            title: "Delete Failed",
+            text: err.response?.data?.message || err.message,
+            icon: "error",
+            confirmButtonColor: "#dc2626"
+          });
+        }
+      }
+    });
+  };
+
+  const handleBackup = async () => {
+    Swal.fire({
+      title: "Creating Backup...",
+      text: "Generating JSON archive and saving to server...",
+      allowOutsideClick: false,
+      didOpen: () => {
+        Swal.showLoading();
+      }
+    });
+
+    try {
+      const response = await api.get("/backup/export");
+      const backupData = response.data;
+      const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+      const filename = `alerto_backup_manual_${timestamp}.json`;
+
+      const url = window.URL.createObjectURL(new Blob([JSON.stringify(backupData, null, 2)], { type: "application/json" }));
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", filename);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      await fetchServerBackups();
+
+      Swal.fire({
+        title: "Backup Created",
+        text: "Database backup created and downloaded successfully.",
+        icon: "success",
+        confirmButtonColor: "#dc2626"
+      });
+    } catch (err) {
+      Swal.fire({
+        title: "Backup Failed",
+        text: err.response?.data?.message || err.message,
+        icon: "error",
+        confirmButtonColor: "#dc2626"
+      });
+    }
+  };
+
+  useEffect(() => {
+    if (activeSettingsTab === "backup-data") {
+      fetchServerBackups();
+    }
+  }, [activeSettingsTab]);
+
   useEffect(() => {
     const load = async () => {
       try {
-        await Promise.all([fetchReports(), fetchUsers(), fetchNotifications()]);
+        await Promise.all([fetchReports(), fetchUsers(), fetchNotifications(), fetchSettings()]);
       } catch (err) {
         setError(err.response?.data?.message || "Unable to load admin data");
       }
@@ -521,6 +846,43 @@ export default function AdminDashboard() {
 
       socket.on("newEmergencyAlert", (report) => {
         upsertReport(report);
+
+        // --- Sound alert (respects notificationsConfig.soundAlerts) ---
+        if (notificationsConfig.soundAlerts) {
+          try {
+            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            oscillator.type = "sine";
+            oscillator.frequency.setValueAtTime(880, audioCtx.currentTime);
+            oscillator.frequency.setValueAtTime(660, audioCtx.currentTime + 0.15);
+            oscillator.frequency.setValueAtTime(880, audioCtx.currentTime + 0.30);
+            gainNode.gain.setValueAtTime(0.4, audioCtx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.6);
+            oscillator.start(audioCtx.currentTime);
+            oscillator.stop(audioCtx.currentTime + 0.6);
+          } catch (_) { /* AudioContext unavailable */ }
+        }
+
+        // --- Desktop push notification (respects notificationsConfig.desktopNotif) ---
+        if (notificationsConfig.desktopNotif && "Notification" in window) {
+          const sendDesktopNotif = () => {
+            new Notification("🚨 New Emergency Alert", {
+              body: `${(report.emergencyType || "Incident").toUpperCase()} reported at ${report.location?.name || report.location?.barangay || "unknown location"}.`,
+              icon: "/logo.png",
+              tag: report._id || "emergency",
+            });
+          };
+          if (Notification.permission === "granted") {
+            sendDesktopNotif();
+          } else if (Notification.permission !== "denied") {
+            Notification.requestPermission().then((perm) => {
+              if (perm === "granted") sendDesktopNotif();
+            });
+          }
+        }
       });
 
       socket.on("reportStatusChanged", (report) => {
@@ -540,6 +902,9 @@ export default function AdminDashboard() {
       socket.off("reportStatusChanged");
       socket.off("reportDeleted");
       socket.disconnect();
+      // Clean up session timeout timers
+      if (sessionTimerRef.current) clearTimeout(sessionTimerRef.current);
+      if (sessionWarnRef.current) clearTimeout(sessionWarnRef.current);
     };
   }, [sessionId, storedUser.id]);
 
@@ -692,9 +1057,121 @@ export default function AdminDashboard() {
     }
   };
 
+  const fetchDeletedReports = async () => {
+    setIsFetchingDeleted(true);
+    try {
+      const response = await api.get("/emergency/deleted");
+      setDeletedReports(response.data || []);
+    } catch (err) {
+      console.error("Failed to load deleted reports:", err);
+    } finally {
+      setIsFetchingDeleted(false);
+    }
+  };
+
+  const handleRestoreReport = async (reportId) => {
+    try {
+      const response = await api.post(`/emergency/${reportId}/restore`);
+      Swal.fire({
+        toast: true,
+        position: "top-end",
+        icon: "success",
+        title: response.data.message || "Report restored successfully",
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true,
+      });
+      setDeletedReports((prev) => prev.filter((r) => r._id !== reportId));
+      const restoredReport = response.data.report;
+      setReports((prev) => prev.some((r) => r._id === restoredReport._id)
+        ? prev.map((r) => r._id === restoredReport._id ? restoredReport : r)
+        : [restoredReport, ...prev]
+      );
+    } catch (err) {
+      Swal.fire({
+        icon: "error",
+        title: "Failed to restore report",
+        text: err.response?.data?.message || err.message,
+      });
+    }
+  };
+
+  const exportDeletedReportsCSV = () => {
+    if (deletedReports.length === 0) return;
+    const headers = [
+      "Incident ID", "Emergency Type", "Reporter Name", "Reporter Phone",
+      "Reporter Email", "Location Name", "Barangay", "Street",
+      "Latitude", "Longitude", "Status Before Delete", "Notified Agencies",
+      "Assigned Responder", "Report Date", "Deleted Date",
+    ];
+    const escape = (val) => {
+      if (val == null) return "";
+      const s = String(val).replace(/"/g, '""');
+      return (s.includes(",") || s.includes('"') || s.includes("\n")) ? `"${s}"` : s;
+    };
+    const rows = deletedReports.map((r, i) => [
+      escape(getIncidentId(r, i)),
+      escape(r.emergencyType || ""),
+      escape(r.userId?.fullName || "Unknown"),
+      escape(r.userId?.phoneNumber || ""),
+      escape(r.userId?.email || ""),
+      escape(r.location?.name || ""),
+      escape(r.location?.barangay || ""),
+      escape(r.location?.street || ""),
+      escape(r.location?.latitude ?? ""),
+      escape(r.location?.longitude ?? ""),
+      escape(r.status || ""),
+      escape((r.notifiedAgencies || []).join("; ")),
+      escape(r.assignedResponder?.fullName || "Unassigned"),
+      escape(r.createdAt ? new Date(r.createdAt).toLocaleString() : ""),
+      escape(r.updatedAt ? new Date(r.updatedAt).toLocaleString() : ""),
+    ].join(","));
+    const bom = "\uFEFF";
+    const csv = bom + [headers.join(","), ...rows].join("\r\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `alerto_deleted_reports_${new Date().toISOString().split("T")[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportUsersCSV = (usersList) => {
+    if (!usersList || usersList.length === 0) return;
+    const headers = [
+      "User ID", "Full Name", "Email Address", "Phone Number",
+      "Role/Category", "Agency", "Status", "Created Date"
+    ];
+    const escape = (val) => {
+      if (val == null) return "";
+      const s = String(val).replace(/"/g, '""');
+      return (s.includes(",") || s.includes('"') || s.includes("\n")) ? `"${s}"` : s;
+    };
+    const rows = usersList.map((user) => [
+      escape(user._id || ""),
+      escape(user.fullName || ""),
+      escape(user.email || ""),
+      escape(user.phoneNumber || ""),
+      escape(user.role || "resident"),
+      escape(user.agency || "N/A"),
+      escape(user.status || "active"),
+      escape(user.createdAt ? new Date(user.createdAt).toLocaleString() : "")
+    ].join(","));
+    const bom = "\uFEFF";
+    const csv = bom + [headers.join(","), ...rows].join("\r\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `alerto_users_${new Date().toISOString().split("T")[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const deleteReport = async (reportId) => {
     const shouldDelete = window.confirm(
-      "\u26a0\ufe0f Delete this incident report?\n\nThis action cannot be undone. Only use this for duplicate or mistaken reports."
+      "⚠️ Delete this incident report?\n\nThis report will be moved to the Trash Bin and can be restored later."
     );
     if (!shouldDelete) return;
     setError("");
@@ -1220,6 +1697,19 @@ export default function AdminDashboard() {
               <option value="CDRRMO">CDRRMO</option>
               <option value="PNP">PNP</option>
             </select>
+            {!showOnlyClosed && (
+              <button
+                onClick={() => {
+                  fetchDeletedReports();
+                  setIsTrashModalOpen(true);
+                }}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700 outline-none transition hover:bg-red-100 active:scale-[0.98]"
+                title="View soft-deleted incident reports"
+              >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.2"><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                Trash Bin
+              </button>
+            )}
             <CsvExportButton reports={displayReports} />
           </div>
         </div>
@@ -1269,6 +1759,17 @@ export default function AdminDashboard() {
               Add User
             </button>
           )}
+          <button
+            type="button"
+            onClick={() => exportUsersCSV(directoryUsers)}
+            className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 outline-none transition hover:bg-slate-50 active:scale-[0.98]"
+            title="Export users list as CSV/Excel"
+          >
+            <svg className="h-4 w-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            Export Users
+          </button>
         </div>
       </div>
 
@@ -1814,6 +2315,7 @@ export default function AdminDashboard() {
       role,
       count: users.filter((user) => user.role === role).length,
     }));
+    
     const roleConfig = {
       admin: { color: "bg-blue-600", lightBg: "bg-blue-50", text: "text-blue-700", border: "border-blue-200", icon: "🛡️", desc: "Full system authority including user management, incident verification, and system configuration." },
       responder: { color: "bg-orange-500", lightBg: "bg-orange-50", text: "text-orange-700", border: "border-orange-200", icon: "🚨", desc: "Field units responsible for incident response and real-time status updates." },
@@ -1908,37 +2410,6 @@ export default function AdminDashboard() {
         )
       }
     ];
-
-    const handleBackup = () => {
-      Swal.fire({
-        title: "Backup Database",
-        text: "Are you sure you want to run a manual database backup now?",
-        icon: "question",
-        showCancelButton: true,
-        confirmButtonColor: "#dc2626",
-        confirmButtonText: "Yes, backup now",
-        cancelButtonText: "Cancel"
-      }).then((result) => {
-        if (result.isConfirmed) {
-          Swal.fire({
-            title: "Backing up database...",
-            html: "Serializing schemas and generating archive file...",
-            allowOutsideClick: false,
-            didOpen: () => {
-              Swal.showLoading();
-            }
-          });
-          setTimeout(() => {
-            Swal.fire({
-              title: "Backup Complete",
-              text: `A full system backup was successfully generated. Filename: alerto_backup_${new Date().toISOString().split('T')[0]}.json`,
-              icon: "success",
-              confirmButtonColor: "#dc2626"
-            });
-          }, 1500);
-        }
-      });
-    };
 
     return (
       <div className="-mx-4 -my-3 lg:-mx-6 lg:-my-4 h-[calc(100vh-5rem)] bg-white flex flex-col lg:flex-row" style={{ fontFamily: "'Inter', 'Manrope', system-ui, sans-serif" }}>
@@ -2061,6 +2532,15 @@ export default function AdminDashboard() {
                   ))}
                 </div>
               </div>
+              <div className="flex justify-end pt-2">
+                <button
+                  type="button"
+                  onClick={() => saveSettings("activeCategories", activeCategories)}
+                  className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-red-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-red-700 active:scale-[0.98]"
+                >
+                  Save Categories Settings
+                </button>
+              </div>
             </div>
           )}
 
@@ -2146,6 +2626,15 @@ export default function AdminDashboard() {
                   <option value="all">Full Calbayog Area</option>
                 </select>
               </div>
+              <div className="flex justify-end pt-2">
+                <button
+                  type="button"
+                  onClick={() => saveSettings("notificationsConfig", notificationsConfig)}
+                  className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-red-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-red-700 active:scale-[0.98]"
+                >
+                  Save Notification Settings
+                </button>
+              </div>
             </div>
           )}
 
@@ -2211,6 +2700,15 @@ export default function AdminDashboard() {
                   <option value="satellite">Esri Satellite imagery</option>
                 </select>
               </div>
+              <div className="flex justify-end pt-2">
+                <button
+                  type="button"
+                  onClick={() => saveSettings("locationConfig", locationConfig)}
+                  className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-red-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-red-700 active:scale-[0.98]"
+                >
+                  Save Map Settings
+                </button>
+              </div>
             </div>
           )}
 
@@ -2268,6 +2766,15 @@ export default function AdminDashboard() {
                   </div>
                 </div>
               </div>
+              <div className="flex justify-end pt-2">
+                <button
+                  type="button"
+                  onClick={() => saveSettings("securityConfig", securityConfig)}
+                  className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-red-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-red-700 active:scale-[0.98]"
+                >
+                  Save Security Settings
+                </button>
+              </div>
             </div>
           )}
 
@@ -2287,11 +2794,22 @@ export default function AdminDashboard() {
                   <button
                     type="button"
                     onClick={handleBackup}
-                    className="inline-flex items-center justify-center rounded-lg bg-red-600 px-4 py-2 text-xs font-medium text-white shadow-sm transition hover:bg-red-700 active:scale-[0.98]"
+                    className="inline-flex items-center justify-center rounded-lg bg-red-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-red-700 active:scale-[0.98]"
                   >
                     Trigger Database Backup
                   </button>
                   <CsvExportButton reports={reports} />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      fetchDeletedReports();
+                      setIsTrashModalOpen(true);
+                    }}
+                    className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-xs font-bold text-red-700 shadow-sm transition hover:bg-red-100 active:scale-[0.98]"
+                  >
+                    <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.2"><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                    View Trash Bin
+                  </button>
                 </div>
               </div>
 
@@ -2327,6 +2845,113 @@ export default function AdminDashboard() {
                     </select>
                   </div>
                 </div>
+
+                <div className="flex justify-end pt-2">
+                  <button
+                    type="button"
+                    onClick={() => saveSettings("backupConfig", backupConfig)}
+                    className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-red-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-red-700 active:scale-[0.98]"
+                  >
+                    Save Schedule Settings
+                  </button>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-slate-100 p-4 space-y-4">
+                <h4 className="text-xs font-medium text-slate-600">Database Restoration</h4>
+                <p className="text-[10px] text-slate-500">Restore database structure and documents from a local JSON backup archive.</p>
+                <div className="relative border-2 border-dashed border-slate-200 hover:border-red-500 transition rounded-xl p-6 flex flex-col items-center justify-center cursor-pointer">
+                  <input
+                    type="file"
+                    accept=".json"
+                    onChange={handleRestoreUpload}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  />
+                  <svg className="mx-auto h-8 w-8 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                  </svg>
+                  <p className="mt-2 text-xs font-medium text-slate-700">Click to upload or drag & drop backup JSON file</p>
+                  <p className="text-[10px] text-slate-400 mt-1">Accepts alerto_backup_*.json</p>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-slate-100 p-4 space-y-4">
+                <h4 className="text-xs font-medium text-slate-600">Recent Server-side Backups</h4>
+                <p className="text-[10px] text-slate-500">Select, download, or restore directly from archives stored on the server.</p>
+                
+                {serverBackups.length === 0 ? (
+                  <div className="text-center py-6 border border-slate-100 rounded-xl bg-slate-50/50">
+                    <p className="text-xs text-slate-400">No server-side backups found.</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto rounded-xl border border-slate-100">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-slate-50 text-slate-500 font-medium border-b border-slate-100">
+                          <th className="p-3">Filename</th>
+                          <th className="p-3">Type</th>
+                          <th className="p-3">Size</th>
+                          <th className="p-3">Created</th>
+                          <th className="p-3 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {serverBackups.map((bk) => (
+                          <tr key={bk.filename} className="hover:bg-slate-50/50 text-slate-700 border-b border-slate-100">
+                            <td className="p-3 font-mono text-[10px] truncate max-w-[200px]" title={bk.filename}>
+                              {bk.filename}
+                            </td>
+                            <td className="p-3">
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium ${
+                                bk.type === "Automatic" ? "bg-blue-50 text-blue-700 border border-blue-100" : "bg-purple-50 text-purple-700 border border-purple-100"
+                              }`}>
+                                {bk.type}
+                              </span>
+                            </td>
+                            <td className="p-3 font-medium text-slate-500">
+                              {(bk.sizeBytes / 1024).toFixed(1)} KB
+                            </td>
+                            <td className="p-3 text-slate-500">
+                              {new Date(bk.createdAt).toLocaleString()}
+                            </td>
+                            <td className="p-3 text-right space-x-1.5 whitespace-nowrap">
+                              <button
+                                type="button"
+                                onClick={() => handleDownloadServerBackup(bk.filename)}
+                                className="inline-flex items-center justify-center rounded p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition"
+                                title="Download File"
+                              >
+                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                </svg>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleRestoreFromFile(bk.filename)}
+                                className="inline-flex items-center justify-center rounded p-1 text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50 transition"
+                                title="Restore from this Backup"
+                              >
+                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 7.89M9 11l3-3 3 3m-3-3v12" />
+                                </svg>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteServerBackup(bk.filename)}
+                                className="inline-flex items-center justify-center rounded p-1 text-red-500 hover:text-red-700 hover:bg-red-50 transition"
+                                title="Delete Backup"
+                              >
+                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -2529,6 +3154,103 @@ export default function AdminDashboard() {
           <div className="flex-1 min-h-0">{renderContent()}</div>
         </section>
       </main>
+
+      {/* Trash Modal */}
+      {isTrashModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
+          <div className="flex max-h-[calc(100vh-4rem)] w-full max-w-4xl flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 bg-slate-50">
+              <div>
+                <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                  <svg className="h-5 w-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                  Recently Deleted Reports (Trash Bin)
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">Restore soft-deleted incident reports back to the active queue list.</p>
+              </div>
+              <button onClick={() => setIsTrashModalOpen(false)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+              </button>
+            </div>
+            
+            <div className="overflow-auto flex-1 p-6">
+              {isFetchingDeleted ? (
+                <div className="flex items-center justify-center py-12 text-sm text-slate-400">
+                  Loading deleted reports...
+                </div>
+              ) : deletedReports.length === 0 ? (
+                <div className="text-center py-12 border border-slate-100 rounded-xl bg-slate-50/50">
+                  <p className="text-sm font-bold text-slate-700">Trash Bin is empty</p>
+                  <p className="text-xs text-slate-400 mt-1">Soft-deleted incident reports will appear here.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto rounded-xl border border-slate-200">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50 text-slate-500 font-bold border-b border-slate-200">
+                        <th className="p-3">Incident ID</th>
+                        <th className="p-3">Type</th>
+                        <th className="p-3">Reporter</th>
+                        <th className="p-3">Location</th>
+                        <th className="p-3">Deleted Date</th>
+                        <th className="p-3 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {deletedReports.map((report, index) => (
+                        <tr key={report._id} className="hover:bg-slate-50/50 text-slate-700 border-b border-slate-100">
+                          <td className="p-3 font-mono font-bold text-slate-900">
+                            {getIncidentId(report, index)}
+                          </td>
+                          <td className="p-3 capitalize font-semibold text-slate-800">
+                            {report.emergencyType}
+                          </td>
+                          <td className="p-3">
+                            <p className="font-bold text-slate-800">{report.userId?.fullName || "Unknown"}</p>
+                            <p className="text-[10px] text-slate-400">{report.userId?.phoneNumber || "No contact"}</p>
+                          </td>
+                          <td className="p-3 truncate max-w-[200px]" title={getLocation(report)}>
+                            {getLocation(report)}
+                          </td>
+                          <td className="p-3 text-slate-500">
+                            {report.updatedAt ? new Date(report.updatedAt).toLocaleString() : ""}
+                          </td>
+                          <td className="p-3 text-right">
+                            <button
+                              type="button"
+                              onClick={() => handleRestoreReport(report._id)}
+                              className="inline-flex items-center gap-1.5 rounded bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700 hover:bg-emerald-100 active:scale-[0.98] transition border border-emerald-200"
+                            >
+                              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 7.89M9 11l3-3 3 3m-3-3v12" /></svg>
+                              Restore
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+            
+            <div className="border-t border-slate-100 px-6 py-4 flex items-center justify-between bg-slate-50">
+              <button
+                type="button"
+                onClick={exportDeletedReportsCSV}
+                disabled={deletedReports.length === 0}
+                className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-bold text-emerald-700 transition hover:bg-emerald-100 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Export as CSV / Excel
+              </button>
+              <button onClick={() => setIsTrashModalOpen(false)} className="rounded-lg bg-slate-900 px-4 py-2 text-xs font-bold text-white transition hover:bg-slate-700">
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

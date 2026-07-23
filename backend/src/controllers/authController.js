@@ -5,6 +5,27 @@ const Notification = require("../models/Notification");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const { sendOtpEmail } = require("../utils/mailer");
+const { getSettingValue } = require("./settingsController");
+
+// Validates password complexity based on the stored securityConfig setting
+const checkPasswordComplexity = async (password) => {
+  const securityConfig = await getSettingValue("securityConfig");
+  if (securityConfig && securityConfig.complexPassword) {
+    if (!password || password.length < 8) {
+      return "Password must be at least 8 characters long.";
+    }
+    if (!/[A-Z]/.test(password)) {
+      return "Password must contain at least one uppercase letter.";
+    }
+    if (!/[0-9]/.test(password)) {
+      return "Password must contain at least one number.";
+    }
+    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
+      return "Password must contain at least one special character.";
+    }
+  }
+  return null; // null means password passes
+};
 
 const createSystemNotification = async ({ userId = null, recipientRole = "admin", title, message, category = "system", type = "system_event", reportId = null, metadata = {} }) => {
   return Notification.create({
@@ -63,6 +84,12 @@ exports.register = async (req, res) => {
     const existingUser = await findUserByEmail(normalizedEmail);
     if (existingUser) {
       return res.status(400).json({ message: "User already exists" });
+    }
+
+    // Enforce password complexity policy from system settings
+    const complexityError = await checkPasswordComplexity(password);
+    if (complexityError) {
+      return res.status(400).json({ message: complexityError });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);

@@ -1,4 +1,4 @@
-const VALID_REPORT_STATUSES = ["pending", "responding", "resolved"];
+const VALID_REPORT_STATUSES = ["pending", "responding", "resolved", "closed", "cancelled"];
 
 const LEGACY_STATUS_MAP = {
   verified: "pending",
@@ -10,8 +10,6 @@ const LEGACY_STATUS_MAP = {
   en_route: "responding",
   "en route": "responding",
   responded: "resolved",
-  closed: "resolved",
-  cancelled: "resolved"
 };
 
 function normalizeReportStatus(status) {
