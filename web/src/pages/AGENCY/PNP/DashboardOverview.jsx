@@ -4,6 +4,7 @@ import {
   XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from "recharts";
 import { STATUS_STYLES, TYPE_ICONS, getIncidentId } from "../../../utils/incidentFormatters.js";
+import IncidentDetailModal from "./IncidentDetailModal.jsx";
 
 /* ─── Brand (PNP violet) ─────────────────────────────────────────── */
 const BRAND   = "#7c3aed";
@@ -135,22 +136,12 @@ function ChartTip({ active, payload, label }) {
 }
 
 /* ─── Table filter tabs ─────────────────────────────────────────── */
-const TABS = ["Today","Weekly","Monthly","Yearly"];
-function filterByTab(reports, tab) {
-  const now = new Date();
-  return reports.filter(r => {
-    if (!r.createdAt) return false;
-    const d = new Date(r.createdAt);
-    if (tab==="Today")   return d.toDateString()===now.toDateString();
-    if (tab==="Weekly")  return (now-d)<=7*86400000;
-    if (tab==="Monthly") return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();
-    return true;
-  });
-}
+/* ─── Table filter tabs removed ────────────────────────────── */
 
 /* ═══════════════════════════════════════════════════════════════ */
 export default function DashboardOverview({ reports = [], setActiveNav, onStatusChange }) {
   const safe = Array.isArray(reports) ? reports : [];
+  const [selectedReport, setSelectedReport] = useState(null);
   const [tab, setTab] = useState("Today");
 
   /* KPIs */
@@ -164,9 +155,8 @@ export default function DashboardOverview({ reports = [], setActiveNav, onStatus
 
   /* Table rows */
   const tableRows = useMemo(() => {
-    const filtered = filterByTab(safe, tab);
-    return [...filtered].sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt)).slice(0,3);
-  }, [safe, tab]);
+    return [...safe].sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt)).slice(0,2);
+  }, [safe]);
 
   /* Cards */
   const cards = [
@@ -275,18 +265,7 @@ export default function DashboardOverview({ reports = [], setActiveNav, onStatus
             </span>
           </div>
           <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-            <div style={{ display:"flex", background:"#f8fafc", borderRadius:8, padding:2, gap:1, border:"1px solid #e2e8f0" }}>
-              {TABS.map(t=>(
-                <button key={t} onClick={()=>setTab(t)} style={{
-                  padding:"4px 10px", borderRadius:6, fontSize:10, fontWeight:700,
-                  border:"none", cursor:"pointer",
-                  background: tab===t ? BRAND : "transparent",
-                  color: tab===t ? "#fff" : "#64748b",
-                  transition:"all .15s",
-                }}>{t}</button>
-              ))}
-            </div>
-            <button onClick={()=>setActiveNav?.("reported-incidents")}
+            <button onClick={()=>setActiveNav?.("incident-reports")}
               style={{ padding:"5px 12px", borderRadius:7, fontSize:10, fontWeight:700, background:BRAND_BG, color:BRAND_D, border:`1px solid #ddd6fe`, cursor:"pointer" }}>
               View All
             </button>
@@ -311,7 +290,7 @@ export default function DashboardOverview({ reports = [], setActiveNav, onStatus
               const typeInfo = TYPE_ICONS[typeKey]||TYPE_ICONS.others;
               const statInfo = STATUS_STYLES[statKey]||STATUS_STYLES.pending;
               const reporter = r.userId?.fullName||r.name||"Anonymous";
-              const phone    = r.userId?.phoneNumber||r.phoneNumber||"—";
+              const phone    = r.userId?.phoneNumber||r.phoneNumber||"N/A";
               const loc      = typeof r.location==="string"?r.location:(r.location?.name||[r.location?.barangay,r.location?.street].filter(Boolean).join(", ")||"Unknown");
               const dateStr  = r.createdAt?new Date(r.createdAt).toLocaleDateString("en-PH",{day:"numeric",month:"short",year:"numeric"}):"—";
               return (
@@ -344,12 +323,13 @@ export default function DashboardOverview({ reports = [], setActiveNav, onStatus
                   <td style={{ ...TD, color:"#64748b", fontFamily:"monospace", fontSize:10 }}>{phone}</td>
                   <td style={TD}>
                     <div style={{ display:"flex", gap:8 }}>
-                      <button title="Edit" onClick={()=>setActiveNav?.("reported-incidents")}
+                      <button title="View Details" onClick={()=>setSelectedReport(r)}
                         style={{ background:"none", border:"none", cursor:"pointer", color:"#64748b", padding:3, borderRadius:5 }}
                         onMouseEnter={e=>e.currentTarget.style.background="#f1f5f9"}
                         onMouseLeave={e=>e.currentTarget.style.background="none"}>
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                          <circle cx="12" cy="12" r="3"></circle>
                         </svg>
                       </button>
                       <button title="Mark Resolved" onClick={()=>onStatusChange?.(r._id,"resolved")}
@@ -368,6 +348,13 @@ export default function DashboardOverview({ reports = [], setActiveNav, onStatus
           </tbody>
         </table>
       </div>
+
+      {selectedReport && (
+        <IncidentDetailModal 
+          report={selectedReport} 
+          onClose={() => setSelectedReport(null)} 
+        />
+      )}
     </div>
   );
 }

@@ -1,10 +1,12 @@
-import { useState, useEffect } from "react";
-import { BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+import { useState, useEffect, useMemo } from "react";
+import { BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line } from "recharts";
 
 import { getValidCalbayogBarangay } from "../../../utils/barangays.js";
 
 export default function Analytics({ reports = [] }) {
   const [animate, setAnimate] = useState(false);
+  const [analyticsDays, setAnalyticsDays] = useState(7);
+  const [openRangeMenu, setOpenRangeMenu] = useState(null);
 
   useEffect(() => {
     const timer = setTimeout(() => setAnimate(true), 150);
@@ -12,6 +14,47 @@ export default function Analytics({ reports = [] }) {
   }, []);
 
   const safeReports = Array.isArray(reports) ? reports : [];
+  const rangeOptions = [
+    { days: 7, label: "Last 7 Days" },
+    { days: 14, label: "Last 14 Days" },
+    { days: 30, label: "Last 30 Days" },
+  ];
+  const rangeLabel = rangeOptions.find((option) => option.days === analyticsDays)?.label || "Last 7 Days";
+  const rangeStart = new Date();
+  rangeStart.setHours(0, 0, 0, 0);
+  rangeStart.setDate(rangeStart.getDate() - (analyticsDays - 1));
+  const rangeReports = safeReports.filter((report) => {
+    const reportDate = new Date(report.createdAt || report.date || 0);
+    return !Number.isNaN(reportDate.getTime()) && reportDate >= rangeStart;
+  });
+
+  const renderRangePicker = (menuId) => (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpenRangeMenu(openRangeMenu === menuId ? null : menuId)}
+        className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-slate-500 transition hover:text-blue-600"
+        aria-expanded={openRangeMenu === menuId}
+      >
+        {rangeLabel}
+        <svg className={`h-3 w-3 transition-transform ${openRangeMenu === menuId ? "rotate-180" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m6 9 6 6 6-6" /></svg>
+      </button>
+      {openRangeMenu === menuId && (
+        <div className="absolute right-0 top-full z-20 mt-2 w-32 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
+          {rangeOptions.map((option) => (
+            <button
+              key={option.days}
+              type="button"
+              onClick={() => { setAnalyticsDays(option.days); setOpenRangeMenu(null); }}
+              className={`block w-full px-3 py-2 text-left text-[10px] font-bold transition hover:bg-slate-50 ${analyticsDays === option.days ? "bg-blue-50 text-blue-700" : "text-slate-600"}`}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 
   // Live counts
   const total = safeReports.length;
@@ -22,9 +65,32 @@ export default function Analytics({ reports = [] }) {
   const active = safeReports.filter(r => (r.status || "").toLowerCase() === "active").length;
   const resolutionRate = total > 0 ? Math.round((responded / total) * 100) : 0;
 
+  const monthlyTrend = useMemo(() => {
+    const now = new Date();
+    return Array.from({ length: 6 }, (_, index) => {
+      const monthDate = new Date(now.getFullYear(), now.getMonth() - (5 - index), 1);
+      const year = monthDate.getFullYear();
+      const month = monthDate.getMonth();
+      const incidents = safeReports.filter((report) => {
+        const reportDate = new Date(report.createdAt || report.date || 0);
+        return !Number.isNaN(reportDate.getTime()) && reportDate.getFullYear() === year && reportDate.getMonth() === month;
+      }).length;
+      return {
+        month: monthDate.toLocaleString("en", { month: "short" }),
+        incidents,
+      };
+    });
+  }, [safeReports]);
+  const currentMonthIncidents = monthlyTrend.at(-1)?.incidents || 0;
+  const previousMonthIncidents = monthlyTrend.at(-2)?.incidents || 0;
+  const monthChange = previousMonthIncidents > 0
+    ? Math.round(((currentMonthIncidents - previousMonthIncidents) / previousMonthIncidents) * 100)
+    : currentMonthIncidents > 0 ? 100 : 0;
+  const peakIncidents = Math.max(...monthlyTrend.map((item) => item.incidents), 0);
+
   // Barangay data
   const barangayMap = {};
-  safeReports.forEach(r => {
+  rangeReports.forEach(r => {
     const rawLoc = r.location?.barangay || (typeof r.location === "string" ? r.location : r.location?.name || "");
     const bgy = getValidCalbayogBarangay(rawLoc);
     if (bgy) {
@@ -51,22 +117,6 @@ export default function Analytics({ reports = [] }) {
   }
   const maxBgy = Math.max(...barangayData.map(b => b.count), 1);
 
-  // Monthly trend from real data (last 6 months)
-  const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  const currentMonth = new Date().getMonth();
-  const MONTHLY = Array.from({ length: 6 }).map((_, i) => {
-    const d = new Date();
-    d.setMonth(currentMonth - (5 - i));
-    return { month: monthNames[d.getMonth()], value: 0 };
-  });
-  safeReports.forEach(r => {
-    const d = new Date(r.createdAt || r.date || Date.now());
-    const mName = monthNames[d.getMonth()];
-    const mObj = MONTHLY.find(x => x.month === mName);
-    if (mObj) mObj.value += 1;
-  });
-  const maxMonthly = Math.max(...MONTHLY.map(m => m.value), 10); // Minimum scale of 10
-
   // Crime sub-type from real data
   const crimeTypeMap = {};
   safeReports.forEach(r => {
@@ -88,7 +138,7 @@ export default function Analytics({ reports = [] }) {
   const days = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
   const times = ["12am", "4am", "8am", "12pm", "4pm", "8pm"];
   const heatmapData = Array(6).fill(0).map(() => Array(7).fill(0));
-  safeReports.forEach(r => {
+  rangeReports.forEach(r => {
     const d = new Date(r.createdAt || r.date || Date.now());
     if (!isNaN(d.getTime())) {
       const day = d.getDay();
@@ -136,67 +186,33 @@ export default function Analytics({ reports = [] }) {
               <div>
                 <p className="text-[11px] font-bold text-slate-400 tracking-wider uppercase mb-1">Overall Incidents</p>
                 <div className="flex items-end gap-3">
-                  <h2 className="text-3xl font-black text-slate-800 leading-none">{total || "128"}</h2>
-                  <span className="px-2.5 py-1 rounded-full bg-emerald-400 text-white text-[10px] font-bold mb-0.5 shadow-sm shadow-emerald-200">
-                    + 20.6%
+                  <h2 className="text-3xl font-black text-slate-800 leading-none">{total}</h2>
+                  <span className={`mb-0.5 rounded-full px-2.5 py-1 text-[10px] font-bold text-white shadow-sm ${monthChange >= 0 ? "bg-emerald-400 shadow-emerald-200" : "bg-red-400 shadow-red-200"}`}>
+                    {monthChange > 0 ? "+" : ""}{monthChange}%
                   </span>
                 </div>
               </div>
             </div>
             <div className="flex items-center gap-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-              <div className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-blue-600"></span>Current Month</div>
-              <div className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-blue-200"></span>Last Month</div>
+              <div className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-blue-600"></span>Current: {currentMonthIncidents}</div>
+              <div className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-blue-200"></span>Previous: {previousMonthIncidents}</div>
             </div>
           </div>
 
-          <div className="flex-1 relative w-full flex items-end pt-8 min-h-[220px]">
-            <svg className="absolute inset-0 w-full h-full" preserveAspectRatio="none" viewBox="0 0 100 100">
-              <path
-                d="M0,100 L0,85 Q10,85 20,70 T40,65 T60,20 T80,75 T100,55 L100,100 Z"
-                fill="url(#grad)"
-                className="transition-transform duration-1000 origin-bottom"
-                style={{ transform: animate ? "scaleY(1)" : "scaleY(0)" }}
-              />
-              <path
-                d="M0,85 Q10,85 20,70 T40,65 T60,20 T80,75 T100,55"
-                fill="none"
-                stroke="#2563eb"
-                strokeWidth="2.5"
-                className="transition-all duration-1000"
-                strokeDasharray="300"
-                strokeDashoffset={animate ? 0 : 300}
-              />
-              <path
-                d="M0,75 Q10,75 20,68 T40,78 T60,65 T80,70 T100,60"
-                fill="none"
-                stroke="#bfdbfe"
-                strokeWidth="1.5"
-                strokeDasharray="3 4"
-                className="transition-opacity duration-1000 delay-300"
-                style={{ opacity: animate ? 1 : 0 }}
-              />
-
-              <defs>
-                <linearGradient id="grad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#2563eb" stopOpacity="0.15" />
-                  <stop offset="100%" stopColor="#2563eb" stopOpacity="0" />
-                </linearGradient>
-              </defs>
-
-              <circle cx="60" cy="20" r="3.5" fill="white" stroke="#2563eb" strokeWidth="2" className="transition-opacity duration-700 delay-700 shadow-sm" style={{ opacity: animate ? 1 : 0 }} />
-              <circle cx="60" cy="65" r="3" fill="white" stroke="#bfdbfe" strokeWidth="1.5" className="transition-opacity duration-700 delay-700" style={{ opacity: animate ? 1 : 0 }} />
-
-              <line x1="60" y1="23" x2="60" y2="100" stroke="#e2e8f0" strokeWidth="1" strokeDasharray="2 2" className="transition-opacity duration-700 delay-700" style={{ opacity: animate ? 1 : 0 }} />
-            </svg>
-
-            <div className={`absolute left-[60%] top-[10%] -translate-x-1/2 -translate-y-full bg-[#1e293b] text-white px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all duration-700 delay-700 shadow-xl ${animate ? "opacity-100 translate-y-[-8px]" : "opacity-0 translate-y-[10px]"}`}>
-              {maxMonthly} Incidents
-              <div className="text-[9px] font-normal text-slate-300 mt-0.5">Peak Recorded</div>
-            </div>
-
-            <div className="absolute bottom-0 w-full flex justify-between text-[9px] font-bold text-slate-400 uppercase tracking-widest px-2">
-              {MONTHLY.map(m => <span key={m.month}>{m.month}</span>)}
-            </div>
+          <div className="min-h-[220px] flex-1 pt-4">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={monthlyTrend} margin={{ top: 12, right: 12, left: -20, bottom: 0 }}>
+                <CartesianGrid vertical={false} stroke="#e2e8f0" strokeDasharray="3 3" />
+                <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: "#94a3b8", fontSize: 10, fontWeight: 700 }} />
+                <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{ fill: "#94a3b8", fontSize: 10 }} />
+                <Tooltip
+                  contentStyle={{ borderRadius: 10, border: "1px solid #e2e8f0", fontSize: 12, fontWeight: 700 }}
+                  formatter={(value) => [`${value} incident${value === 1 ? "" : "s"}`, "Reports"]}
+                />
+                <Line type="monotone" dataKey="incidents" stroke="#2563eb" strokeWidth={4} dot={{ r: 4, fill: "#fff", stroke: "#2563eb", strokeWidth: 2 }} activeDot={{ r: 6 }} isAnimationActive={animate} />
+              </LineChart>
+            </ResponsiveContainer>
+            <p className="mt-2 text-center text-[10px] font-semibold text-slate-400">Peak in this period: {peakIncidents} incident{peakIncidents === 1 ? "" : "s"}</p>
           </div>
         </div>
 
@@ -278,7 +294,7 @@ export default function Analytics({ reports = [] }) {
             <div className="flex items-center gap-2">
               <h3 className="text-base font-bold text-slate-800">Incidents by Barangay / Location</h3>
             </div>
-            <span className="text-[10px] font-bold text-slate-500 cursor-pointer flex items-center gap-1 uppercase tracking-wider">Last 7 days <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m6 9 6 6 6-6" /></svg></span>
+            {renderRangePicker("barangay")}
           </div>
 
           <div className="flex-1 min-h-[280px] max-h-[500px] w-full overflow-y-auto overflow-x-hidden pr-2">
@@ -330,7 +346,7 @@ export default function Analytics({ reports = [] }) {
         <div className="lg:col-span-6 bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-slate-100">
           <div className="flex items-center justify-between mb-8">
             <h3 className="text-sm font-bold text-slate-800">Incidents per week</h3>
-            <span className="text-[10px] font-bold text-slate-500 cursor-pointer flex items-center gap-1 uppercase tracking-wider">Last 7 days <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m6 9 6 6 6-6" /></svg></span>
+            {renderRangePicker("heatmap")}
           </div>
 
           <div className="flex pl-2">
