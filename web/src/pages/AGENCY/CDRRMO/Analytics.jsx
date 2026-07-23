@@ -443,64 +443,6 @@ export default function Analytics({ reports = [] }) {
 
       </div>
 
-      {/* Bottom Row: Barangay Incidents Ranking Chart */}
-      <div className={`transition-all duration-700 ease-out transform ${animate ? "translate-y-0 opacity-100" : "translate-y-4 opacity-0"} bg-white border border-slate-100 rounded-2xl p-6 shadow-sm`}>
-        <div className="mb-4">
-          <h3 className="font-bold text-slate-800 text-[15px]">Incident Hotspots by Barangay</h3>
-          <p className="text-[11px] text-slate-400 mt-0.5">All recorded incidents</p>
-        </div>
-
-        <div className="h-96 overflow-y-auto overflow-x-hidden pr-2">
-          {barangayData.length > 0 ? (
-            <div style={{ height: Math.max(288, barangayData.length * 35) }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={barangayData} layout="vertical" margin={{ top: 10, right: 30, left: 20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
-                  <XAxis type="number" allowDecimals={false} axisLine={false} tickLine={false} tick={{ fill: "#94a3b8", fontSize: 11, fontWeight: 700 }} />
-                  <YAxis type="category" dataKey="name" width={110} axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 11, fontWeight: 700 }} />
-                  <Tooltip
-                    cursor={{ fill: "rgba(14, 165, 233, 0.04)" }}
-                    content={({ active, payload, label }) => {
-                      if (!active || !payload?.length) return null;
-                      return (
-                        <div className="bg-white border border-slate-150 rounded-xl p-3 shadow-xl text-xs min-w-[120px]">
-                          <p className="font-black text-slate-800 mb-2">{label}</p>
-                          <div className="space-y-1">
-                            <p className="font-bold text-slate-600 flex justify-between gap-4">
-                              <span>Total:</span>
-                              <span>{payload?.[0]?.payload?.count || 0}</span>
-                            </p>
-                            <p className="font-semibold text-emerald-500 flex justify-between gap-4">
-                              <span>Resolved:</span>
-                              <span>{payload?.[0]?.payload?.resolved || 0}</span>
-                            </p>
-                            <p className="font-semibold text-amber-500 flex justify-between gap-4">
-                              <span>Pending:</span>
-                              <span>{payload?.[0]?.payload?.pending || 0}</span>
-                            </p>
-                            <p className="font-semibold text-indigo-500 flex justify-between gap-4">
-                              <span>Active:</span>
-                              <span>{payload?.[0]?.payload?.responding || 0}</span>
-                            </p>
-                          </div>
-                        </div>
-                      );
-                    }}
-                  />
-                  <Bar dataKey="resolved" stackId="a" fill="#10b981" barSize={20} />
-                  <Bar dataKey="pending" stackId="a" fill="#f59e0b" barSize={20} />
-                  <Bar dataKey="responding" stackId="a" fill="#6366f1" radius={[0, 4, 4, 0]} barSize={20} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          ) : (
-            <div className="flex h-full items-center justify-center text-slate-400 text-xs font-bold">
-              No barangay incident data found.
-            </div>
-          )}
-        </div>
-      </div>
-
     </div>
   );
 }

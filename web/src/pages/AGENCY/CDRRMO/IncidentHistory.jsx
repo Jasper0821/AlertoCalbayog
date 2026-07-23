@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { getIncidentStatusInfo, TYPE_ICONS, getPriority, getIncidentId, PRIORITY_STYLES } from "../../../utils/incidentFormatters.js";
+import IncidentDetailModal from "../PNP/IncidentDetailModal.jsx";
 
 const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 export default function IncidentHistory({ reports = [] }) {
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
+  const [selectedReport, setSelectedReport] = useState(null);
 
   const resolved = reports.filter(r => ["resolved", "closed", "cancelled", "responded"].includes((r.status || "").toLowerCase()));
 
@@ -264,7 +266,7 @@ export default function IncidentHistory({ reports = [] }) {
           <table className="min-w-[980px] w-full text-left">
             <thead className="sticky top-0 z-10">
               <tr className="bg-slate-50 border-b border-slate-200">
-                {["Incident ID", "Type", "Location", "Reporter", "Date & Time", "Priority", "Status"].map(h => (
+                {["Incident ID", "Type", "Barangay", "Reporter", "Contact No.", "Date", "Time", "Priority", "Status", "Action"].map(h => (
                   <th key={h} className="px-5 py-3.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">{h}</th>
                 ))}
               </tr>
@@ -272,7 +274,7 @@ export default function IncidentHistory({ reports = [] }) {
             <tbody className="divide-y divide-slate-100">
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-14 text-center text-sm text-slate-400">
+                  <td colSpan={10} className="py-14 text-center text-sm text-slate-400">
                     No history records match your filters.
                   </td>
                 </tr>
@@ -282,7 +284,7 @@ export default function IncidentHistory({ reports = [] }) {
                 const statusInfo = getIncidentStatusInfo(r.status);
                 const priority = getPriority(r);
                 const incId = getIncidentId(r, i);
-                const loc = typeof r.location === "string" ? r.location : (r.location?.name || "Unknown");
+                const barangay = r.location?.barangay || (typeof r.location === "string" ? r.location : "Unknown");
                 const date = r.createdAt ? new Date(r.createdAt) : new Date();
 
                 return (
@@ -297,14 +299,19 @@ export default function IncidentHistory({ reports = [] }) {
                       </div>
                     </td>
                     <td className="px-5 py-3.5">
-                      <span className="text-xs text-slate-600">{loc}</span>
+                      <span className="text-xs text-slate-600">{barangay}</span>
                     </td>
                     <td className="px-5 py-3.5">
                       <span className="text-xs text-slate-600">{r.userId?.fullName || "Unknown"}</span>
                     </td>
                     <td className="px-5 py-3.5">
-                      <p className="text-xs text-slate-600">{date.toLocaleDateString()}</p>
-                      <p className="text-[10px] text-slate-400 mt-0.5">{date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p>
+                      <span className="text-xs font-mono text-slate-600">{r.userId?.phoneNumber || r.phoneNumber || "N/A"}</span>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <span className="text-xs text-slate-600 whitespace-nowrap">{date.toLocaleDateString("en-PH", { day: "numeric", month: "short", year: "numeric" })}</span>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <span className="text-xs text-slate-600">{date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
                     </td>
                     <td className="px-5 py-3.5">
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${PRIORITY_STYLES[priority]}`}>
@@ -317,6 +324,18 @@ export default function IncidentHistory({ reports = [] }) {
                         {statusInfo.label}
                       </span>
                     </td>
+                    <td className="px-5 py-3.5">
+                      <button
+                        onClick={() => setSelectedReport(r)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-violet-700 bg-violet-50 border border-violet-200 hover:bg-violet-100 transition-colors"
+                      >
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                        View
+                      </button>
+                    </td>
                   </tr>
                 );
               })}
@@ -324,6 +343,8 @@ export default function IncidentHistory({ reports = [] }) {
           </table>
         </div>
       </div>
+
+      <IncidentDetailModal report={selectedReport} onClose={() => setSelectedReport(null)} />
     </div>
   );
 }

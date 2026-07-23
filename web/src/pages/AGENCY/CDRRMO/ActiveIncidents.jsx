@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   TYPE_ICONS,
   formatBarangay,
@@ -5,8 +6,10 @@ import {
   getIncidentStatusInfo,
   normalizeIncidentStatus
 } from "../../../utils/incidentFormatters.js";
+import IncidentDetailModal from "../PNP/IncidentDetailModal.jsx";
 
 export default function ActiveIncidents({ reports = [] }) {
+  const [selectedReport, setSelectedReport] = useState(null);
   // Show all unresolved reports so responders can progress incidents without opening the queue.
   const activeReports = (Array.isArray(reports) ? reports : []).filter(r =>
     normalizeIncidentStatus(r.status) !== "resolved"
@@ -37,10 +40,12 @@ export default function ActiveIncidents({ reports = [] }) {
               <th className="px-6 py-4">Incident ID</th>
               <th className="px-6 py-4">Type</th>
               <th className="px-6 py-4">Barangay</th>
-              <th className="px-6 py-4">Street / Purok</th>
               <th className="px-6 py-4">Reporter</th>
+              <th className="px-6 py-4">Contact No.</th>
+              <th className="px-6 py-4">Date</th>
               <th className="px-6 py-4">Time</th>
               <th className="px-6 py-4">Status</th>
+              <th className="px-6 py-4">Action</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -51,11 +56,8 @@ export default function ActiveIncidents({ reports = [] }) {
               // Location
               const barangay = report.location?.barangay
                 || (typeof report.location === "string" ? report.location : "Unknown");
-              const streetPurok = [report.location?.street, report.location?.purok]
-                .filter(Boolean)
-                .join(" · ") || "—";
 
-              // Time
+              // Time & Date
               const timeStr = report.createdAt
                 ? new Date(report.createdAt).toLocaleTimeString([], {
                     hour: "2-digit",
@@ -63,10 +65,19 @@ export default function ActiveIncidents({ reports = [] }) {
                     hour12: false,
                   })
                 : "--:--";
+              const dateStr = report.createdAt
+                ? new Date(report.createdAt).toLocaleDateString("en-PH", {
+                    day: "numeric",
+                    month: "short",
+                    year: "numeric",
+                  })
+                : "—";
 
               const incId =
                 report.incidentId ||
                 `INC-2024-${String(90 - idx).padStart(3, "0")}`;
+              const phone = report.userId?.phoneNumber || report.phoneNumber || "N/A";
+              const reporter = report.userId?.fullName || "Anonymous";
 
               return (
                 <tr
@@ -98,14 +109,19 @@ export default function ActiveIncidents({ reports = [] }) {
                     {barangay}
                   </td>
 
-                  {/* Street / Purok */}
-                  <td className="px-6 py-4 text-slate-500 truncate max-w-[180px]" title={streetPurok}>
-                    {streetPurok}
-                  </td>
-
                   {/* Reporter */}
                   <td className="px-6 py-4 text-slate-600">
-                    {report.userId?.fullName || "Anonymous"}
+                    {reporter}
+                  </td>
+
+                  {/* Contact No. */}
+                  <td className="px-6 py-4 text-slate-600 font-mono text-xs">
+                    {phone}
+                  </td>
+
+                  {/* Date */}
+                  <td className="px-6 py-4 text-slate-500 font-medium whitespace-nowrap">
+                    {dateStr}
                   </td>
 
                   {/* Time */}
@@ -120,6 +136,20 @@ export default function ActiveIncidents({ reports = [] }) {
                       {statusInfo.label}
                     </span>
                   </td>
+
+                  {/* Action */}
+                  <td className="px-6 py-4">
+                    <button
+                      onClick={() => setSelectedReport(report)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-violet-700 bg-violet-50 border border-violet-200 hover:bg-violet-100 transition-colors"
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      </svg>
+                      View
+                    </button>
+                  </td>
                 </tr>
               );
             })}
@@ -127,7 +157,7 @@ export default function ActiveIncidents({ reports = [] }) {
             {activeReports.length === 0 && (
               <tr>
                 <td
-                  colSpan="7"
+                  colSpan="9"
                   className="px-6 py-14 text-center"
                 >
                   <div className="flex flex-col items-center gap-3">
@@ -148,6 +178,8 @@ export default function ActiveIncidents({ reports = [] }) {
         </table>
         </div>
       </div>
+
+      <IncidentDetailModal report={selectedReport} onClose={() => setSelectedReport(null)} />
     </div>
   );
 }
