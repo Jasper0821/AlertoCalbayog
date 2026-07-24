@@ -89,7 +89,7 @@ export default function HomeScreen({
 
   return (
     <View className="flex-1 bg-darkBlue">
-      <Header title="Alerto Calbayog" showBack />
+      <Header title="Alerto Calbayog" />
 
       <View className="flex-1 items-center justify-center px-8">
         {/* Top messaging */}
@@ -130,18 +130,6 @@ export default function HomeScreen({
         <Text className="text-textGray text-xs font-bold uppercase tracking-[3px] mt-8 opacity-60">
           Fire · Medical · Crime · Flood
         </Text>
-      </View>
-
-      {/* Bottom section */}
-      <View className="px-5 pb-6 gap-3">
-        <TouchableOpacity
-          className="items-center py-3 bg-red/10 rounded-2xl border border-red/20"
-          onPress={logout}
-        >
-          <Text className="font-black text-red text-xs uppercase tracking-widest">
-            Logout
-          </Text>
-        </TouchableOpacity>
       </View>
 
       {/* Incident Picker Modal */}

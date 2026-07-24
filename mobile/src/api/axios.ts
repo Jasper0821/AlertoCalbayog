@@ -1,21 +1,30 @@
-import { Platform } from "react-native";
 import axios from "axios";
 import Constants from "expo-constants";
 
-// Dynamically retrieve the host PC's IP address from Expo Constants
-const getBackendHost = () => {
+// Dynamically retrieve the host PC's IP address from Expo Constants or process.env
+const getBackendUrl = () => {
+  // 1. In development (Expo Go / Dev Client), prioritize dynamic host detection so it automatically works
   const hostUri = Constants.expoConfig?.hostUri;
-  if (hostUri) {
-    return hostUri.split(":")[0];
+  if (__DEV__ && hostUri) {
+    const host = hostUri.split(":")[0];
+    return `http://${host}:5000/api`;
   }
-  // Fallback to the detected PC IP
-  return "192.168.254.131";
+
+  // 2. Check for explicit environment variable (configured in .env or eas.json during build)
+  const envUrl = process.env.EXPO_PUBLIC_API_URL;
+  if (envUrl) {
+    const cleanUrl = envUrl.trim().replace(/\/+$/, "");
+    return cleanUrl.endsWith("/api") ? cleanUrl : `${cleanUrl}/api`;
+  }
+
+  // 3. Fallback to Cloudflare tunnel URL
+  return "https://adapter-delayed-discussing-resources.trycloudflare.com/api";
 };
 
-export const backendHost = getBackendHost();
+export const backendUrl = getBackendUrl();
 
 const api = axios.create({
-    baseURL: `http://${backendHost}:5000/api`,
+    baseURL: backendUrl,
     headers: {
       "X-App-Source": "mobile",
     },

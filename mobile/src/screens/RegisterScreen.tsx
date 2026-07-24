@@ -14,7 +14,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import CustomInput from "../components/CustomInput";
 import { ArrowLeftIcon } from "../components/SvgIcons";
-import api from "../api/axios";
+import api, { backendUrl } from "../api/axios";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../navigation/AppNavigator";
 import { COLORS } from "../styles/colors";
@@ -28,6 +28,7 @@ interface Props {
 export default function RegisterScreen({ navigation }: Props): React.JSX.Element {
   const [fullName, setFullName] = useState<string>("");
   const [email, setEmail] = useState<string>("");
+  const [phoneNumber, setPhoneNumber] = useState<string>("");
   const [password, setPassword] = useState<string>("");
   const insets = useSafeAreaInsets();
 
@@ -36,6 +37,7 @@ export default function RegisterScreen({ navigation }: Props): React.JSX.Element
       await api.post("/auth/register", {
         fullName,
         email,
+        phoneNumber,
         password,
         role: "resident"
       });
@@ -44,7 +46,11 @@ export default function RegisterScreen({ navigation }: Props): React.JSX.Element
       navigation.navigate("Login");
     } catch (error: any) {
       console.error("Registration error:", error);
-      const errorMsg = error.response?.data?.message || error.message || "Registration failed";
+      const errorMsg =
+        error.response?.data?.message ||
+        (error.message === "Network Error"
+          ? `Cannot connect to server at ${backendUrl}. Please ensure your device is connected to the network.`
+          : error.message || "Registration failed");
       Alert.alert("Register Failed", errorMsg);
     }
   };
@@ -106,6 +112,15 @@ export default function RegisterScreen({ navigation }: Props): React.JSX.Element
               onChangeText={setEmail}
               keyboardType="email-address"
               autoCapitalize="none"
+            />
+
+            {/* Phone Number Field */}
+            <Text style={styles.fieldLabel}>Phone Number</Text>
+            <CustomInput
+              placeholder="Enter your Phone Number"
+              value={phoneNumber}
+              onChangeText={setPhoneNumber}
+              keyboardType="phone-pad"
             />
 
             {/* Password Field */}

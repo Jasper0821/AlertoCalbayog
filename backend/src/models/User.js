@@ -42,6 +42,9 @@ const userSchema = new mongoose.Schema(
       type: String,
       enum: ["pending", "approved", "declined"],
       default: "approved"
+    },
+    avatar: {
+      type: String
     }
   },
   { timestamps: true }

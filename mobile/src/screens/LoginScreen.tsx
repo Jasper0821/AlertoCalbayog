@@ -13,7 +13,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import CustomInput from "../components/CustomInput";
-import api from "../api/axios";
+import api, { backendUrl } from "../api/axios";
 import { saveToken, saveUser } from "../utils/Storage";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../navigation/AppNavigator";
@@ -53,10 +53,13 @@ export default function LoginScreen({
 
       navigation.replace("Home");
     } catch (error: any) {
-      Alert.alert(
-        "Login Failed",
-        error.response?.data?.message || "Invalid login"
-      );
+      console.error("Login error:", error);
+      const errorMsg =
+        error.response?.data?.message ||
+        (error.message === "Network Error"
+          ? `Cannot connect to server at ${backendUrl}. Please ensure your device is connected to the network.`
+          : error.message || "Invalid login");
+      Alert.alert("Login Failed", errorMsg);
     }
   };
 
@@ -120,6 +123,15 @@ export default function LoginScreen({
               value={password}
               onChangeText={setPassword}
             />
+
+            {/* Forgot Password Link */}
+            <View style={{ alignItems: "flex-end", marginTop: -6, marginBottom: 16 }}>
+              <TouchableOpacity onPress={() => navigation.navigate("ForgotPassword")}>
+                <Text style={{ fontSize: 13, fontWeight: "700", color: COLORS.primary }}>
+                  Forgot Password?
+                </Text>
+              </TouchableOpacity>
+            </View>
 
             {/* User Agreement Checkbox */}
             <TouchableOpacity
