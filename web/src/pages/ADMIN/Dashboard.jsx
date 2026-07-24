@@ -35,13 +35,6 @@ import Swal from "sweetalert2";
 import { getValidCalbayogBarangay } from "../../utils/barangays.js";
 import { clearDashboardNavigationState } from "../../utils/dashboardSession.js";
 
-const STATUS_OPTIONS = [
-  { value: "pending", label: "Pending" },
-  { value: "verified", label: "Verified" },
-  { value: "active", label: "Active" },
-  { value: "resolved", label: "Resolved" },
-];
-
 const STATUS_STYLES = {
   pending: { dot: "bg-amber-400", text: "text-amber-700", bg: "bg-amber-50", border: "border-amber-200", label: "Pending" },
   verified: { dot: "bg-teal-500", text: "text-teal-700", bg: "bg-teal-50", border: "border-teal-200", label: "Verified" },
@@ -250,46 +243,6 @@ function AnalyticsCard({ title, subtitle, children, className = "" }) {
   );
 }
 
-function CsvExportButton({ reports }) {
-  const exportCsv = () => {
-    const rows = [
-      ["Incident ID", "Type", "Reporter", "Location", "Status", "Assigned Agency", "Assigned Responder", "Created At"],
-      ...reports.map((report, index) => [
-        getIncidentId(report, index),
-        report.emergencyType || "",
-        report.userId?.fullName || "Unknown",
-        getLocation(report),
-        report.status || "pending",
-        report.assignedAgency || "",
-        report.assignedResponder?.fullName || "",
-        report.createdAt || "",
-      ]),
-    ];
-
-    const csv = rows.map((row) =>
-      row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(",")
-    ).join("\n");
-
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `alerto-incidents-${new Date().toISOString().slice(0, 10)}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
-  };
-
-  return (
-    <button
-      onClick={exportCsv}
-      className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-500 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-600 active:scale-[0.98]"
-    >
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" x2="12" y1="15" y2="3" /></svg>
-      Export
-    </button>
-  );
-}
-
 export default function AdminDashboard() {
   const navigate = useNavigate();
   const [activeNav, setActiveNav] = useState(() => localStorage.getItem("adminActiveNav") || "overview");
@@ -358,7 +311,6 @@ export default function AdminDashboard() {
     return sid;
   });
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
   const [agencyFilter, setAgencyFilter] = useState("all");
   const [userCategoryFilter, setUserCategoryFilter] = useState("all");
   const [userForm, setUserForm] = useState(emptyUserForm);
@@ -368,6 +320,8 @@ export default function AdminDashboard() {
   const [isSavingUser, setIsSavingUser] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [savingReportId, setSavingReportId] = useState("");
+  const [selectedReport, setSelectedReport] = useState(null);
+  const [isNotificationsModalOpen, setIsNotificationsModalOpen] = useState(false);
   // Audit Trail state
   const [auditLogs, setAuditLogs] = useState([]);
   const [auditTab, setAuditTab] = useState("user_activity"); // "status" | "user_activity" | "password_security"
@@ -409,6 +363,7 @@ export default function AdminDashboard() {
         : response.data || [];
       const next = data.slice(0, 20).map((item) => ({
         id: item._id || item.id || `${Date.now()}`,
+        _id: item._id || null,
         title: item.title || "Notification",
         message: item.message || "You have a new notification.",
         createdAt: item.createdAt || new Date().toISOString(),
@@ -822,6 +777,7 @@ export default function AdminDashboard() {
           const next = [
             {
               id: notification._id || `${Date.now()}`,
+              _id: notification._id || null,
               title: notification.title || "Notification",
               message: notification.message || "You have a new notification.",
               createdAt: notification.createdAt || new Date().toISOString(),
@@ -934,12 +890,11 @@ export default function AdminDashboard() {
         getLocation(report),
       ].join(" ").toLowerCase();
 
-      if (statusFilter !== "all" && status !== statusFilter) return false;
       if (agencyFilter !== "all" && !(report.notifiedAgencies || []).includes(agencyFilter)) return false;
       if (q && !haystack.includes(q)) return false;
       return true;
     });
-  }, [agencyFilter, reports, searchQuery, statusFilter]);
+  }, [agencyFilter, reports, searchQuery]);
 
   const closedReports = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -1169,6 +1124,50 @@ export default function AdminDashboard() {
     URL.revokeObjectURL(url);
   };
 
+  const exportReportsCSV = (reportsList) => {
+    const rows = [
+      ["Incident ID", "Emergency Type", "Agency Type", "Reporter", "Location", "Status", "Assigned Responder", "Created At"],
+      ...reportsList.map((report, index) => [
+        getIncidentId(report, index),
+        TYPE_LABELS[report.emergencyType] || report.emergencyType || "Incident",
+        report.assignedAgency && report.assignedAgency !== "NONE" ? report.assignedAgency : (report.notifiedAgencies || []).join("; "),
+        report.userId?.fullName || "Unknown",
+        getLocation(report),
+        report.status || "pending",
+        report.assignedResponder?.fullName || "Unassigned",
+        report.createdAt || "",
+      ]),
+    ];
+    const csv = rows.map((row) => row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `alerto-incidents-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const openExportDialog = async () => {
+    const result = await Swal.fire({
+      title: "Export data",
+      text: "Choose the data you want to export.",
+      input: "select",
+      inputOptions: {
+        incidents: "Incident Reports",
+        users: "Users",
+      },
+      inputValue: "incidents",
+      showCancelButton: true,
+      confirmButtonText: "Export",
+      confirmButtonColor: "#059669",
+      inputValidator: (value) => !value && "Select data to export",
+    });
+    if (!result.isConfirmed) return;
+    if (result.value === "users") exportUsersCSV(users);
+    else exportReportsCSV(reports);
+  };
+
   const deleteReport = async (reportId) => {
     const shouldDelete = window.confirm(
       "⚠️ Delete this incident report?\n\nThis report will be moved to the Trash Bin and can be restored later."
@@ -1195,7 +1194,9 @@ export default function AdminDashboard() {
       const updatedReport = response.data?.report;
       if (updatedReport?._id) {
         setReports((prev) => prev.map((report) => report._id === updatedReport._id ? updatedReport : report));
-        setActiveNav("closed-incidents");
+        // Keep the administrator on the current page. Closed records are
+        // persisted by the API and will be refreshed from the database below.
+        await fetchReports();
       }
     } catch (err) {
       setError(err.response?.data?.message || "Unable to close report");
@@ -1281,6 +1282,38 @@ export default function AdminDashboard() {
       setUsers((prev) => prev.filter((user) => user._id !== userId));
     } catch (err) {
       setError(err.response?.data?.message || "Unable to delete user");
+    }
+  };
+
+  const setNotificationReadState = async (notification, read) => {
+    setError("");
+    const notificationId = notification._id || notification.id;
+    const isSavedNotification = /^[a-f\d]{24}$/i.test(notificationId || "");
+    // Update the UI immediately. Older cached/socket-only notifications may not
+    // have a MongoDB id, so they cannot be sent to the API yet.
+    setNotifications((prev) => prev.map((item) => item.id === notification.id ? { ...item, read } : item));
+    if (!isSavedNotification) return;
+    try {
+      const response = await api.put(`/notifications/${notificationId}/${read ? "read" : "unread"}`);
+      const updated = response.data;
+      setNotifications((prev) => prev.map((item) => item.id === notification.id ? { ...item, read: updated.read } : item));
+    } catch (err) {
+      // Keep the modal usable for notifications received from an older server
+      // instance (for example, before the unread API route is restarted).
+      // The local notification state is already updated above.
+      console.warn("Notification sync failed:", err.response?.data?.message || err.message);
+    }
+  };
+
+  const markAllNotificationsRead = async () => {
+    setError("");
+    try {
+      await api.put("/notifications/read-all");
+      setNotifications((prev) => prev.map((item) => ({ ...item, read: true })));
+    } catch (err) {
+      // Preserve the current modal state without showing a page-level error.
+      setNotifications((prev) => prev.map((item) => ({ ...item, read: true })));
+      console.warn("Notification bulk sync failed:", err.response?.data?.message || err.message);
     }
   };
 
@@ -1562,10 +1595,10 @@ export default function AdminDashboard() {
         <thead>
           <tr className="border-b border-slate-100 bg-slate-50 text-[10px] font-black uppercase tracking-widest text-slate-400">
             <th className="px-4 py-3">Incident</th>
+            <th className="px-4 py-3">Agency Type</th>
             <th className="px-4 py-3">Reporter</th>
             <th className="px-4 py-3">Location</th>
             <th className="px-4 py-3">Status</th>
-            <th className="px-4 py-3">Responder</th>
             <th className="px-4 py-3">Time</th>
             {!compact && <th className="px-4 py-3">Actions</th>}
           </tr>
@@ -1586,7 +1619,14 @@ export default function AdminDashboard() {
               <tr key={report._id || index} className="text-sm text-slate-700 hover:bg-slate-50/70">
                 <td className="px-4 py-3">
                   <p className="font-mono text-xs font-black text-slate-900">{getIncidentId(report, index)}</p>
-                  <p className="mt-1 text-xs font-bold text-slate-500">{TYPE_LABELS[report.emergencyType] || "Incident"}</p>
+                  <p className="mt-1 text-xs font-bold text-slate-500">Emergency: {TYPE_LABELS[report.emergencyType] || "Incident"}</p>
+                </td>
+                <td className="px-4 py-3">
+                  <p className="text-xs font-bold text-slate-700">
+                    {report.assignedAgency && report.assignedAgency !== "NONE"
+                      ? report.assignedAgency
+                      : (report.notifiedAgencies || []).join(", ") || "Unassigned"}
+                  </p>
                 </td>
                 <td className="px-4 py-3">
                   <p className="font-bold text-slate-800">{report.userId?.fullName || "Unknown"}</p>
@@ -1603,19 +1643,6 @@ export default function AdminDashboard() {
                   </span>
                 </td>
                 <td className="px-4 py-3">
-                  <div className="flex items-center">
-                    {report.assignedResponder ? (
-                      <span className="rounded-lg bg-slate-50 border border-slate-100 px-3 py-1.5 text-[11px] font-bold text-slate-700">
-                        {report.assignedResponder.fullName}
-                      </span>
-                    ) : (
-                      <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">
-                        Unassigned
-                      </span>
-                    )}
-                  </div>
-                </td>
-                <td className="px-4 py-3">
                   <p className="text-xs font-bold text-slate-700">
                     {report.createdAt ? new Date(report.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "--:--"}
                   </p>
@@ -1625,7 +1652,7 @@ export default function AdminDashboard() {
                     </p>
                   )}
                 </td>
-                {renderIncidentActions(report, compact)}
+                {renderIncidentActions(report, index, compact)}
               </tr>
             );
           })}
@@ -1635,7 +1662,7 @@ export default function AdminDashboard() {
   );
 
   // Action buttons rendered outside the table row to avoid colSpan issues
-  const renderIncidentActions = (report, compact) => {
+  const renderIncidentActions = (report, index, compact) => {
     if (compact) return null;
     const status = (report.status || "").toLowerCase();
     const isResolved = ["resolved", "responded"].includes(status);
@@ -1644,6 +1671,15 @@ export default function AdminDashboard() {
     return (
       <td className="px-4 py-3">
         <div className="flex items-center gap-1.5 flex-wrap">
+          <button
+            type="button"
+            onClick={() => setSelectedReport({ report, index })}
+            title="View incident details"
+            className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-[10px] font-black text-blue-700 transition hover:bg-blue-100 active:scale-[0.98]"
+          >
+            <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12S5.25 6.75 12 6.75 21.75 12 21.75 12 18.75 17.25 12 17.25 2.25 12 2.25 12Z" /><circle cx="12" cy="12" r="2.25" /></svg>
+            View
+          </button>
           {isResolved && !isClosed && (
             <button
               id={`close-report-${report._id}`}
@@ -1686,31 +1722,11 @@ export default function AdminDashboard() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            {!showOnlyClosed && (
-              <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 outline-none transition hover:border-slate-300 focus:border-red-500 focus:ring-2 focus:ring-red-600/10">
-                <option value="all">All statuses</option>
-                {STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-              </select>
-            )}
             <select value={agencyFilter} onChange={(event) => setAgencyFilter(event.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 outline-none shadow-md transition hover:border-slate-300 focus:border-red-500 focus:ring-2 focus:ring-red-600/10">
               <option value="all">All agencies</option>
               <option value="CDRRMO">CDRRMO</option>
               <option value="PNP">PNP</option>
             </select>
-            {!showOnlyClosed && (
-              <button
-                onClick={() => {
-                  fetchDeletedReports();
-                  setIsTrashModalOpen(true);
-                }}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700 outline-none transition hover:bg-red-100 active:scale-[0.98]"
-                title="View soft-deleted incident reports"
-              >
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.2"><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                Trash Bin
-              </button>
-            )}
-            <CsvExportButton reports={displayReports} />
           </div>
         </div>
         <div className="flex-1 min-h-0 overflow-auto">
@@ -1759,17 +1775,6 @@ export default function AdminDashboard() {
               Add User
             </button>
           )}
-          <button
-            type="button"
-            onClick={() => exportUsersCSV(directoryUsers)}
-            className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 outline-none transition hover:bg-slate-50 active:scale-[0.98]"
-            title="Export users list as CSV/Excel"
-          >
-            <svg className="h-4 w-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.2">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-            Export Users
-          </button>
         </div>
       </div>
 
@@ -1880,6 +1885,7 @@ export default function AdminDashboard() {
                   <option value="NONE" disabled>
                     Select agency
                   </option>
+                  <option value="BFP">BFP</option>
                   <option value="CDRRMO">CDRRMO</option>
                   <option value="PNP">PNP</option>
                 </select>
@@ -1905,25 +1911,71 @@ export default function AdminDashboard() {
     );
   };
 
-  const renderNotifications = () => (
-    <section className="flex flex-col h-full rounded-xl border border-slate-200 bg-white p-5 shadow-md shadow-slate-200/50">
-      <div className="flex-none">
-        <h2 className="text-sm font-black text-slate-900">Notification Center</h2>
-        <p className="mt-1 text-xs text-slate-500">Resident and responder notifications are sent automatically when incidents are verified, activated, resolved, or assigned.</p>
-      </div>
-      <div className="mt-5 space-y-3 flex-1 min-h-0 overflow-auto pr-2">
-        {notifications.length === 0 ? (
-          <div className="rounded-lg bg-slate-50 p-6 text-center text-sm font-semibold text-slate-400">No notifications captured in this session.</div>
-        ) : notifications.map((item) => (
-          <div key={item.id} className="rounded-lg border border-slate-100 bg-slate-50 p-4">
-            <p className="text-sm font-black text-slate-900">{item.title}</p>
-            <p className="mt-1 text-sm text-slate-600">{item.message}</p>
-            <p className="mt-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">{new Date(item.createdAt).toLocaleString()}</p>
+  const renderNotifications = () => {
+    const unreadCount = notifications.filter((item) => !item.read).length;
+    const getNotificationStyle = (item) => {
+      if (item.category === "incident") return { icon: "!", color: "bg-red-50 text-red-600 border-red-100" };
+      if (item.category === "user_management") return { icon: "U", color: "bg-blue-50 text-blue-600 border-blue-100" };
+      return { icon: "i", color: "bg-emerald-50 text-emerald-600 border-emerald-100" };
+    };
+    return (
+      <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/55 p-4" onMouseDown={() => setIsNotificationsModalOpen(false)}>
+      <section className="flex max-h-[calc(100dvh-3rem)] w-full max-w-lg min-h-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl" onMouseDown={(event) => event.stopPropagation()}>
+        <div className="flex flex-none flex-col gap-4 border-b border-slate-100 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
+                <Bell className="h-5 w-5" />
+              </div>
+              <div>
+                <h2 className="text-base font-black text-slate-900">Notifications</h2>
+                <p className="mt-0.5 text-xs text-slate-500">System activity and emergency updates for administrators.</p>
+              </div>
+            </div>
           </div>
-        ))}
+          <div className="flex items-center gap-3">
+            <span className={`rounded-full px-3 py-1 text-xs font-black ${unreadCount ? "bg-red-50 text-red-700" : "bg-slate-100 text-slate-500"}`}>{unreadCount} unread</span>
+            {unreadCount > 0 && <button type="button" onClick={markAllNotificationsRead} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-50">Mark all as read</button>}
+            <button type="button" onClick={() => setIsNotificationsModalOpen(false)} className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700" aria-label="Close notifications">
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" d="m6 6 12 12M18 6 6 18" /></svg>
+            </button>
+          </div>
+        </div>
+        <div className="flex-1 overflow-y-auto bg-slate-50/50 p-4 sm:p-6">
+          {notifications.length === 0 ? (
+            <div className="flex min-h-56 flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-white px-6 text-center">
+              <Bell className="h-8 w-8 text-slate-300" />
+              <p className="mt-3 text-sm font-bold text-slate-700">No notifications yet</p>
+              <p className="mt-1 text-xs text-slate-400">New system and incident updates will appear here.</p>
+            </div>
+          ) : <div className="mx-auto max-w-lg space-y-3">
+            {notifications.map((item) => {
+              const style = getNotificationStyle(item);
+              return <article key={item.id} className={`group flex gap-4 rounded-xl border p-4 transition ${item.read ? "border-slate-200 bg-white" : "border-emerald-200 bg-emerald-50/40 shadow-sm"}`}>
+                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full border text-sm font-black ${style.color}`}>{style.icon}</div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <p className="text-sm font-black text-slate-900">{item.title}</p>
+                      <p className="mt-1 text-sm leading-6 text-slate-600">{item.message}</p>
+                    </div>
+                    {!item.read && <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-500" title="Unread" />}
+                  </div>
+                  <div className="mt-3 flex items-center justify-between gap-3">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{new Date(item.createdAt).toLocaleString()}</p>
+                    <button type="button" onClick={() => setNotificationReadState(item, !item.read)} className="text-xs font-bold text-emerald-700 transition hover:text-emerald-900">
+                      {item.read ? "Mark unread" : "Mark as read"}
+                    </button>
+                  </div>
+                </div>
+              </article>;
+            })}
+          </div>}
+        </div>
+      </section>
       </div>
-    </section>
-  );
+    );
+  };
 
   const renderAudit = () => {
     const AUDIT_ACTION_LABELS = {
@@ -2798,7 +2850,14 @@ export default function AdminDashboard() {
                   >
                     Trigger Database Backup
                   </button>
-                  <CsvExportButton reports={reports} />
+                  <button
+                    type="button"
+                    onClick={openExportDialog}
+                    className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-emerald-500 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-600 active:scale-[0.98]"
+                  >
+                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" x2="12" y1="15" y2="3" /></svg>
+                    Export Data
+                  </button>
                   <button
                     type="button"
                     onClick={() => {
@@ -3051,7 +3110,6 @@ export default function AdminDashboard() {
     if (activeNav === "analytics") return renderAnalytics();
     if (activeNav === "users") return renderUsers();
     if (activeNav === "responder-approvals") return renderResponderApprovals();
-    if (activeNav === "notifications") return renderNotifications();
     if (activeNav === "audit") return renderAudit();
     return renderSettings();
   };
@@ -3126,9 +3184,9 @@ export default function AdminDashboard() {
             </div>
 
             <div className="flex shrink-0 items-center gap-5">
-              <button onClick={() => setActiveNav("notifications")} className="relative rounded-lg bg-slate-50 p-2.5 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 border border-slate-100">
+              <button onClick={() => { fetchNotifications(); setIsNotificationsModalOpen(true); }} className="relative rounded-lg bg-slate-50 p-2.5 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 border border-slate-100" aria-label="Open notifications">
                 <Bell className="h-5 w-5" />
-                {notifications.length > 0 && (
+                {notifications.some((item) => !item.read) && (
                   <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-red-500 ring-2 ring-slate-50" />
                 )}
               </button>
@@ -3155,7 +3213,57 @@ export default function AdminDashboard() {
         </section>
       </main>
 
-      {/* Trash Modal */}
+      {isNotificationsModalOpen && renderNotifications()}
+
+      {/* Incident Details Modal */}
+      {selectedReport && (() => {
+        const { report, index } = selectedReport;
+        const statusInfo = getStatusInfo(report.status);
+        const detailRows = [
+          ["Incident ID", getIncidentId(report, index)],
+          ["Emergency Type", TYPE_LABELS[report.emergencyType] || report.emergencyType || "Incident"],
+          ["Agency Type", report.assignedAgency && report.assignedAgency !== "NONE" ? report.assignedAgency : (report.notifiedAgencies || []).join(", ") || "Unassigned"],
+          ["Reporter", report.userId?.fullName || "Unknown"],
+          ["Contact", report.userId?.phoneNumber || "No contact number"],
+          ["Responder", report.assignedResponder?.fullName || "Unassigned"],
+          ["Location", getLocation(report)],
+          ["Reported", report.createdAt ? new Date(report.createdAt).toLocaleString() : "—"],
+          ["Closed", report.closedAt ? new Date(report.closedAt).toLocaleString() : "—"],
+        ];
+        return (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/60 p-4" onMouseDown={() => setSelectedReport(null)}>
+            <div className="w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl" onMouseDown={(event) => event.stopPropagation()}>
+              <div className="flex items-start justify-between bg-slate-900 px-6 py-5 text-white">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-300">Incident details</p>
+                  <h2 className="mt-1 font-mono text-sm font-black">{getIncidentId(report, index)}</h2>
+                </div>
+                <button type="button" onClick={() => setSelectedReport(null)} className="rounded-lg p-1 text-slate-300 transition hover:bg-white/10 hover:text-white" aria-label="Close details">
+                  <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" d="m6 6 12 12M18 6 6 18" /></svg>
+                </button>
+              </div>
+              <div className="max-h-[70vh] space-y-5 overflow-y-auto p-6">
+                <div className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-black ${statusInfo.bg} ${statusInfo.border} ${statusInfo.text}`}>
+                  <span className={`h-1.5 w-1.5 rounded-full ${statusInfo.dot}`} /> {statusInfo.label}
+                </div>
+                <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
+                  {detailRows.map(([label, value]) => (
+                    <div key={label} className={label === "Location" ? "sm:col-span-2" : ""}>
+                      <dt className="text-[10px] font-black uppercase tracking-widest text-slate-400">{label}</dt>
+                      <dd className="mt-1 break-words text-sm font-bold text-slate-800">{value}</dd>
+                    </div>
+                  ))}
+                </dl>
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Description</p>
+                  <p className="mt-1 whitespace-pre-wrap rounded-lg bg-slate-50 p-3 text-sm leading-6 text-slate-700">{report.description || "No description provided."}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {isTrashModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
           <div className="flex max-h-[calc(100vh-4rem)] w-full max-w-4xl flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl">

@@ -127,8 +127,12 @@ exports.updateReportStatus = async (req, res) => {
     report.status = status;
     if (status === "resolved" && previousStatus !== "resolved") {
       report.resolvedAt = new Date();
+      report.closedAt = null;
+    } else if (status === "closed" && previousStatus !== "closed") {
+      report.closedAt = new Date();
     } else if (!["resolved", "closed"].includes(status)) {
       report.resolvedAt = null;
+      report.closedAt = null;
     }
     report.actionLog.push({
       actorId: currentUser._id,
