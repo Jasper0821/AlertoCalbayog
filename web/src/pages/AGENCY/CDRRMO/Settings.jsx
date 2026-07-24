@@ -406,73 +406,56 @@ export default function Settings({ user = {}, onUserUpdate }) {
                     </div>
                   </div>
 
-                  {/* Form Fields */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1.5">Full Name</label>
-                      <input
-                        type="text"
-                        value={fullName}
-                        onChange={e => setFullName(e.target.value)}
-                        className="w-full px-3 py-2.5 text-sm text-slate-800 border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:border-[#0a1e3f] focus:ring-2 focus:ring-blue-100 outline-none transition-all"
-                      />
+                  {/* Form Fields - Premium Disabled UI */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mt-6 relative">
+                    {/* Subtle aesthetic overlay to indicate read-only state softly */}
+                    <div className="absolute -inset-4 bg-gradient-to-br from-slate-50/50 to-slate-100/20 backdrop-blur-[2px] rounded-2xl pointer-events-none border border-white/40 ring-1 ring-slate-900/5 shadow-[inset_0_1px_4px_rgba(0,0,0,0.02)]"></div>
+                    
+                    <div className="relative z-10">
+                      <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Full Name</label>
+                      <div className="flex items-center px-4 py-3.5 bg-white border border-slate-200/70 rounded-xl shadow-sm opacity-90 cursor-not-allowed">
+                        <span className="text-sm font-bold text-slate-700">{fullName || "—"}</span>
+                        <svg className="w-4 h-4 text-slate-300 ml-auto" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" /></svg>
+                      </div>
                     </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1.5">Employee ID</label>
-                      <input
-                        type="text"
-                        value={employeeId}
-                        onChange={e => setEmployeeId(e.target.value)}
-                        className="w-full px-3 py-2.5 text-sm text-slate-800 border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:border-[#0a1e3f] focus:ring-2 focus:ring-blue-100 outline-none transition-all"
-                      />
+                    <div className="relative z-10">
+                      <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Employee ID</label>
+                      <div className="flex items-center px-4 py-3.5 bg-white border border-slate-200/70 rounded-xl shadow-sm opacity-90 cursor-not-allowed">
+                        <span className="text-sm font-bold text-slate-700">{employeeId || "—"}</span>
+                        <svg className="w-4 h-4 text-slate-300 ml-auto" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" /></svg>
+                      </div>
                     </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1.5">Email Address</label>
+                    <div className="relative z-10">
+                      <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Email Address</label>
                       <input
                         type="email"
                         value={email}
                         onChange={e => setEmail(e.target.value)}
-                        className="w-full px-3 py-2.5 text-sm text-slate-800 border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:border-[#0a1e3f] focus:ring-2 focus:ring-blue-100 outline-none transition-all"
+                        className="w-full px-4 py-3.5 text-sm font-bold text-slate-800 bg-white border border-blue-200/80 rounded-xl shadow-[0_2px_10px_rgba(37,99,235,0.06)] focus:border-[#0a1e3f] focus:ring-2 focus:ring-[#0a1e3f]/20 outline-none transition-all placeholder:text-slate-400 placeholder:font-medium"
+                        placeholder="Enter your email address"
                       />
                     </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1.5">Phone Number</label>
-                      <input
-                        type="text"
-                        value={phoneNumber}
-                        onChange={e => setPhoneNumber(e.target.value)}
-                        className="w-full px-3 py-2.5 text-sm text-slate-800 border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:border-[#0a1e3f] focus:ring-2 focus:ring-blue-100 outline-none transition-all"
-                      />
+                    <div className="relative z-10">
+                      <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Phone Number</label>
+                      <div className="flex items-center px-4 py-3.5 bg-white border border-slate-200/70 rounded-xl shadow-sm opacity-90 cursor-not-allowed">
+                        <span className="text-sm font-bold text-slate-700">{phoneNumber || "—"}</span>
+                        <svg className="w-4 h-4 text-slate-300 ml-auto" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" /></svg>
+                      </div>
                     </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1.5">Rank / Designation</label>
-                      <input
-                        type="text"
-                        value={rank}
-                        onChange={e => setRank(e.target.value)}
-                        className="w-full px-3 py-2.5 text-sm text-slate-800 border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:border-[#0a1e3f] focus:ring-2 focus:ring-blue-100 outline-none transition-all"
-                      />
+                    <div className="relative z-10">
+                      <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Rank / Designation</label>
+                      <div className="flex items-center px-4 py-3.5 bg-white border border-slate-200/70 rounded-xl shadow-sm opacity-90 cursor-not-allowed">
+                        <span className="text-sm font-bold text-slate-700">{rank || "—"}</span>
+                        <svg className="w-4 h-4 text-slate-300 ml-auto" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" /></svg>
+                      </div>
                     </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1.5">Department</label>
-                      <input
-                        type="text"
-                        value={department}
-                        onChange={e => setDepartment(e.target.value)}
-                        className="w-full px-3 py-2.5 text-sm text-slate-800 border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:border-[#0a1e3f] focus:ring-2 focus:ring-blue-100 outline-none transition-all"
-                      />
+                    <div className="relative z-10">
+                      <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Agency Type</label>
+                      <div className="flex items-center px-4 py-3.5 bg-white border border-slate-200/70 rounded-xl shadow-sm opacity-90 cursor-not-allowed">
+                        <span className="text-sm font-bold text-slate-700">{department || "—"}</span>
+                        <svg className="w-4 h-4 text-slate-300 ml-auto" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" /></svg>
+                      </div>
                     </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">Bio / Notes</label>
-                    <textarea
-                      rows={3}
-                      value={bio}
-                      onChange={e => setBio(e.target.value)}
-                      placeholder="Add any notes about your current post or shift parameters..."
-                      className="w-full px-3 py-2.5 text-sm text-slate-800 border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:border-[#0a1e3f] focus:ring-2 focus:ring-blue-100 outline-none transition-all resize-none"
-                    />
                   </div>
                 </div>
               </div>

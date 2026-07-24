@@ -76,15 +76,12 @@ const NAV = [
   },
 ];
 
+const isPnpReport = (report) =>
+  report?.notifiedAgencies?.includes("PNP") ||
+  report?.assignedAgency === "PNP";
+
 function AdminDashboard() {
-  const [reports, setReports] = useState(() => {
-    try {
-      const stored = localStorage.getItem("pnpReports");
-      return stored ? JSON.parse(stored) : [];
-    } catch (e) {
-      return [];
-    }
-  });
+  const [reports, setReports] = useState([]);
   const [statusOverrides, setStatusOverrides] = useState(() => {
     try {
       const stored = localStorage.getItem("pnpStatusOverrides");
@@ -93,12 +90,6 @@ function AdminDashboard() {
       return {};
     }
   });
-
-  useEffect(() => {
-    if (reports.length > 0) {
-      localStorage.setItem("pnpReports", JSON.stringify(reports));
-    }
-  }, [reports]);
 
   useEffect(() => {
     if (Object.keys(statusOverrides).length > 0) {
@@ -222,9 +213,7 @@ function AdminDashboard() {
   const safeReports = (Array.isArray(reports) ? reports : []).map(r => ({
     ...r,
     status: statusOverrides[r._id] || r.status
-  })).filter(r => 
-    (r.emergencyType || "").toLowerCase() === "crime"
-  );
+  })).filter(isPnpReport);
   const pendingCount = safeReports.filter(r => r.status === "pending").length;
   const activeCount = safeReports.filter(r => ["responding", "ongoing", "dispatching", "en_route", "active"].includes(r.status)).length;
 
@@ -232,7 +221,7 @@ function AdminDashboard() {
   useEffect(() => {
     const fetchReports = async () => {
       try {
-        const res = await api.get("/emergency");
+        const res = await api.get("/emergency/agency/PNP");
         setReports(Array.isArray(res.data) ? res.data : (res.data?.reports || []));
         setIsOffline(false);
       } catch (error) {
@@ -384,8 +373,7 @@ function AdminDashboard() {
     socket.on("newEmergencyAlert", (newReport) => {
       console.log("📡 PNP Command Center received live alert:", newReport);
 
-      // Ensure it is a crime type
-      if ((newReport.emergencyType || "").toLowerCase() === "crime") {
+      if (isPnpReport(newReport)) {
         setReports(prev => {
           if (prev.some(r => r._id === newReport._id)) return prev;
           return [newReport, ...prev];
@@ -397,7 +385,7 @@ function AdminDashboard() {
 
     socket.on("reportStatusChanged", (updatedReport) => {
       console.log("📡 PNP Command Center received status change:", updatedReport);
-      if ((updatedReport.emergencyType || "").toLowerCase() === "crime") {
+      if (isPnpReport(updatedReport)) {
         setReports(prev => prev.some(r => r._id === updatedReport._id)
           ? prev.map(r => r._id === updatedReport._id ? updatedReport : r)
           : [updatedReport, ...prev]

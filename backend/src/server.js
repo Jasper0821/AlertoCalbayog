@@ -5,6 +5,7 @@ const connectDB = require("./config/db");
 const app = require("./app");
 const setupSocket = require("./sockets/socket");
 const backfillReportStatuses = require("./utils/backfillReportStatuses");
+const { startResolvedReportAutoClose } = require("./utils/autoCloseResolvedReports");
 
 const server = http.createServer(app);
 
@@ -29,7 +30,10 @@ const lanIP = Object.values(networkInterfaces)
   .find((iface) => iface.family === "IPv4" && !iface.internal)?.address || "unknown";
 
 connectDB()
-  .then(backfillReportStatuses)
+  .then(async () => {
+    await backfillReportStatuses();
+    startResolvedReportAutoClose(io);
+  })
   .catch((err) => {
     console.error("Startup failed:", err.message);
     process.exit(1);

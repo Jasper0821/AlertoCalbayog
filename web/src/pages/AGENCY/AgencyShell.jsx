@@ -168,9 +168,13 @@ function AgencyShell({ activeSection, onNavigate, children, agency = "CDRRMO" })
             {/* Profile template */}
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-full bg-slate-200 overflow-hidden border border-slate-100 flex items-center justify-center text-xs font-black text-slate-500 shadow-sm shrink-0">
-                <svg className="w-5 h-5 text-slate-400" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
-                </svg>
+                {user.avatar ? (
+                  <img src={user.avatar} alt="Avatar" className="h-full w-full object-cover" />
+                ) : (
+                  <svg className="w-5 h-5 text-slate-400" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+                  </svg>
+                )}
               </div>
               <div className="text-left hidden sm:block leading-none">
                 <p className="text-xs font-bold text-slate-800">{fullName}</p>
