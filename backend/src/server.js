@@ -6,6 +6,7 @@ const app = require("./app");
 const setupSocket = require("./sockets/socket");
 const backfillReportStatuses = require("./utils/backfillReportStatuses");
 const { startResolvedReportAutoClose } = require("./utils/autoCloseResolvedReports");
+const { startScheduler } = require("./utils/scheduler");
 
 const server = http.createServer(app);
 
@@ -33,6 +34,7 @@ connectDB()
   .then(async () => {
     await backfillReportStatuses();
     startResolvedReportAutoClose(io);
+    startScheduler();
   })
   .catch((err) => {
     console.error("Startup failed:", err.message);

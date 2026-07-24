@@ -1,6 +1,7 @@
 const EmergencyReport = require("../models/EmergencyReport");
 const Notification = require("../models/Notification");
 const mapAgencies = require("../utils/agencyMapper");
+const { getSettingValue } = require("./settingsController");
 
 const cleanText = (value = "") =>
   String(value)
@@ -34,6 +35,19 @@ const buildReadableLocationName = ({ barangay, purok }) => {
 exports.createEmergencyReport = async (req, res) => {
   try {
     const { emergencyType, description, latitude, longitude } = req.body;
+
+    // Check if this category is currently disabled in admin settings
+    const activeCategories = await getSettingValue("activeCategories");
+    if (activeCategories) {
+      const typeKey = (emergencyType || "").toLowerCase();
+      // Map report type to category key used in settings
+      const categoryKey = typeKey === "emergency" ? "others" : typeKey;
+      if (activeCategories[categoryKey] === false) {
+        return res.status(403).json({
+          message: `${emergencyType} incident reports are currently disabled by the system administrator. Please contact your local authority directly.`
+        });
+      }
+    }
 
     const notifiedAgencies = mapAgencies(emergencyType);
 
@@ -152,7 +166,7 @@ exports.createEmergencyReport = async (req, res) => {
 
 exports.getAllReports = async (req, res) => {
   try {
-    const reports = await EmergencyReport.find()
+    const reports = await EmergencyReport.find({ isDeleted: { $ne: true } })
       .populate("userId", "fullName email role")
       .populate("assignedResponder", "fullName email role agency phoneNumber")
       .sort({ createdAt: -1 });
@@ -165,7 +179,7 @@ exports.getAllReports = async (req, res) => {
 
 exports.getMyReports = async (req, res) => {
   try {
-    const reports = await EmergencyReport.find({ userId: req.user.id })
+    const reports = await EmergencyReport.find({ userId: req.user.id, isDeleted: { $ne: true } })
       .populate("userId", "fullName email role")
       .populate("assignedResponder", "fullName email role agency phoneNumber")
       .sort({ createdAt: -1 });
@@ -194,9 +208,11 @@ exports.deleteMyReport = async (req, res) => {
 
     const notifiedAgencies = report.notifiedAgencies || [];
 
-    await EmergencyReport.findByIdAndDelete(id);
+    // Soft-delete: update isDeleted flag to true instead of removing from database
+    report.isDeleted = true;
+    await report.save();
 
-    // Emit real-time deletion event to all connected dashboards
+    // Emit real-time deletion event to all connected dashboards to remove from active views
     const io = req.app.get("io");
     if (io) {
       io.to("admin").emit("reportDeleted", { id });
@@ -205,7 +221,7 @@ exports.deleteMyReport = async (req, res) => {
       });
     }
 
-    res.json({ message: "Report deleted successfully" });
+    res.json({ message: "Report soft-deleted successfully", report });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -214,12 +230,62 @@ exports.deleteMyReport = async (req, res) => {
 exports.getReportsByAgency = async (req, res) => {
   try {
     const { agency } = req.params;
-    const reports = await EmergencyReport.find({ notifiedAgencies: agency })
+    const reports = await EmergencyReport.find({ notifiedAgencies: agency, isDeleted: { $ne: true } })
       .populate("userId", "fullName email role")
       .populate("assignedResponder", "fullName email role agency phoneNumber")
       .sort({ createdAt: -1 });
 
     res.json(reports);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.getDeletedReports = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ message: "Access denied. Only administrators can view deleted reports." });
+    }
+    const reports = await EmergencyReport.find({ isDeleted: true })
+      .populate("userId", "fullName email role")
+      .populate("assignedResponder", "fullName email role agency phoneNumber")
+      .sort({ updatedAt: -1 });
+
+    res.json(reports);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.restoreReport = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ message: "Access denied. Only administrators can restore reports." });
+    }
+
+    const report = await EmergencyReport.findById(id);
+    if (!report) {
+      return res.status(404).json({ message: "Report not found" });
+    }
+
+    report.isDeleted = false;
+    await report.save();
+
+    const populatedReport = await EmergencyReport.findById(id)
+      .populate("userId", "fullName email role phoneNumber")
+      .populate("assignedResponder", "fullName email role agency phoneNumber");
+
+    const io = req.app.get("io");
+    if (io) {
+      // Broadcast newEmergencyAlert to bring it back to active report lists in dashboards
+      io.to("admin").emit("newEmergencyAlert", populatedReport);
+      (populatedReport.notifiedAgencies || []).forEach((agency) => {
+        io.to(agency).emit("newEmergencyAlert", populatedReport);
+      });
+    }
+
+    res.json({ message: "Report restored successfully", report: populatedReport });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

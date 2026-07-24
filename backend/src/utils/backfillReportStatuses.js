@@ -12,8 +12,6 @@ async function backfillReportStatuses() {
     "en_route",
     "en route",
     "responded",
-    "closed",
-    "cancelled"
   ];
 
   const reports = await EmergencyReport.find({ status: { $in: legacyStatuses } }).select("status actionLog");
