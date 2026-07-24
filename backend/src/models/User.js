@@ -44,6 +44,7 @@ const userSchema = new mongoose.Schema(
       default: "approved"
     },
     avatar: {
+
       type: String,
       default: ""
     },
@@ -63,6 +64,7 @@ const userSchema = new mongoose.Schema(
     desktopPush: { type: Boolean, default: true },
     emailDigest: { type: Boolean, default: false },
     smsAlerts: { type: Boolean, default: false }
+
   },
   { timestamps: true }
 );

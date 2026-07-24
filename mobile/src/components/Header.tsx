@@ -2,11 +2,11 @@ import React, { useState, useEffect } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, DeviceEventEmitter } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
-import { ArrowLeftIcon, BellIcon, HistoryIcon } from "./SvgIcons";
+import { ArrowLeftIcon, BellIcon } from "./SvgIcons";
 import { COLORS } from "../styles/colors";
 import api from "../api/axios";
 import { getToken } from "../utils/Storage";
-import EmergencyHotlineSheet from "./EmergencyHotlineSheet";
+import HamburgerMenuSheet from "./HamburgerMenuSheet";
 
 interface Props {
   title: string;
@@ -89,16 +89,9 @@ export default function Header({
             onPress={() => setModalVisible(true)}
             className="w-10 h-10 rounded-full bg-surface border border-border items-center justify-center"
             accessibilityRole="button"
-            accessibilityLabel="Open emergency hotlines"
+            accessibilityLabel="Open menu"
           >
-            <Text className="text-primary text-lg">☰</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            onPress={() => navigation.navigate("ReportHistory" as never)}
-            className="w-10 h-10 rounded-full bg-surface border border-border items-center justify-center"
-            activeOpacity={0.8}
-          >
-            <HistoryIcon size={20} color={COLORS.primary} />
+            <Text className="text-primary text-lg font-bold">☰</Text>
           </TouchableOpacity>
           <TouchableOpacity 
             onPress={() => navigation.navigate("Notifications" as never)}
@@ -121,8 +114,8 @@ export default function Header({
         )}
       </View>
 
-      {/* Emergency Hotline Bottom Sheet */}
-      <EmergencyHotlineSheet
+      {/* Hamburger Menu Sheet */}
+      <HamburgerMenuSheet
         visible={isModalVisible}
         onClose={() => setModalVisible(false)}
       />

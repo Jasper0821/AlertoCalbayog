@@ -12,7 +12,9 @@ const auditRoutes = require("./routes/auditRoutes");
 const app = express();
 
 app.use(cors());
+
 app.use(express.json({ limit: '10mb' }));
+
 
 app.use("/api/auth", authRoutes);
 app.use("/api/emergency", emergencyRoutes);

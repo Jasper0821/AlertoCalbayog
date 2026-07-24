@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState, useRef, useCallback, useEffect } from "react";
 import {
   View,
   Text,
@@ -7,6 +7,8 @@ import {
   Pressable,
   Alert,
   ActivityIndicator,
+  Linking,
+  AppState,
 } from "react-native";
 import * as Location from "expo-location";
 import { FireIcon, MedicalIcon, CrimeIcon, FloodIcon } from "./SvgIcons";
@@ -71,7 +73,54 @@ export default function IncidentPicker({
   navigation,
 }: Props): React.JSX.Element {
   const [loading, setLoading] = useState<string | null>(null);
+  const [locationEnabled, setLocationEnabled] = useState<boolean>(false);
+  const [checkingLocation, setCheckingLocation] = useState<boolean>(true);
   const abortRef = useRef<boolean>(false);
+
+  // Check if location services and permissions are available
+  const checkLocationStatus = useCallback(async () => {
+    setCheckingLocation(true);
+    try {
+      // Check if device location services are enabled
+      const serviceEnabled = await Location.hasServicesEnabledAsync();
+      if (!serviceEnabled) {
+        setLocationEnabled(false);
+        setCheckingLocation(false);
+        return;
+      }
+
+      // Check if the app has location permission
+      const { status } = await Location.getForegroundPermissionsAsync();
+      if (status !== "granted") {
+        const { status: newStatus } = await Location.requestForegroundPermissionsAsync();
+        setLocationEnabled(newStatus === "granted");
+      } else {
+        setLocationEnabled(true);
+      }
+    } catch {
+      setLocationEnabled(false);
+    } finally {
+      setCheckingLocation(false);
+    }
+  }, []);
+
+  // Check location every time the modal becomes visible
+  useEffect(() => {
+    if (visible) {
+      checkLocationStatus();
+    }
+  }, [visible, checkLocationStatus]);
+
+  // Re-check when the app comes back to foreground (user may have toggled location in settings)
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (nextAppState) => {
+      if (nextAppState === "active" && visible) {
+        checkLocationStatus();
+      }
+    });
+
+    return () => subscription.remove();
+  }, [visible, checkLocationStatus]);
 
   // Cancel handler: sets abort flag, resets loading, and closes modal
   const handleCancel = useCallback(() => {
@@ -81,21 +130,24 @@ export default function IncidentPicker({
   }, [onClose]);
 
   const handleSelect = async (type: IncidentType) => {
+    // Block submission if location is not available
+    if (!locationEnabled) {
+      Alert.alert(
+        "⚠️ Location Required",
+        "You must turn on your location services before reporting an incident. Your location is needed so responders can find you.",
+        [
+          { text: "Open Settings", onPress: () => Linking.openSettings() },
+          { text: "Cancel", style: "cancel" },
+        ]
+      );
+      return;
+    }
+
     if (loading) return;
     abortRef.current = false;
     setLoading(type.key);
 
     try {
-      // Request location permission
-      const permission = await Location.requestForegroundPermissionsAsync();
-      if (abortRef.current) return;
-
-      if (permission.status !== "granted") {
-        Alert.alert("Permission Denied", "Location access is required to send a report.");
-        setLoading(null);
-        return;
-      }
-
       // Get current location
       let location;
       try {
@@ -105,14 +157,16 @@ export default function IncidentPicker({
       } catch (locError) {
         location = await Location.getLastKnownPositionAsync({});
         if (!location) {
-          // Fallback for emulator — Calbayog City coordinates
-          console.log("Providing mock location for emulator testing.");
-          location = {
-            coords: {
-              latitude: 12.0645,
-              longitude: 124.595,
-            },
-          };
+          Alert.alert(
+            "Location Unavailable",
+            "Unable to determine your current location. Please make sure your GPS is turned on and try again.",
+            [
+              { text: "Open Settings", onPress: () => Linking.openSettings() },
+              { text: "Cancel", style: "cancel" },
+            ]
+          );
+          setLoading(null);
+          return;
         }
       }
 
@@ -168,6 +222,8 @@ export default function IncidentPicker({
     }
   };
 
+  const isDisabled = loading !== null || !locationEnabled || checkingLocation;
+
   return (
     <Modal
       animationType="slide"
@@ -196,15 +252,44 @@ export default function IncidentPicker({
             </Text>
           </View>
 
+          {/* Location warning banner */}
+          {!checkingLocation && !locationEnabled && (
+            <TouchableOpacity
+              className="mb-4 py-3 px-4 rounded-xl bg-red/10 border border-red/30 flex-row items-center"
+              onPress={() => Linking.openSettings()}
+              activeOpacity={0.7}
+            >
+              <Text className="text-red text-lg mr-2">⚠️</Text>
+              <View className="flex-1">
+                <Text className="text-red font-bold text-xs">
+                  Location Services Disabled
+                </Text>
+                <Text className="text-red/70 text-[10px] mt-0.5">
+                  You must turn on your location before reporting an incident. Tap here to open settings.
+                </Text>
+              </View>
+            </TouchableOpacity>
+          )}
+
+          {/* Checking location indicator */}
+          {checkingLocation && (
+            <View className="mb-4 py-3 px-4 rounded-xl bg-primary/10 border border-primary/30 flex-row items-center">
+              <ActivityIndicator color="#0EA5E9" size="small" />
+              <Text className="text-primary font-bold text-xs ml-2">
+                Checking location services...
+              </Text>
+            </View>
+          )}
+
           {/* 2x2 Grid */}
-          <View className="flex-row flex-wrap justify-between gap-y-3">
+          <View className="flex-row flex-wrap justify-between gap-y-3" style={isDisabled ? { opacity: 0.4 } : undefined}>
             {INCIDENT_TYPES.map((type) => (
               <TouchableOpacity
                 key={type.key}
                 className="w-[48%] rounded-3xl border border-border p-5 items-center"
                 style={{ backgroundColor: type.bgColor }}
                 onPress={() => handleSelect(type)}
-                disabled={loading !== null}
+                disabled={isDisabled}
                 activeOpacity={0.7}
               >
                 {loading === type.key ? (
@@ -222,7 +307,7 @@ export default function IncidentPicker({
                   {type.label}
                 </Text>
                 <Text className="text-textGray text-[9px] font-bold uppercase tracking-widest mt-1 text-center">
-                  Tap to Report
+                  {!locationEnabled && !checkingLocation ? "Location Required" : "Tap to Report"}
                 </Text>
               </TouchableOpacity>
             ))}
