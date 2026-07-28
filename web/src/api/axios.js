@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const resolveBaseURL = () => {
-  const url = import.meta.env.VITE_API_URL || "https://alertocalbayog.onrender.com";
+  const url = import.meta.env.VITE_API_URL || "https://alertocalbayog-2.onrender.com";
   return `${url.replace(/\/+$/, "")}/api`;
 };
 
