@@ -2309,7 +2309,7 @@ export default function AdminDashboard() {
   };
 
   const renderSettings = () => {
-    const apiBase = import.meta.env.VITE_API_URL || "http://localhost:5000";
+    const apiBase = import.meta.env.VITE_API_URL || "https://alertocalbayog.onrender.com";
     
     const roleCounts = ["admin", "responder", "resident"].map((role) => ({
       role,

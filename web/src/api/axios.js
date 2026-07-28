@@ -1,11 +1,8 @@
 import axios from "axios";
 
 const resolveBaseURL = () => {
-  if (import.meta.env.VITE_API_URL) {
-    return `${import.meta.env.VITE_API_URL}/api`;
-  }
-  const host = window.location.hostname;
-  return `http://${host}:5000/api`;
+  const url = import.meta.env.VITE_API_URL || "https://alertocalbayog.onrender.com";
+  return `${url.replace(/\/+$/, "")}/api`;
 };
 
 const api = axios.create({
