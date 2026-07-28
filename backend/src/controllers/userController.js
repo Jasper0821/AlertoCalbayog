@@ -3,6 +3,7 @@ const AuditLog = require("../models/AuditLog");
 const Notification = require("../models/Notification");
 const bcrypt = require("bcryptjs");
 const { getSettingValue } = require("./settingsController");
+const { sendResponderApprovalEmail } = require("../utils/mailer");
 
 // Validates password complexity based on the stored securityConfig setting
 const checkPasswordComplexity = async (password) => {
@@ -125,6 +126,11 @@ exports.updateUser = async (req, res) => {
   try {
     const { id } = req.params;
     const { fullName, email, password, role, agency, phoneNumber, status } = req.body;
+    const existingUser = await User.findById(id).select("role status");
+
+    if (!existingUser) {
+      return res.status(404).json({ message: "User not found" });
+    }
 
     const updates = {};
     if (fullName !== undefined) updates.fullName = fullName;
@@ -151,10 +157,6 @@ exports.updateUser = async (req, res) => {
       runValidators: true
     }).select("-password");
 
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
-
     const auditAction = password ? "password_changed" : "user_updated";
     const auditDetails = password
       ? `Updated password for user account ${user.fullName} (${user.role})`
@@ -180,7 +182,29 @@ exports.updateUser = async (req, res) => {
       type: "user_event"
     });
 
-    res.json({ message: "User updated", user });
+    const approvedResponder =
+      existingUser.role === "responder" &&
+      existingUser.status === "pending" &&
+      user.status === "approved";
+
+    res.json({
+      message: "User updated",
+      user,
+      ...(approvedResponder && {
+        approvalEmailQueued: true,
+        emailMessage: "Responder approved. The approval email is being sent.",
+      }),
+    });
+
+    // Do not make the admin wait for Gmail SMTP before completing an approval.
+    // A delivery failure is logged, while the approved account remains usable.
+    if (approvedResponder) {
+      setImmediate(() => {
+        sendResponderApprovalEmail(user.email, user.fullName).catch((emailError) => {
+          console.error(`Failed to send responder approval email to ${user.email}:`, emailError.message);
+        });
+      });
+    }
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

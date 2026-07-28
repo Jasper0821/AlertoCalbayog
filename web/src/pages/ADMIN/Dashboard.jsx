@@ -1331,6 +1331,17 @@ export default function AdminDashboard() {
         } else {
           await fetchUsers();
         }
+        void Swal.fire({
+          toast: true,
+          position: "top-end",
+          icon: "success",
+          title: "Responder approved",
+          text: response.data?.emailMessage || "The responder can now log in.",
+          showConfirmButton: false,
+          timer: 3500,
+          timerProgressBar: true,
+          customClass: { popup: "!w-[330px] !p-3 !text-sm" },
+        });
       } else if (action === "declined") {
         // Decline: permanently delete the user — removed from queue and never in User Management
         await api.delete(`/users/${userId}`);

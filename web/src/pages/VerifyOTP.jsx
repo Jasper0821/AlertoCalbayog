@@ -29,11 +29,11 @@ function VerifyOTP() {
   }, [email, navigate]);
 
   const handleChange = (element, index) => {
-    if (isNaN(element.value)) return;
-    const newOtp = otp.map((d, idx) => (idx === index ? element.value : d));
+    const digit = element.value.replace(/\D/g, "").slice(-1);
+    const newOtp = otp.map((d, idx) => (idx === index ? digit : d));
     setOtp(newOtp);
     setOtpError("");
-    if (element.value !== "" && index < 5) {
+    if (digit && index < 5) {
       inputRefs.current[index + 1].focus();
     }
   };
@@ -85,7 +85,7 @@ function VerifyOTP() {
 
     try {
       await api.post("/auth/forgot-password", { email });
-      setResendMsg("A new OTP has been sent to your email.");
+      setResendMsg("A new OTP has been sent. Only this newest code will work.");
     } catch {
       setResendMsg("Could not resend OTP. Please try again.");
     }
@@ -142,7 +142,7 @@ function VerifyOTP() {
             <p className="text-[12px] text-slate-500 mt-1.5 text-center leading-relaxed max-w-[280px]">
               {otpVerified
                 ? "OTP verified. Enter and confirm your new password below."
-                : <>A 6-digit code was sent to <strong>{email}</strong>. Enter it below.</>}
+                : <>A 6-digit code was sent to <strong>{email}</strong>. Enter it below; it expires in 7 minutes.</>}
             </p>
           </div>
 

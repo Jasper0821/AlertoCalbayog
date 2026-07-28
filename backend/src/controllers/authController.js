@@ -7,6 +7,8 @@ const jwt = require("jsonwebtoken");
 const { sendOtpEmail } = require("../utils/mailer");
 const { getSettingValue } = require("./settingsController");
 
+const OTP_EXPIRY_MINUTES = 7;
+
 // Validates password complexity based on the stored securityConfig setting
 const checkPasswordComplexity = async (password) => {
   const securityConfig = await getSettingValue("securityConfig");
@@ -62,6 +64,7 @@ function getUserAgent(req) {
 }
 
 const normalizeEmail = (email) => email?.toString().trim().toLowerCase();
+const normalizeOtpCode = (code) => code?.toString().replace(/\D/g, "").slice(0, 6);
 const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const findUserByEmail = async (email) => {
   const normalized = normalizeEmail(email);
@@ -294,10 +297,10 @@ exports.forgotPassword = async (req, res) => {
     await Otp.create({
       email: recipientEmail,
       code,
-      expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+      expiresAt: new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000),
     });
 
-    await sendOtpEmail(recipientEmail, code);
+    await sendOtpEmail(recipientEmail, code, OTP_EXPIRY_MINUTES);
 
     await AuditLog.create({
       category: "password_security",
@@ -307,7 +310,7 @@ exports.forgotPassword = async (req, res) => {
       actorEmail: recipientEmail,
       actorRole: user.role,
       otpCode: code,
-      details: `OTP sent to ${recipientEmail} for password reset. Expires in 5 minutes.`,
+      details: `OTP sent to ${recipientEmail} for password reset. Expires in ${OTP_EXPIRY_MINUTES} minutes.`,
       source: getSource(req),
       userAgent: getUserAgent(req),
       ipAddress: getIp(req),
@@ -336,12 +339,19 @@ exports.verifyOtp = async (req, res) => {
       return res.status(400).json({ message: "Email and OTP code are required" });
     }
 
-    const normalizedEmail = email.toLowerCase().trim();
+    const normalizedEmail = normalizeEmail(email);
+    const normalizedCode = normalizeOtpCode(code);
+
+    if (normalizedCode.length !== 6) {
+      return res.status(400).json({ message: "Please enter the complete 6-digit OTP code." });
+    }
+
+    // There is only one usable code per email. Looking it up first makes the
+    // comparison resilient to input formatting and gives accurate expiry feedback.
     const record = await Otp.findOne({
       email: normalizedEmail,
-      code,
       used: false,
-    });
+    }).sort({ expiresAt: -1 });
 
     if (!record) {
       const user = await findUserByEmail(normalizedEmail);
@@ -355,11 +365,26 @@ exports.verifyOtp = async (req, res) => {
         details: "OTP verification failed — invalid or already used code.",
         ipAddress: getIp(req),
       });
-      return res.status(400).json({ message: "Invalid OTP code. Please check your email." });
+      return res.status(400).json({ message: "No active OTP was found. Please request a new code." });
     }
 
     if (record.expiresAt < new Date()) {
       return res.status(400).json({ message: "OTP has expired. Please request a new one." });
+    }
+
+    if (record.code !== normalizedCode) {
+      const user = await findUserByEmail(normalizedEmail);
+      await AuditLog.create({
+        category: "password_security",
+        action: "otp_failed",
+        actorId: user?._id || null,
+        actorName: user?.fullName || "Unknown",
+        actorEmail: normalizedEmail,
+        actorRole: user?.role || "",
+        details: "OTP verification failed — incorrect or superseded code.",
+        ipAddress: getIp(req),
+      });
+      return res.status(400).json({ message: "That code is not the latest OTP. Please use the most recently requested code or request a new one." });
     }
 
     record.used = true;
@@ -374,7 +399,7 @@ exports.verifyOtp = async (req, res) => {
       actorName: user?.fullName || "Unknown",
       actorEmail: normalizedEmail,
       actorRole: user?.role || "",
-      otpCode: code,
+      otpCode: normalizedCode,
       otpVerifiedAt: new Date(),
       details: `OTP code verified successfully for ${normalizedEmail}.`,
       source: getSource(req),
