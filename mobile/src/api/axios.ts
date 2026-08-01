@@ -17,8 +17,8 @@ const getBackendUrl = () => {
     return cleanUrl.endsWith("/api") ? cleanUrl : `${cleanUrl}/api`;
   }
 
-  // 3. Fallback to Cloudflare tunnel URL
-  return "https://dear-catch-agreements-membership.trycloudflare.com/api";
+  // 3. Fallback to production Render URL
+  return "https://alertocalbayog-2.onrender.com/api";
 };
 
 export const backendUrl = getBackendUrl();
