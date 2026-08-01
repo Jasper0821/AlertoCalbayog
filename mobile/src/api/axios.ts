@@ -18,7 +18,7 @@ const getBackendUrl = () => {
   }
 
   // 3. Fallback to Cloudflare tunnel URL
-  return "https://adapter-delayed-discussing-resources.trycloudflare.com/api";
+  return "https://dear-catch-agreements-membership.trycloudflare.com/api";
 };
 
 export const backendUrl = getBackendUrl();
