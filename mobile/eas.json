@@ -10,7 +10,7 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://dear-catch-agreements-membership.trycloudflare.com"
+        "EXPO_PUBLIC_API_URL": "https://alertocalbayog-2.onrender.com"
       }
     },
     "production": {
@@ -18,7 +18,7 @@
         "buildType": "app-bundle"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://dear-catch-agreements-membership.trycloudflare.com"
+        "EXPO_PUBLIC_API_URL": "https://alertocalbayog-2.onrender.com"
       }
     }
   },
