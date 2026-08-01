@@ -85,6 +85,23 @@ exports.markAsRead = async (req, res) => {
   }
 };
 
+// PUT /api/notifications/:id/unread — mark one notification as unread
+exports.markAsUnread = async (req, res) => {
+  try {
+    const filter = buildRecipientFilter(req.user);
+    filter._id = req.params.id;
+
+    const notification = await Notification.findOneAndUpdate(filter, { read: false }, { new: true });
+    if (!notification) {
+      return res.status(404).json({ message: "Notification not found" });
+    }
+
+    res.json(notification);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 // PUT /api/notifications/read-all — mark all notifications as read
 exports.markAllAsRead = async (req, res) => {
   try {

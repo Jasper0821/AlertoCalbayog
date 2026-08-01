@@ -22,6 +22,7 @@ async function closeExpiredResolvedReports(io) {
 
   for (const report of reports) {
     report.status = "closed";
+    report.closedAt = new Date();
     report.actionLog.push({
       actorName: "System",
       actorRole: "system",

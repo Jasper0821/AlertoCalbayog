@@ -40,6 +40,12 @@ const emergencyReportSchema = new mongoose.Schema(
       type: Date,
       default: null
     },
+    // Keep an explicit closing timestamp so a closed record can be identified
+    // reliably after an API/server restart as well as in the admin history.
+    closedAt: {
+      type: Date,
+      default: null
+    },
     location: {
       latitude: {
         type: Number,
