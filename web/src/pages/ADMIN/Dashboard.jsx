@@ -1931,7 +1931,7 @@ export default function AdminDashboard() {
     };
     return (
       <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/55 p-4" onMouseDown={() => setIsNotificationsModalOpen(false)}>
-      <section className="flex max-h-[calc(100dvh-3rem)] w-full max-w-lg min-h-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl" onMouseDown={(event) => event.stopPropagation()}>
+      <section className="flex max-h-[calc(100dvh-3rem)] w-full max-w-2xl min-h-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl" onMouseDown={(event) => event.stopPropagation()}>
         <div className="flex flex-none flex-col gap-4 border-b border-slate-100 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <div className="flex items-center gap-3">
@@ -1944,9 +1944,9 @@ export default function AdminDashboard() {
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <span className={`rounded-full px-3 py-1 text-xs font-black ${unreadCount ? "bg-red-50 text-red-700" : "bg-slate-100 text-slate-500"}`}>{unreadCount} unread</span>
-            {unreadCount > 0 && <button type="button" onClick={markAllNotificationsRead} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-50">Mark all as read</button>}
+          <div className="flex shrink-0 items-center gap-3">
+            <span className={`whitespace-nowrap rounded-full px-3 py-1 text-xs font-black ${unreadCount ? "bg-red-50 text-red-700" : "bg-slate-100 text-slate-500"}`}>{unreadCount} unread</span>
+            {unreadCount > 0 && <button type="button" onClick={markAllNotificationsRead} className="whitespace-nowrap rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-50">Mark all as read</button>}
             <button type="button" onClick={() => setIsNotificationsModalOpen(false)} className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700" aria-label="Close notifications">
               <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" d="m6 6 12 12M18 6 6 18" /></svg>
             </button>
@@ -1959,7 +1959,7 @@ export default function AdminDashboard() {
               <p className="mt-3 text-sm font-bold text-slate-700">No notifications yet</p>
               <p className="mt-1 text-xs text-slate-400">New system and incident updates will appear here.</p>
             </div>
-          ) : <div className="mx-auto max-w-lg space-y-3">
+          ) : <div className="mx-auto max-w-2xl space-y-3">
             {notifications.map((item) => {
               const style = getNotificationStyle(item);
               return <article key={item.id} className={`group flex gap-4 rounded-xl border p-4 transition ${item.read ? "border-slate-200 bg-white" : "border-emerald-200 bg-emerald-50/40 shadow-sm"}`}>
