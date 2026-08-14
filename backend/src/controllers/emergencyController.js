@@ -231,7 +231,7 @@ exports.getReportsByAgency = async (req, res) => {
   try {
     const { agency } = req.params;
     const reports = await EmergencyReport.find({ notifiedAgencies: agency, isDeleted: { $ne: true } })
-      .populate("userId", "fullName email role")
+      .populate("userId", "fullName email role phoneNumber")
       .populate("assignedResponder", "fullName email role agency phoneNumber")
       .sort({ createdAt: -1 });
 

@@ -11,7 +11,7 @@ Testtest123
 
 pnp
 pnp@gmail.com
-Testtest123
+pnp123
 
 admin
 admin@alertocalbayog.com

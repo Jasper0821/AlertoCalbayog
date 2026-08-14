@@ -105,6 +105,7 @@ function AdminDashboard() {
     localStorage.setItem("pnpActiveNav", activeNav);
   }, [activeNav]);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSidebarHovered, setIsSidebarHovered] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [showNotifDropdown, setShowNotifDropdown] = useState(false);
 
@@ -119,6 +120,7 @@ function AdminDashboard() {
 
   const alarmSirenRef = useRef(null);
   const sharedAudioCtxRef = useRef(null);
+  const processedAlertsRef = useRef(new Set());
 
   // Unlock AudioContext on first user gesture to defeat browser autoplay policy
   useEffect(() => {
@@ -234,12 +236,22 @@ function AdminDashboard() {
     return () => clearInterval(iv);
   }, []);
 
+  const getAudioContext = () => {
+    if (!sharedAudioCtxRef.current) {
+      sharedAudioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (sharedAudioCtxRef.current.state === "suspended") {
+      sharedAudioCtxRef.current.resume();
+    }
+    return sharedAudioCtxRef.current;
+  };
+
   // Web Audio siren generator
   const playSiren = () => {
     try {
       stopSiren(); // ensure no overlapping sound
 
-      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const audioCtx = getAudioContext();
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
       const lfo = audioCtx.createOscillator();
@@ -278,7 +290,9 @@ function AdminDashboard() {
       try {
         alarmSirenRef.current.osc.stop();
         alarmSirenRef.current.lfo.stop();
-        alarmSirenRef.current.audioCtx.close();
+        alarmSirenRef.current.osc.disconnect();
+        alarmSirenRef.current.lfo.disconnect();
+        alarmSirenRef.current.gain.disconnect();
       } catch (e) {
         // ignore
       }
@@ -300,7 +314,7 @@ function AdminDashboard() {
   // Web Audio chime generator
   const playSystemChime = () => {
     try {
-      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const audioCtx = getAudioContext();
       
       // Chime 1
       const osc1 = audioCtx.createOscillator();
@@ -315,16 +329,19 @@ function AdminDashboard() {
 
       // Chime 2
       setTimeout(() => {
-        const audioCtx2 = new (window.AudioContext || window.webkitAudioContext)();
-        const osc2 = audioCtx2.createOscillator();
-        const gain2 = audioCtx2.createGain();
-        osc2.connect(gain2);
-        gain2.connect(audioCtx2.destination);
-        osc2.type = "sine";
-        osc2.frequency.setValueAtTime(1100, audioCtx2.currentTime); // C6
-        gain2.gain.setValueAtTime(1.0, audioCtx2.currentTime);
-        osc2.start(audioCtx2.currentTime);
-        osc2.stop(audioCtx2.currentTime + 0.25);
+        try {
+          const osc2 = audioCtx.createOscillator();
+          const gain2 = audioCtx.createGain();
+          osc2.connect(gain2);
+          gain2.connect(audioCtx.destination);
+          osc2.type = "sine";
+          osc2.frequency.setValueAtTime(1100, audioCtx.currentTime); // C6
+          gain2.gain.setValueAtTime(1.0, audioCtx.currentTime);
+          osc2.start(audioCtx.currentTime);
+          osc2.stop(audioCtx.currentTime + 0.25);
+        } catch (err) {
+          console.warn("Chime 2 play error:", err);
+        }
       }, 150);
     } catch (err) {
       console.warn("Chime play error:", err);
@@ -367,13 +384,31 @@ function AdminDashboard() {
   useEffect(() => {
     socket.connect();
     const room = user.agency || "PNP";
-    socket.emit("joinRoom", room);
-    socket.emit("joinRoom", "admin");
+
+    const onConnect = () => {
+      console.log("📡 PNP connected to socket, joining room:", room);
+      socket.emit("joinRoom", room);
+      socket.emit("joinRoom", "admin");
+    };
+
+    if (socket.connected) {
+      onConnect();
+    }
+    socket.on("connect", onConnect);
 
     socket.on("newEmergencyAlert", (newReport) => {
       console.log("📡 PNP Command Center received live alert:", newReport);
 
       if (isPnpReport(newReport)) {
+        const reportId = newReport._id;
+        if (reportId && processedAlertsRef.current.has(reportId)) {
+          console.log("📡 Duplicate PNP alert ignored:", reportId);
+          return;
+        }
+        if (reportId) {
+          processedAlertsRef.current.add(reportId);
+        }
+
         setReports(prev => {
           if (prev.some(r => r._id === newReport._id)) return prev;
           return [newReport, ...prev];
@@ -405,6 +440,7 @@ function AdminDashboard() {
     return () => {
       socket.emit("leaveRoom", room);
       socket.emit("leaveRoom", "admin");
+      socket.off("connect", onConnect);
       socket.off("newEmergencyAlert");
       socket.off("reportStatusChanged");
       socket.off("reportDeleted");
@@ -594,42 +630,39 @@ function AdminDashboard() {
 
       {/* ══════════════ SIDEBAR ══════════════ */}
       <aside
-        className={`fixed inset-y-0 left-0 z-[60] flex flex-col w-64 transition-transform duration-300 ease-in-out ${
-          activeNav === "live-map"
-            ? isSidebarOpen ? "translate-x-0" : "-translate-x-full"
-            : `${isSidebarOpen ? "translate-x-0" : "-translate-x-full"} lg:static lg:translate-x-0 lg:shadow-none`
-        }`}
-        style={{ background: "#0a1e3f" }}
+        onMouseEnter={() => setIsSidebarHovered(true)}
+        onMouseLeave={() => setIsSidebarHovered(false)}
+        className={`
+          fixed inset-y-0 left-0 z-[60] flex flex-col
+          transition-all duration-300 ease-in-out
+          ${activeNav === "live-map"
+            ? isSidebarOpen ? "translate-x-0 w-64" : "-translate-x-full w-64"
+            : `${isSidebarOpen ? "translate-x-0 w-64" : "-translate-x-full w-64"}
+               lg:translate-x-0 lg:static lg:shadow-none
+               ${isSidebarHovered ? "lg:w-64" : "lg:w-16"}`
+          }
+        `}
+        style={{ background: "#0a1e3f", overflow: "hidden" }}
       >
         {/* Logo / Brand */}
-        <div className="flex items-center gap-3 px-5 h-16 shrink-0" style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
-          <img src="/logo.png" alt="Alerto Calbayog Logo" className="w-9 h-9 object-contain transition-transform duration-300 hover:scale-105 shrink-0" />
-          <div className="min-w-0">
-            <p className="text-sm font-bold text-white leading-none truncate">Alerto Calbayog</p>
-            <p className="text-[10px] text-emerald-300 font-semibold mt-0.5 tracking-wide">Dispatch Command</p>
-          </div>
-        </div>
-
-        {/* Agency badge */}
-        <div className="px-4 py-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
-          <div className="flex items-center gap-2 rounded-lg px-3 py-2" style={{ background: "rgba(255,255,255,0.08)" }}>
-            <div className="w-2 h-2 rounded-full bg-emerald-400 ring-2 ring-emerald-400/30 shrink-0"></div>
-            <div>
-              <p className="text-[11px] font-bold text-white">{agency} — Shift Active</p>
-              <p className="text-[10px] text-emerald-300 font-semibold">{activeCount} units responding</p>
-            </div>
+        <div className="flex items-center gap-3 px-4 h-16 shrink-0" style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+          <img src="/logo.png" alt="Alerto Calbayog Logo" className="w-8 h-8 object-contain transition-transform duration-300 hover:scale-105 shrink-0" />
+          <div className={`min-w-0 transition-all duration-300 ${isSidebarHovered ? "opacity-100 w-auto" : "opacity-0 w-0 lg:overflow-hidden"}`}>
+            <p className="text-sm font-bold text-white leading-none truncate whitespace-nowrap">Alerto Calbayog</p>
+            <p className="text-[10px] text-emerald-300 font-semibold mt-0.5 tracking-wide whitespace-nowrap">Dispatch Command</p>
           </div>
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-0.5">
+        <nav className="flex-1 overflow-y-auto px-2 py-4 space-y-0.5">
           {NAV.map(item => {
             const isActive = activeNav === item.id;
             return (
               <button
                 key={item.id}
+                title={!isSidebarHovered ? item.label : undefined}
                 onClick={() => { setActiveNav(item.id); setIsSidebarOpen(false); }}
-                className={`group w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 text-left relative ${
+                className={`group w-full flex items-center gap-3 px-2 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 text-left relative ${
                   isActive
                     ? "bg-white/15 text-white shadow-md"
                     : "text-emerald-200 hover:bg-white/10 hover:text-white"
@@ -646,11 +679,11 @@ function AdminDashboard() {
                 </span>
 
                 {/* Label */}
-                <span className="truncate">{item.label}</span>
+                <span className={`truncate transition-all duration-300 ${isSidebarHovered ? "opacity-100 w-auto" : "opacity-0 w-0 overflow-hidden"}`}>{item.label}</span>
 
                 {/* Badge for pending incidents */}
                 {item.badge && pendingCount > 0 && (
-                  <span className={`ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${
+                  <span className={`ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0 transition-all duration-300 ${isSidebarHovered ? "opacity-100" : "opacity-0"} ${
                     isActive ? "bg-white/20 text-white" : "bg-amber-400/90 text-amber-900"
                   }`}>
                     {pendingCount}
@@ -662,15 +695,16 @@ function AdminDashboard() {
         </nav>
 
         {/* Bottom logout */}
-        <div className="p-3 shrink-0" style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+        <div className="p-2 shrink-0" style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}>
           <button
             onClick={() => handleLogout()}
-            className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium text-emerald-200 hover:bg-red-500/20 hover:text-red-300 transition-all text-left"
+            className="w-full flex items-center gap-3 px-2 py-2.5 rounded-xl text-sm font-medium text-emerald-200 hover:bg-red-500/20 hover:text-red-300 transition-all text-left"
+            title={!isSidebarHovered ? "Logout" : undefined}
           >
             <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
             </svg>
-            <span>Logout Terminal</span>
+            <span className={`transition-all duration-300 whitespace-nowrap ${isSidebarHovered ? "opacity-100 w-auto" : "opacity-0 w-0 overflow-hidden"}`}>Logout Terminal</span>
           </button>
         </div>
 
