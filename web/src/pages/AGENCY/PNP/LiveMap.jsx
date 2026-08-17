@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { MapContainer, TileLayer, Marker, Popup, ZoomControl, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -61,6 +61,8 @@ function MapResizeBridge() {
 }
 
 export default function LiveMap({ reports = [] }) {
+  const [isSatellite, setIsSatellite] = useState(false);
+
   // Filter out resolved/closed reports — they should not appear on the live map
   const safeReports = (Array.isArray(reports) ? reports : []).filter(r => {
     const status = (r.status || "").toLowerCase();
@@ -120,10 +122,17 @@ export default function LiveMap({ reports = [] }) {
       <div className="relative h-full w-full bg-slate-100">
         <MapContainer center={cityCenter} zoom={14} className="h-full w-full z-10" zoomControl={false}>
           <MapResizeBridge />
-          <TileLayer
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          />
+          {isSatellite ? (
+            <TileLayer
+              url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+              attribution='Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+            />
+          ) : (
+            <TileLayer
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            />
+          )}
 
           {safeReports.map((report, idx) => {
             const coords = getCoordinates(report, idx);
@@ -211,6 +220,24 @@ export default function LiveMap({ reports = [] }) {
             <p className="text-xs font-bold text-slate-700">{safeReports.length} Active Incident{safeReports.length !== 1 ? "s" : ""}</p>
           </div>
         )}
+
+        {/* Satellite Toggle Button */}
+        <button
+          onClick={() => setIsSatellite(!isSatellite)}
+          className="absolute bottom-4 left-4 bg-white/95 backdrop-blur-sm border border-slate-200 rounded-xl px-4 py-2 shadow-sm z-[500] text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2"
+        >
+          {isSatellite ? (
+            <>
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+              Standard View
+            </>
+          ) : (
+            <>
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>
+              Satellite View
+            </>
+          )}
+        </button>
       </div>
     </div>
   );
