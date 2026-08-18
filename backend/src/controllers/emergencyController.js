@@ -25,11 +25,21 @@ const cleanPurok = (value = "") => {
   return name ? `Purok ${name}` : "";
 };
 
-const buildReadableLocationName = ({ barangay, purok }) => {
+const buildReadableLocationName = ({ barangay, purok, street }) => {
   const safeBarangay = cleanBarangay(barangay);
   const safePurok = cleanPurok(purok);
-  if (!safeBarangay || !safePurok) return "";
-  return `${safePurok}, Brgy. ${safeBarangay}, Calbayog City`;
+  const isGenericBarangay = !safeBarangay || /^district$/i.test(safeBarangay);
+
+  const parts = [];
+  if (street) parts.push(street);
+  if (safePurok) parts.push(safePurok);
+  if (!isGenericBarangay) {
+    parts.push(safeBarangay.toLowerCase().startsWith("brgy") ? safeBarangay : `Brgy. ${safeBarangay}`);
+  }
+  parts.push("Calbayog City");
+
+  if (parts.length <= 1) return "";
+  return parts.join(", ");
 };
 
 exports.createEmergencyReport = async (req, res) => {
@@ -95,12 +105,12 @@ exports.createEmergencyReport = async (req, res) => {
 
             if (purok) parts.push(purok);
             if (street && street !== purok) parts.push(street);
-            if (barangay && barangay !== purok && barangay !== street) {
+            if (barangay && barangay !== purok && barangay !== street && !/^district$/i.test(barangay)) {
               parts.push(barangay.toLowerCase().startsWith("brgy") ? barangay : `Brgy. ${barangay}`);
             }
             if (addr.city) parts.push(addr.city);
 
-            name = buildReadableLocationName({ barangay, purok }) || "";
+            name = buildReadableLocationName({ barangay, purok, street }) || "";
           }
         }
       }
