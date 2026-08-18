@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { STATUS_STYLES, TYPE_ICONS, getPriority, getIncidentId, PRIORITY_STYLES } from "../../../utils/incidentFormatters.js";
+import { STATUS_STYLES, TYPE_ICONS, getPriority, getIncidentId, PRIORITY_STYLES, formatLocationForTable } from "../../../utils/incidentFormatters.js";
 import IncidentDetailModal from "../PNP/IncidentDetailModal.jsx";
 
 export default function QueuingSystem({ reports = [], onStatusChange }) {
@@ -45,7 +45,7 @@ export default function QueuingSystem({ reports = [], onStatusChange }) {
             <tr className="bg-slate-50/70 border-b border-slate-200 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
               <th className="px-6 py-4">Incident ID</th>
               <th className="px-6 py-4">Type</th>
-              <th className="px-6 py-4">Barangay</th>
+              <th className="px-6 py-4">Location</th>
               <th className="px-6 py-4">Reporter</th>
               <th className="px-6 py-4">Contact No.</th>
               <th className="px-6 py-4">Date</th>
@@ -62,7 +62,7 @@ export default function QueuingSystem({ reports = [], onStatusChange }) {
               const typeLabel = (report.emergencyType) ? report.emergencyType.charAt(0).toUpperCase() + report.emergencyType.slice(1) : "Emergency";
               
               // Location formatting
-              const barangay = report.location?.barangay || (typeof report.location === "string" ? report.location : "Unknown");
+              const locationText = formatLocationForTable(report.location);
 
               // Time formatting
               const timeStr = report.createdAt 
@@ -86,8 +86,8 @@ export default function QueuingSystem({ reports = [], onStatusChange }) {
                       <span className="font-semibold text-slate-700">{typeLabel}</span>
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-slate-500 font-medium">
-                    {barangay}
+                  <td className="px-6 py-4 text-slate-500 font-medium" title={locationText}>
+                    {locationText}
                   </td>
                   <td className="px-6 py-4 text-slate-600">{report.userId?.fullName || "Anonymous"}</td>
                   <td className="px-6 py-4 text-slate-600 font-mono text-xs">{report.userId?.phoneNumber || report.phoneNumber || "N/A"}</td>

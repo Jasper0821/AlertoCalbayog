@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { getIncidentStatusInfo, TYPE_ICONS, getPriority, getIncidentId, PRIORITY_STYLES } from "../../../utils/incidentFormatters.js";
+import { getIncidentStatusInfo, TYPE_ICONS, getPriority, getIncidentId, PRIORITY_STYLES, formatLocationForTable } from "../../../utils/incidentFormatters.js";
 import IncidentDetailModal from "./IncidentDetailModal.jsx";
 
 export default function IncidentHistory({ reports = [] }) {
@@ -234,7 +234,7 @@ export default function IncidentHistory({ reports = [] }) {
           <table className="w-full text-left">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200">
-                {["Incident ID", "Type", "Barangay", "Reporter", "Contact No.", "Date", "Time", "Priority", "Status", "Action"].map(h => (
+                {["Incident ID", "Type", "Location", "Reporter", "Contact No.", "Date", "Time", "Priority", "Status", "Action"].map(h => (
                   <th key={h} className="px-5 py-3.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">{h}</th>
                 ))}
               </tr>
@@ -252,7 +252,7 @@ export default function IncidentHistory({ reports = [] }) {
                 const statusInfo = getIncidentStatusInfo(r.status);
                 const priority = getPriority(r);
                 const incId = getIncidentId(r, i);
-                const barangay = r.location?.barangay || (typeof r.location === "string" ? r.location : "Unknown");
+                const locationText = formatLocationForTable(r.location);
                 const date = r.createdAt ? new Date(r.createdAt) : new Date();
 
                 return (
@@ -267,7 +267,7 @@ export default function IncidentHistory({ reports = [] }) {
                       </div>
                     </td>
                     <td className="px-5 py-3.5">
-                      <span className="text-xs text-slate-600">{barangay}</span>
+                      <span className="text-xs text-slate-600">{locationText}</span>
                     </td>
                     <td className="px-5 py-3.5">
                       <span className="text-xs text-slate-600">{r.userId?.fullName || "Unknown"}</span>

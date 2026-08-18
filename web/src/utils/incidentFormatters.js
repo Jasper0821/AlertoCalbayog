@@ -48,6 +48,47 @@ export function formatIncidentLocation(location) {
   return `${streetPurok}, ${bgy}`;
 }
 
+/**
+ * Build a meaningful location string for table columns.
+ * Avoids showing just "District" — prefers street, then barangay,
+ * and falls back to coordinates if nothing useful is available.
+ */
+export function formatLocationForTable(location) {
+  if (!location) return "Unknown Location";
+  if (typeof location === "string") return location;
+
+  const street = (location.street || "").trim();
+  const barangay = (location.barangay || "").trim();
+  const purok = (location.purok || "").trim();
+  const lat = location.latitude;
+  const lng = location.longitude;
+
+  // Check if barangay is just a generic "District" value (not a real barangay name)
+  const isGenericBarangay = !barangay || /^district$/i.test(barangay);
+
+  const parts = [];
+
+  // Always show street first if available
+  if (street) parts.push(street);
+
+  // Show purok if available
+  if (purok) parts.push(purok);
+
+  // Show barangay only if it's a real barangay name (not "District")
+  if (!isGenericBarangay) {
+    parts.push(barangay.toLowerCase().startsWith("brgy") ? barangay : `Brgy. ${barangay}`);
+  }
+
+  if (parts.length > 0) return parts.join(", ");
+
+  // Fall back to coordinates if no street/barangay info is useful
+  if (lat && lng) {
+    return `${Number(lat).toFixed(5)}, ${Number(lng).toFixed(5)}`;
+  }
+
+  return location.name || "Unknown Location";
+}
+
 export function normalizeIncidentStatus(status) {
   if (!status) return "pending";
   const s = status.toLowerCase().trim();
