@@ -33,6 +33,7 @@ import api from "../../api/axios.js";
 import socket from "../../api/socket.js";
 import Swal from "sweetalert2";
 import { getValidCalbayogBarangay } from "../../utils/barangays.js";
+import { formatLocationForTable } from "../../utils/incidentFormatters.js";
 import { clearDashboardNavigationState } from "../../utils/dashboardSession.js";
 
 const STATUS_STYLES = {
@@ -110,8 +111,7 @@ function getIncidentId(report, index) {
 }
 
 function getLocation(report) {
-  if (typeof report.location === "string") return report.location;
-  return report.location?.name || [report.location?.barangay, report.location?.street, report.location?.purok].filter(Boolean).join(", ") || "Unknown location";
+  return formatLocationForTable(report?.location);
 }
 
 function getStatusInfo(status) {
@@ -130,19 +130,21 @@ function normalizeStatus(status) {
 
 function getBarangay(report) {
   // Use the barangay field directly from the DB report
-  if (report.location?.barangay) {
+  if (report?.location?.barangay) {
     const bgy = report.location.barangay.trim();
-    if (bgy && bgy.toLowerCase() !== "unknown" && bgy.toLowerCase() !== "unspecified") return bgy;
+    if (bgy && bgy.toLowerCase() !== "unknown" && bgy.toLowerCase() !== "unspecified" && bgy.toLowerCase() !== "district") return bgy;
   }
   // Fall back to location name string
-  if (typeof report.location === "string" && report.location.trim()) {
-    return report.location.trim();
+  if (typeof report?.location === "string" && report.location.trim()) {
+    const cleaned = report.location.replace(/,?\s*brgy\.?\s*district,?/gi, "").replace(/,?\s*district,?/gi, "").trim();
+    if (cleaned) return cleaned;
   }
-  if (report.location?.name) {
-    return report.location.name.trim();
+  if (report?.location?.name) {
+    const cleaned = report.location.name.replace(/,?\s*brgy\.?\s*district,?/gi, "").replace(/,?\s*district,?/gi, "").trim();
+    if (cleaned) return cleaned;
   }
   // Fall back to street if that's all we have
-  if (report.location?.street) {
+  if (report?.location?.street) {
     return report.location.street.trim();
   }
   return null;

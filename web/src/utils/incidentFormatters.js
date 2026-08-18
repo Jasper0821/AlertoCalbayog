@@ -55,7 +55,14 @@ export function formatIncidentLocation(location) {
  */
 export function formatLocationForTable(location) {
   if (!location) return "Unknown Location";
-  if (typeof location === "string") return location;
+  if (typeof location === "string") {
+    const cleaned = location
+      .replace(/,?\s*brgy\.?\s*district,?/gi, "")
+      .replace(/,?\s*district,?/gi, "")
+      .replace(/^[,\s]+|[,\s]+$/g, "")
+      .trim();
+    return cleaned || location;
+  }
 
   const street = (location.street || "").trim();
   const barangay = (location.barangay || "").trim();
@@ -86,7 +93,16 @@ export function formatLocationForTable(location) {
     return `${Number(lat).toFixed(5)}, ${Number(lng).toFixed(5)}`;
   }
 
-  return location.name || "Unknown Location";
+  if (location.name) {
+    const cleanedName = location.name
+      .replace(/,?\s*brgy\.?\s*district,?/gi, "")
+      .replace(/,?\s*district,?/gi, "")
+      .replace(/^[,\s]+|[,\s]+$/g, "")
+      .trim();
+    if (cleanedName) return cleanedName;
+  }
+
+  return "Unknown Location";
 }
 
 export function normalizeIncidentStatus(status) {
