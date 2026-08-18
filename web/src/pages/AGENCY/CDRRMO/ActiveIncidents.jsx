@@ -3,6 +3,7 @@ import {
   TYPE_ICONS,
   formatBarangay,
   formatStreetPurok,
+  formatLocationForTable,
   getIncidentStatusInfo,
   normalizeIncidentStatus
 } from "../../../utils/incidentFormatters.js";
@@ -39,7 +40,7 @@ export default function ActiveIncidents({ reports = [] }) {
             <tr className="bg-slate-50/70 border-b border-slate-200 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
               <th className="px-6 py-4">Incident ID</th>
               <th className="px-6 py-4">Type</th>
-              <th className="px-6 py-4">Barangay</th>
+              <th className="px-6 py-4">Location</th>
               <th className="px-6 py-4">Reporter</th>
               <th className="px-6 py-4">Contact No.</th>
               <th className="px-6 py-4">Date</th>
@@ -54,8 +55,7 @@ export default function ActiveIncidents({ reports = [] }) {
               const statusInfo = getIncidentStatusInfo(report.status);
 
               // Location
-              const barangay = report.location?.barangay
-                || (typeof report.location === "string" ? report.location : "Unknown");
+              const locationText = formatLocationForTable(report.location);
 
               // Time & Date
               const timeStr = report.createdAt
@@ -104,9 +104,9 @@ export default function ActiveIncidents({ reports = [] }) {
                     })()}
                   </td>
 
-                  {/* Barangay */}
-                  <td className="px-6 py-4 text-slate-600 font-medium">
-                    {barangay}
+                  {/* Location */}
+                  <td className="px-6 py-4 text-slate-600 font-medium" title={locationText}>
+                    {locationText}
                   </td>
 
                   {/* Reporter */}
