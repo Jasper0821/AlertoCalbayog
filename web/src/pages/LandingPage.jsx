@@ -196,12 +196,6 @@ function LandingPage() {
                   <polyline points="12 5 19 12 12 19"></polyline>
                 </svg>
               </Link>
-              <Link
-                to="/about"
-                className="flex items-center justify-center h-9 px-5 rounded-md bg-white border border-[#e5e7eb] text-[12px] font-bold text-[#0a1e3f] hover:bg-slate-50 transition-all duration-150 active:scale-95 transform w-full sm:w-auto"
-              >
-                Learn More
-              </Link>
             </div>
             
             <div className="flex items-center justify-center lg:justify-start gap-2 mt-3 text-[11px] font-medium text-slate-500">

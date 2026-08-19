@@ -43,17 +43,6 @@ export function Navbar() {
 
         {/* Right Actions */}
         <div className="hidden md:flex items-center gap-3">
-          <a
-            href="https://github.com/myusername/my-app/releases/latest/download/myapp.apk"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex h-9 items-center justify-center gap-2 px-4 rounded-md bg-emerald-600 hover:bg-emerald-700 text-[13px] font-bold text-white transition-all duration-150 active:scale-95 transform shadow-md shadow-emerald-600/20"
-          >
-            <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
-              <path d="M5 20h14v-2H5v2zM19 9h-4V3H9v6H5l7 7 7-7z"/>
-            </svg>
-            Download APK
-          </a>
           <Link
             to="/login"
             className="flex h-9 items-center justify-center px-5 rounded-md border-[1.5px] border-dashed border-slate-400 text-[13px] font-bold text-slate-200 hover:border-white hover:text-white transition-all duration-150 active:scale-95 transform"
