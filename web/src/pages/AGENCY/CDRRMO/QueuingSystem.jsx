@@ -39,7 +39,7 @@ export default function QueuingSystem({ reports = [], onStatusChange }) {
       </div>
 
       <div className="min-h-0 flex-1 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="h-full overflow-auto">
+        <div className="hidden h-full overflow-auto lg:block">
         <table className="min-w-[820px] w-full text-left border-collapse">
           <thead className="sticky top-0 z-10">
             <tr className="bg-slate-50/70 border-b border-slate-200 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
@@ -140,6 +140,32 @@ export default function QueuingSystem({ reports = [], onStatusChange }) {
             )}
           </tbody>
         </table>
+        </div>
+        <div className="space-y-3 p-3 lg:hidden">
+          {activeReports.map((report, idx) => {
+            const status = (report.status || "pending").toLowerCase();
+            const statusInfo = STATUS_STYLES[status] || STATUS_STYLES.pending;
+            const date = report.createdAt ? new Date(report.createdAt) : null;
+            return (
+              <article key={report._id || idx} className="rounded-xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-mono text-xs font-bold text-blue-600">{getIncidentId(report, idx)}</p>
+                    <p className="mt-1 text-sm font-bold capitalize text-slate-800">{report.emergencyType || "Emergency"}</p>
+                  </div>
+                  <button onClick={() => setSelectedReport(report)} className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-violet-200 bg-violet-50 px-2.5 py-1.5 text-[11px] font-semibold text-violet-700"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>View</button>
+                </div>
+                <dl className="mt-3 grid grid-cols-1 gap-2 text-xs">
+                  <div><dt className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Location</dt><dd className="mt-0.5 text-slate-700">{formatLocationForTable(report.location)}</dd></div>
+                  <div><dt className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Reporter</dt><dd className="mt-0.5 text-slate-700">{report.userId?.fullName || "Anonymous"}</dd></div>
+                  <div><dt className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Contact</dt><dd className="mt-0.5 font-mono text-slate-700">{report.userId?.phoneNumber || report.phoneNumber || "N/A"}</dd></div>
+                  <div><dt className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Reported</dt><dd className="mt-0.5 text-slate-700">{date && !Number.isNaN(date.getTime()) ? `${date.toLocaleDateString("en-PH", { day: "numeric", month: "short", year: "numeric" })} · ${date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : "—"}</dd></div>
+                </dl>
+                <div className="mt-3 flex items-center gap-2 border-t border-slate-200 pt-3"><span className={`h-2 w-2 rounded-full ${statusInfo.dot}`} /><select value={status === "active" ? "responding" : status} onChange={(event) => handleStatusSelect(report._id, event.target.value)} className={`bg-transparent text-xs font-bold outline-none ${statusInfo.text}`}><option value="pending">Pending</option><option value="responding">Responding</option><option value="resolved">Resolved</option></select></div>
+              </article>
+            );
+          })}
+          {activeReports.length === 0 && <p className="py-8 text-center text-sm text-slate-400">No active incidents in the queue.</p>}
         </div>
       </div>
 

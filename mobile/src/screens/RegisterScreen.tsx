@@ -30,15 +30,72 @@ export default function RegisterScreen({ navigation }: Props): React.JSX.Element
   const [email, setEmail] = useState<string>("");
   const [phoneNumber, setPhoneNumber] = useState<string>("");
   const [password, setPassword] = useState<string>("");
+  const [verificationCode, setVerificationCode] = useState<string>("");
+  const [registrationToken, setRegistrationToken] = useState<string>("");
+  const [codeSent, setCodeSent] = useState<boolean>(false);
+  const [sendingCode, setSendingCode] = useState<boolean>(false);
+  const [verifyingCode, setVerifyingCode] = useState<boolean>(false);
   const insets = useSafeAreaInsets();
 
+  const getErrorMessage = (error: any, fallback: string): string =>
+    error.response?.data?.message ||
+    (error.message === "Network Error"
+      ? `Cannot connect to server at ${backendUrl}. Please ensure your device is connected to the network.`
+      : error.message || fallback);
+
+  const requestVerificationCode = async (): Promise<void> => {
+    const cleanEmail = email.trim().toLowerCase();
+    if (!/^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@gmail\.com$/i.test(cleanEmail)) {
+      Alert.alert("Gmail Required", "Please enter a valid Gmail address.");
+      return;
+    }
+
+    setSendingCode(true);
+    try {
+      await api.post("/auth/request-registration-otp", { email: cleanEmail });
+      setRegistrationToken("");
+      setCodeSent(true);
+      Alert.alert("Verification Code Sent", `A 6-digit code was sent to ${cleanEmail}.`);
+    } catch (error: any) {
+      Alert.alert("Gmail Not Verified", getErrorMessage(error, "This Gmail address could not be verified."));
+    } finally {
+      setSendingCode(false);
+    }
+  };
+
+  const verifyEmailCode = async (): Promise<void> => {
+    if (!codeSent || verificationCode.replace(/\D/g, "").length !== 6) {
+      Alert.alert("Verification Required", "Enter the 6-digit code sent to your Gmail address.");
+      return;
+    }
+
+    setVerifyingCode(true);
+    try {
+      const response = await api.post("/auth/verify-registration-otp", {
+        email: email.trim().toLowerCase(),
+        code: verificationCode,
+      });
+      setRegistrationToken(response.data.registrationToken);
+      Alert.alert("Gmail Verified", "Your Gmail address has been verified. You can now register.");
+    } catch (error: any) {
+      Alert.alert("Verification Failed", getErrorMessage(error, "The verification code is invalid."));
+    } finally {
+      setVerifyingCode(false);
+    }
+  };
+
   const handleRegister = async (): Promise<void> => {
+    if (!registrationToken) {
+      Alert.alert("Gmail Verification Required", "Verify your Gmail address before creating an account.");
+      return;
+    }
     try {
       await api.post("/auth/register", {
         fullName,
-        email,
+        email: email.trim().toLowerCase(),
         phoneNumber,
         password,
+        registrationToken,
         role: "resident"
       });
 
@@ -46,12 +103,7 @@ export default function RegisterScreen({ navigation }: Props): React.JSX.Element
       navigation.navigate("Login");
     } catch (error: any) {
       console.error("Registration error:", error);
-      const errorMsg =
-        error.response?.data?.message ||
-        (error.message === "Network Error"
-          ? `Cannot connect to server at ${backendUrl}. Please ensure your device is connected to the network.`
-          : error.message || "Registration failed");
-      Alert.alert("Register Failed", errorMsg);
+      Alert.alert("Register Failed", getErrorMessage(error, "Registration failed"));
     }
   };
 
@@ -109,10 +161,44 @@ export default function RegisterScreen({ navigation }: Props): React.JSX.Element
             <CustomInput
               placeholder="Enter your Email"
               value={email}
-              onChangeText={setEmail}
+              onChangeText={(value) => {
+                setEmail(value);
+                setRegistrationToken("");
+                setCodeSent(false);
+              }}
               keyboardType="email-address"
               autoCapitalize="none"
             />
+
+            <TouchableOpacity
+              style={styles.verificationButton}
+              onPress={requestVerificationCode}
+              disabled={sendingCode}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.verificationButtonText}>{sendingCode ? "Sending Code..." : codeSent ? "Resend Gmail Code" : "Verify Gmail Address"}</Text>
+            </TouchableOpacity>
+
+            {codeSent && (
+              <>
+                <Text style={styles.fieldLabel}>Gmail Verification Code</Text>
+                <CustomInput
+                  placeholder="Enter 6-digit code"
+                  value={verificationCode}
+                  onChangeText={setVerificationCode}
+                  keyboardType="number-pad"
+                  maxLength={6}
+                />
+                <TouchableOpacity
+                  style={[styles.verificationButton, registrationToken ? styles.verifiedButton : undefined]}
+                  onPress={verifyEmailCode}
+                  disabled={verifyingCode || Boolean(registrationToken)}
+                  activeOpacity={0.85}
+                >
+                  <Text style={[styles.verificationButtonText, registrationToken ? styles.verifiedButtonText : undefined]}>{registrationToken ? "Gmail Verified" : verifyingCode ? "Verifying..." : "Confirm Code"}</Text>
+                </TouchableOpacity>
+              </>
+            )}
 
             {/* Phone Number Field */}
             <Text style={styles.fieldLabel}>Phone Number</Text>
@@ -251,6 +337,27 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     letterSpacing: 1.5,
     textTransform: "uppercase",
+  },
+  verificationButton: {
+    marginTop: 4,
+    marginBottom: 18,
+    borderWidth: 1,
+    borderColor: COLORS.primary,
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  verifiedButton: {
+    backgroundColor: "#15803D",
+    borderColor: "#15803D",
+  },
+  verificationButtonText: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: COLORS.primary,
+  },
+  verifiedButtonText: {
+    color: "#FFFFFF",
   },
 
   /* ── Login Link ── */

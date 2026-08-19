@@ -10,6 +10,7 @@ import QueuingSystem from "./QueuingSystem.jsx";
 import ActiveIncidents from "./ActiveIncidents.jsx";
 import LiveMap from "./LiveMap.jsx";
 import IncidentHistory from "./IncidentHistory.jsx";
+import ClosedIncidents from "./ClosedIncidents.jsx";
 import Analytics from "./Analytics.jsx";
 import Settings from "./Settings.jsx";
 
@@ -62,6 +63,15 @@ const NAV = [
     icon: (
       <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+    ),
+  },
+  {
+    id: "closed-incidents",
+    label: "Closed Incidents",
+    icon: (
+      <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M4 7.5 12 3l8 4.5M5 10v8.5A2.5 2.5 0 0 0 7.5 21h9a2.5 2.5 0 0 0 2.5-2.5V10M8.5 13l2.25 2.25L15.5 10.5" />
       </svg>
     ),
   },
@@ -507,6 +517,7 @@ function AdminDashboard() {
       case "queuing": return <QueuingSystem reports={filteredReports} onStatusChange={handleStatusChange} />;
       case "live-map": return <LiveMap reports={filteredReports} />;
       case "incident-history": return <IncidentHistory reports={filteredReports} />;
+      case "closed-incidents": return <ClosedIncidents reports={filteredReports} />;
       case "analytics": return <Analytics reports={filteredReports} />;
       case "settings": return <Settings user={user} onUserUpdate={setUser} />;
       default: return <DashboardOverview reports={filteredReports} setActiveNav={setActiveNav} />;

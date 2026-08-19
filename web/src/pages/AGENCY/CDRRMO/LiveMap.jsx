@@ -85,18 +85,18 @@ function buildDivIcon(cfg) {
   return L.divIcon({
     className: "",
     html: `
-      <div style="position:relative;width:44px;height:56px;filter:drop-shadow(0 4px 10px rgba(0,0,0,0.4));cursor:pointer;">
-        <div class="map-sonar-wave" style="color: ${cfg.color}; position: absolute; left: 22px; top: 20px;"></div>
+      <div style="position:relative;width:32px;height:42px;filter:drop-shadow(0 3px 7px rgba(0,0,0,0.35));cursor:pointer;">
+        <div class="map-sonar-wave" style="color: ${cfg.color}; position: absolute; left: 16px; top: 15px;"></div>
         <svg viewBox="0 0 44 56" xmlns="http://www.w3.org/2000/svg"
-             style="position:absolute;top:0;left:0;width:44px;height:56px;z-index:1;">
+             style="position:absolute;top:0;left:0;width:32px;height:42px;z-index:1;">
           <path d="M22 2C12.06 2 4 10.06 4 20c0 7.5 5.5 15 10.5 21C18.5 45.5 22 51 22 51s3.5-5.5 7.5-10C34.5 35 40 27.5 40 20C40 10.06 31.94 2 22 2z"
             fill="${cfg.color}" stroke="white" stroke-width="2.5"/>
           ${cfg.svg}
         </svg>
       </div>`,
-    iconSize: [44, 56],
-    iconAnchor: [22, 56],
-    popupAnchor: [0, -58],
+    iconSize: [32, 42],
+    iconAnchor: [16, 42],
+    popupAnchor: [0, -44],
   });
 }
 

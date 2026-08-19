@@ -1,11 +1,9 @@
 import { useState, useEffect, useMemo } from "react";
 import { BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line } from "recharts";
 
-import { getValidCalbayogBarangay } from "../../../utils/barangays.js";
-
 export default function Analytics({ reports = [] }) {
   const [animate, setAnimate] = useState(false);
-  const [analyticsDays, setAnalyticsDays] = useState(7);
+  const [analyticsDays, setAnalyticsDays] = useState(30);
   const [openRangeMenu, setOpenRangeMenu] = useState(null);
 
   useEffect(() => {
@@ -19,7 +17,7 @@ export default function Analytics({ reports = [] }) {
     { days: 14, label: "Last 14 Days" },
     { days: 30, label: "Last 30 Days" },
   ];
-  const rangeLabel = rangeOptions.find((option) => option.days === analyticsDays)?.label || "Last 7 Days";
+  const rangeLabel = rangeOptions.find((option) => option.days === analyticsDays)?.label || "Last 30 Days";
   const rangeStart = new Date();
   rangeStart.setHours(0, 0, 0, 0);
   rangeStart.setDate(rangeStart.getDate() - (analyticsDays - 1));
@@ -88,11 +86,14 @@ export default function Analytics({ reports = [] }) {
     : currentMonthIncidents > 0 ? 100 : 0;
   const peakIncidents = Math.max(...monthlyTrend.map((item) => item.incidents), 0);
 
-  // Barangay data
+  // Barangay data is derived only from location fields stored on each report.
+  // Do not substitute a known-barangay list or a sample location here: records
+  // with no saved barangay simply cannot be represented in this chart.
   const barangayMap = {};
   rangeReports.forEach(r => {
-    const rawLoc = r.location?.barangay || (typeof r.location === "string" ? r.location : r.location?.name || "");
-    const bgy = getValidCalbayogBarangay(rawLoc);
+    const bgy = typeof r.location === "string"
+      ? r.location.trim()
+      : (r.location?.barangay || r.location?.name || "").trim();
     if (bgy) {
       if (!barangayMap[bgy]) {
         barangayMap[bgy] = { name: bgy, count: 0, resolved: 0, pending: 0, responding: 0 };
@@ -111,11 +112,6 @@ export default function Analytics({ reports = [] }) {
   });
   const barangayData = Object.values(barangayMap)
     .sort((a, b) => b.count - a.count);
-
-  if (barangayData.length === 0) {
-    barangayData.push({ name: "No Data", count: 0 });
-  }
-  const maxBgy = Math.max(...barangayData.map(b => b.count), 1);
 
   // Crime sub-type from real data
   const crimeTypeMap = {};
@@ -298,47 +294,41 @@ export default function Analytics({ reports = [] }) {
           </div>
 
           <div className="flex-1 min-h-[280px] max-h-[500px] w-full overflow-y-auto overflow-x-hidden pr-2">
-            <div style={{ height: Math.max(280, barangayData.length * 35) }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={barangayData} layout="vertical" margin={{ top: 8, right: 18, left: 28, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" horizontal={false} />
-                  <XAxis type="number" allowDecimals={false} axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 12, fontWeight: 700 }} />
-                  <YAxis type="category" dataKey="name" width={92} axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 11, fontWeight: 700 }} />
-                  <Tooltip
-                    cursor={{ fill: "rgba(15, 23, 42, 0.04)" }}
-                    content={({ active, payload, label }) => {
-                      if (!active || !payload?.length) return null;
-                      return (
-                        <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs shadow-lg min-w-[120px]">
-                          <p className="font-black text-slate-900 mb-2">{label}</p>
-                          <div className="space-y-1">
-                            <p className="font-bold text-slate-600 flex justify-between gap-4">
-                              <span>Total:</span>
-                              <span>{payload[0].payload.count}</span>
-                            </p>
-                            <p className="font-semibold text-emerald-500 flex justify-between gap-4">
-                              <span>Resolved:</span>
-                              <span>{payload[0].payload.resolved}</span>
-                            </p>
-                            <p className="font-semibold text-amber-500 flex justify-between gap-4">
-                              <span>Pending:</span>
-                              <span>{payload[0].payload.pending}</span>
-                            </p>
-                            <p className="font-semibold text-indigo-500 flex justify-between gap-4">
-                              <span>Active:</span>
-                              <span>{payload[0].payload.responding}</span>
-                            </p>
+            {barangayData.length > 0 ? (
+              <div style={{ height: Math.max(280, barangayData.length * 35) }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={barangayData} layout="vertical" margin={{ top: 8, right: 18, left: 28, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" horizontal={false} />
+                    <XAxis type="number" allowDecimals={false} axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 12, fontWeight: 700 }} />
+                    <YAxis type="category" dataKey="name" width={92} axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 11, fontWeight: 700 }} />
+                    <Tooltip
+                      cursor={{ fill: "rgba(15, 23, 42, 0.04)" }}
+                      content={({ active, payload, label }) => {
+                        if (!active || !payload?.length) return null;
+                        return (
+                          <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs shadow-lg min-w-[120px]">
+                            <p className="font-black text-slate-900 mb-2">{label}</p>
+                            <div className="space-y-1">
+                              <p className="font-bold text-slate-600 flex justify-between gap-4"><span>Total:</span><span>{payload[0].payload.count}</span></p>
+                              <p className="font-semibold text-emerald-500 flex justify-between gap-4"><span>Resolved:</span><span>{payload[0].payload.resolved}</span></p>
+                              <p className="font-semibold text-amber-500 flex justify-between gap-4"><span>Pending:</span><span>{payload[0].payload.pending}</span></p>
+                              <p className="font-semibold text-indigo-500 flex justify-between gap-4"><span>Active:</span><span>{payload[0].payload.responding}</span></p>
+                            </div>
                           </div>
-                        </div>
-                      );
-                    }}
-                  />
-                  <Bar dataKey="resolved" stackId="a" fill="#10b981" barSize={16} />
-                  <Bar dataKey="pending" stackId="a" fill="#f59e0b" barSize={16} />
-                  <Bar dataKey="responding" stackId="a" fill="#6366f1" radius={[0, 4, 4, 0]} barSize={16} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+                        );
+                      }}
+                    />
+                    <Bar dataKey="resolved" stackId="a" fill="#10b981" barSize={16} />
+                    <Bar dataKey="pending" stackId="a" fill="#f59e0b" barSize={16} />
+                    <Bar dataKey="responding" stackId="a" fill="#6366f1" radius={[0, 4, 4, 0]} barSize={16} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <div className="flex h-[280px] items-center justify-center px-6 text-center text-xs font-semibold text-slate-400">
+                No incident records with a saved location in this period.
+              </div>
+            )}
           </div>
         </div>
 

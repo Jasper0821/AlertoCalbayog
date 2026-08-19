@@ -148,26 +148,32 @@ function LandingPage() {
 
  <Navbar />
 
- {/* Hero Section with dotted pattern */}
+ {/* Hero Section */}
  <div className="relative flex min-h-0 flex-1 flex-col items-center justify-center overflow-hidden px-4 pb-4 pt-20 sm:px-8">
- {/* Dotted Background */}
- <div className="absolute inset-0 bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:24px_24px] opacity-70 pointer-events-none" />
+ {/* Full-screen command-center background, softly faded for readable content. */}
+ <img
+ src="/command_center.png"
+ alt=""
+ aria-hidden="true"
+ className="absolute inset-0 h-full w-full object-cover opacity-70 pointer-events-none"
+ />
+ <div className="absolute inset-0 bg-slate-50/25 pointer-events-none" />
 
- <div className="relative w-full max-w-5xl mx-auto flex flex-col lg:flex-row items-center gap-4 lg:gap-7">
+ <div className="relative z-10 w-full max-w-4xl mx-auto flex flex-col items-center">
 
  {/* Left Column */}
- <div className="flex-1 text-center lg:text-left">
- <h1 className="text-[28px] sm:text-[34px] lg:text-[42px] font-bold leading-[1.04] tracking-tight text-[#0a1e3f] mb-3">
+ <div className="w-full max-w-2xl text-center">
+ <h1 className="mb-3 text-[28px] font-bold leading-[1.04] tracking-tight text-[#0a1e3f] drop-shadow-[0_1px_1px_rgba(255,255,255,0.95)] sm:text-[34px] lg:text-[42px]">
  Calbayog's Unified <br className="hidden lg:block" />
  Emergency Response <br className="hidden lg:block" />
  System
  </h1>
 
- <p className="text-[13px] sm:text-[14px] leading-relaxed text-[#5f6368] max-w-md mx-auto lg:mx-0 mb-5">
+ <p className="mx-auto mb-5 max-w-md text-[13px] leading-relaxed text-[#334155] drop-shadow-[0_1px_1px_rgba(255,255,255,0.95)] sm:text-[14px]">
  Providing the citizens of Calbayog City with a direct, high-speed connection to first responders. Real-time monitoring and coordinated dispatch for a safer community.
  </p>
 
- <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-3">
+ <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
  <Link
  to="/register"
  className="flex items-center justify-center gap-2 h-9 px-5 rounded-md bg-[#0a1e3f] text-[12px] font-bold text-white hover:bg-[#07152c] transition-all duration-150 active:scale-95 transform w-full sm:w-auto shadow-lg shadow-[#0a1e3f]/20"
@@ -184,21 +190,6 @@ function LandingPage() {
  >
  Learn More
  </Link>
- </div>
- </div>
-
- {/* Right Column (Image) */}
- <div className="flex-1 w-full max-w-[440px] lg:max-w-[500px]">
- <div className="relative rounded-xl overflow-hidden shadow-2xl shadow-slate-900/20 border border-slate-200">
- <img
- src="/command_center.png"
- alt="Emergency Command Center"
- className="block h-[145px] w-full object-cover sm:h-[180px] md:h-[220px] lg:h-[300px]"
- onError={(e) => {
- e.target.onerror = null;
- e.target.src ="https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&q=80&w=1200&h=800";
- }}
- />
  </div>
  </div>
 
