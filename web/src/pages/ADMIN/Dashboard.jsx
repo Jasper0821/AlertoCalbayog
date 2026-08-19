@@ -2762,7 +2762,7 @@ export default function AdminDashboard() {
                 >
                   <option value="osm">OpenStreetMap Standard Tile</option>
                   <option value="carto">CartoDB Positron (Light Mode Map)</option>
-                  <option value="satellite">Esri Satellite imagery</option>
+                  <option value="satellite">Google Maps Satellite</option>
                 </select>
               </div>
               <div className="flex justify-end pt-2">
