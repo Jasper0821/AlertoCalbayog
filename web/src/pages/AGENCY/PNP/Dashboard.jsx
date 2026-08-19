@@ -114,7 +114,7 @@ function AdminDashboard() {
   const [alertQueue, setAlertQueue] = useState([]);
   const [selectedUnit, setSelectedUnit] = useState("Mobile Patrol 1");
   const [dispatchNote, setDispatchNote] = useState("");
-  
+
   // Real-time dynamic clock state
   const [currentTime, setCurrentTime] = useState(new Date());
 
@@ -256,21 +256,21 @@ function AdminDashboard() {
       const gain = audioCtx.createGain();
       const lfo = audioCtx.createOscillator();
       const lfoGain = audioCtx.createGain();
-      
+
       lfo.frequency.value = 0.5; // wails slowly (once every 2 seconds) for realism
       lfoGain.gain.value = 250; // modulates pitch by +/- 250Hz
-      
+
       osc.type = "triangle"; // smooth triangle wave (realistic siren, not buzzy like sawtooth)
       osc.frequency.value = 750; // sweeps between 500Hz and 1000Hz
-      
+
       lfo.connect(lfoGain);
       lfoGain.connect(osc.frequency);
-      
+
       osc.connect(gain);
       gain.connect(audioCtx.destination);
-      
+
       gain.gain.setValueAtTime(1.0, audioCtx.currentTime);
-      
+
       osc.start();
       lfo.start();
 
@@ -315,7 +315,7 @@ function AdminDashboard() {
   const playSystemChime = () => {
     try {
       const audioCtx = getAudioContext();
-      
+
       // Chime 1
       const osc1 = audioCtx.createOscillator();
       const gain1 = audioCtx.createGain();
@@ -502,14 +502,14 @@ function AdminDashboard() {
 
   const renderContent = () => {
     switch (activeNav) {
-      case "dashboard":        return <DashboardOverview reports={filteredReports} setActiveNav={setActiveNav} />;
+      case "dashboard": return <DashboardOverview reports={filteredReports} setActiveNav={setActiveNav} />;
       case "incident-reports": return <ActiveIncidents reports={filteredReports} onStatusChange={handleStatusChange} />;
-      case "queuing":          return <QueuingSystem reports={filteredReports} onStatusChange={handleStatusChange} />;
-      case "live-map":         return <LiveMap reports={filteredReports} />;
+      case "queuing": return <QueuingSystem reports={filteredReports} onStatusChange={handleStatusChange} />;
+      case "live-map": return <LiveMap reports={filteredReports} />;
       case "incident-history": return <IncidentHistory reports={filteredReports} />;
-      case "analytics":        return <Analytics reports={filteredReports} />;
-      case "settings":         return <Settings user={user} onUserUpdate={setUser} />;
-      default:                 return <DashboardOverview reports={filteredReports} setActiveNav={setActiveNav} />;
+      case "analytics": return <Analytics reports={filteredReports} />;
+      case "settings": return <Settings user={user} onUserUpdate={setUser} />;
+      default: return <DashboardOverview reports={filteredReports} setActiveNav={setActiveNav} />;
     }
   };
 
@@ -589,7 +589,7 @@ function AdminDashboard() {
           <div className="absolute inset-0 bg-[#030d1e]/75 backdrop-blur-sm" onClick={() => setShowLogoutModal(false)} />
           <div className="relative z-10 w-full max-w-[420px] rounded-2xl overflow-hidden shadow-[0_32px_80px_-8px_rgba(0,0,0,0.7)] border border-[#1a3a6b]/60 flex flex-col bg-white animate-zoom-in">
             <div className="h-1 w-full bg-gradient-to-r from-red-700 via-red-500 to-orange-400" />
-            
+
             <div className="bg-[#0a1e3f] px-6 py-4 flex items-center gap-4 shrink-0">
               <div className="w-10 h-10 rounded-xl bg-white/10 border border-white/15 flex items-center justify-center shrink-0">
                 <svg className="w-5 h-5 text-red-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -622,7 +622,7 @@ function AdminDashboard() {
                 Logout Shift
               </button>
             </div>
-            
+
             <div className="h-1 w-full bg-gradient-to-r from-red-700 via-red-500 to-orange-400" />
           </div>
         </div>
@@ -662,11 +662,10 @@ function AdminDashboard() {
                 key={item.id}
                 title={!isSidebarHovered ? item.label : undefined}
                 onClick={() => { setActiveNav(item.id); setIsSidebarOpen(false); }}
-                className={`group w-full flex items-center gap-3 px-2 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 text-left relative ${
-                  isActive
-                    ? "bg-white/15 text-white shadow-md"
-                    : "text-emerald-200 hover:bg-white/10 hover:text-white"
-                }`}
+                className={`group w-full flex items-center gap-3 px-2 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 text-left relative ${isActive
+                  ? "bg-white/15 text-white shadow-md"
+                  : "text-emerald-200 hover:bg-white/10 hover:text-white"
+                  }`}
               >
                 {/* Active bar indicator */}
                 {isActive && (
@@ -683,9 +682,8 @@ function AdminDashboard() {
 
                 {/* Badge for pending incidents */}
                 {item.badge && pendingCount > 0 && (
-                  <span className={`ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0 transition-all duration-300 ${isSidebarHovered ? "opacity-100" : "opacity-0"} ${
-                    isActive ? "bg-white/20 text-white" : "bg-amber-400/90 text-amber-900"
-                  }`}>
+                  <span className={`ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0 transition-all duration-300 ${isSidebarHovered ? "opacity-100" : "opacity-0"} ${isActive ? "bg-white/20 text-white" : "bg-amber-400/90 text-amber-900"
+                    }`}>
                     {pendingCount}
                   </span>
                 )}
@@ -815,11 +813,10 @@ function AdminDashboard() {
             {/* Settings Button */}
             <button
               onClick={() => { setActiveNav("settings"); setShowNotifDropdown(false); }}
-              className={`p-2.5 rounded-xl transition-all ${
-                activeNav === "settings"
-                  ? "bg-[#0a1e3f] text-white"
-                  : "text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-              }`}
+              className={`p-2.5 rounded-xl transition-all ${activeNav === "settings"
+                ? "bg-[#0a1e3f] text-white"
+                : "text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                }`}
               title="Settings"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
@@ -849,11 +846,10 @@ function AdminDashboard() {
         </header>
 
         {/* ── PAGE CONTENT ── */}
-        <section className={`flex-1 min-h-0 ${
-          activeNav === "live-map" || activeNav === "dashboard"
-            ? "overflow-hidden p-0 m-0 w-full h-full"
-            : "overflow-y-auto p-5 lg:p-7"
-        }`}>
+        <section className={`flex-1 min-h-0 ${activeNav === "live-map" || activeNav === "dashboard"
+          ? "overflow-hidden p-0 m-0 w-full h-full"
+          : "overflow-y-auto p-5 lg:p-7"
+          }`}>
           <div className={
             activeNav === "live-map" || activeNav === "dashboard"
               ? "h-full w-full"

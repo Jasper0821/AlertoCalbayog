@@ -165,8 +165,8 @@ export default function LiveMap({ reports = [] }) {
             <MapResizeBridge />
             {isSatellite ? (
               <TileLayer
-                url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-                attribution='Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+                url="https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}"
+                attribution="&copy; Google Maps Satellite"
               />
             ) : (
               <TileLayer
@@ -263,7 +263,7 @@ export default function LiveMap({ reports = [] }) {
           {/* Satellite Toggle Button */}
           <button
             onClick={() => setIsSatellite(!isSatellite)}
-            className="absolute bottom-4 left-4 bg-white/95 backdrop-blur-sm border border-slate-200 rounded-xl px-4 py-2 shadow-sm z-[500] text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2"
+            className="absolute top-4 right-4 bg-white/95 backdrop-blur-sm border border-slate-200 rounded-xl px-4 py-2 shadow-sm z-[500] text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2"
           >
             {isSatellite ? (
               <>
