@@ -42,16 +42,27 @@ export function Navbar() {
         </div>
 
         {/* Right Actions */}
-        <div className="hidden md:flex items-center gap-4">
+        <div className="hidden md:flex items-center gap-3">
+          <a
+            href="https://github.com/myusername/my-app/releases/latest/download/myapp.apk"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex h-9 items-center justify-center gap-2 px-4 rounded-md bg-emerald-600 hover:bg-emerald-700 text-[13px] font-bold text-white transition-all duration-150 active:scale-95 transform shadow-md shadow-emerald-600/20"
+          >
+            <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
+              <path d="M5 20h14v-2H5v2zM19 9h-4V3H9v6H5l7 7 7-7z"/>
+            </svg>
+            Download APK
+          </a>
           <Link
             to="/login"
-            className="flex h-9 items-center justify-center px-6 rounded-md border-[1.5px] border-dashed border-slate-400 text-[13px] font-bold text-slate-200 hover:border-white hover:text-white transition-all duration-150 active:scale-95 transform"
+            className="flex h-9 items-center justify-center px-5 rounded-md border-[1.5px] border-dashed border-slate-400 text-[13px] font-bold text-slate-200 hover:border-white hover:text-white transition-all duration-150 active:scale-95 transform"
           >
             Login
           </Link>
           <Link
             to="/register"
-            className="flex h-9 items-center justify-center px-6 rounded-md bg-white text-[13px] font-bold text-[#0a1e3f] hover:bg-slate-100 transition-all duration-150 active:scale-95 transform"
+            className="flex h-9 items-center justify-center px-5 rounded-md bg-white text-[13px] font-bold text-[#0a1e3f] hover:bg-slate-100 transition-all duration-150 active:scale-95 transform"
           >
             Register
           </Link>
@@ -75,12 +86,24 @@ export function Navbar() {
       </div>
 
       {/* Mobile Menu Content */}
-      <div className={`md:hidden absolute top-full left-0 right-0 bg-[#0f172a] border-b border-slate-800 transition-all duration-300 overflow-hidden ${isOpen ? 'max-h-96 opacity-100 visible' : 'max-h-0 opacity-0 invisible'}`}>
+      <div className={`md:hidden absolute top-full left-0 right-0 bg-[#0f172a] border-b border-slate-800 transition-all duration-300 overflow-hidden ${isOpen ? 'max-h-[28rem] opacity-100 visible' : 'max-h-0 opacity-0 invisible'}`}>
         <div className="flex flex-col p-6 gap-4 text-center">
           <Link to="/services" onClick={() => setIsOpen(false)} className="text-[15px] font-semibold text-slate-200 hover:text-white py-2 transition-all duration-150 active:scale-95 transform">Services</Link>
           <Link to="/about" onClick={() => setIsOpen(false)} className="text-[15px] font-medium text-slate-400 hover:text-white py-2 transition-all duration-150 active:scale-95 transform">About</Link>
           <Link to="/contact" onClick={() => setIsOpen(false)} className="text-[15px] font-medium text-slate-400 hover:text-white py-2 transition-all duration-150 active:scale-95 transform">Contact</Link>
           <div className="h-px bg-slate-800 my-2"></div>
+          <a
+            href="https://github.com/myusername/my-app/releases/latest/download/myapp.apk"
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => setIsOpen(false)}
+            className="flex h-10 items-center justify-center gap-2 rounded-md bg-emerald-600 hover:bg-emerald-700 text-[14px] font-bold text-white transition-all duration-150 active:scale-95 transform shadow-md shadow-emerald-600/20"
+          >
+            <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+              <path d="M5 20h14v-2H5v2zM19 9h-4V3H9v6H5l7 7 7-7z"/>
+            </svg>
+            Download Mobile App (APK)
+          </a>
           <Link
             to="/login"
             onClick={() => setIsOpen(false)}
