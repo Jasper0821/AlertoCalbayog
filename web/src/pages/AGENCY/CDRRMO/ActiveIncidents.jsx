@@ -1,12 +1,5 @@
 import { useState } from "react";
-import {
-  TYPE_ICONS,
-  formatBarangay,
-  formatStreetPurok,
-  formatLocationForTable,
-  getIncidentStatusInfo,
-  normalizeIncidentStatus
-} from "../../../utils/incidentFormatters.js";
+import { TYPE_ICONS, formatLocationForTable, normalizeIncidentStatus } from "../../../utils/incidentFormatters.js";
 import IncidentDetailModal from "../PNP/IncidentDetailModal.jsx";
 
 export default function ActiveIncidents({ reports = [] }) {
@@ -35,29 +28,23 @@ export default function ActiveIncidents({ reports = [] }) {
       {/* Table */}
       <div className="min-h-0 flex-1 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="h-full overflow-auto">
-        <table className="min-w-[960px] w-full text-left border-collapse">
+        <table className="incident-reports-table min-w-[650px] w-full text-left border-collapse">
           <thead className="sticky top-0 z-10">
             <tr className="bg-slate-50/70 border-b border-slate-200 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-              <th className="px-6 py-4">Incident ID</th>
               <th className="px-6 py-4">Type</th>
               <th className="px-6 py-4">Location</th>
               <th className="px-6 py-4">Reporter</th>
               <th className="px-6 py-4">Contact No.</th>
-              <th className="px-6 py-4">Date</th>
               <th className="px-6 py-4">Time</th>
-              <th className="px-6 py-4">Status</th>
               <th className="px-6 py-4">Action</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {activeReports.map((report, idx) => {
-              const status = (report.status || "active").toLowerCase();
-              const statusInfo = getIncidentStatusInfo(report.status);
-
               // Location
               const locationText = formatLocationForTable(report.location);
 
-              // Time & Date
+              // Time
               const timeStr = report.createdAt
                 ? new Date(report.createdAt).toLocaleTimeString([], {
                     hour: "2-digit",
@@ -65,17 +52,6 @@ export default function ActiveIncidents({ reports = [] }) {
                     hour12: false,
                   })
                 : "--:--";
-              const dateStr = report.createdAt
-                ? new Date(report.createdAt).toLocaleDateString("en-PH", {
-                    day: "numeric",
-                    month: "short",
-                    year: "numeric",
-                  })
-                : "—";
-
-              const incId =
-                report.incidentId ||
-                `INC-2024-${String(90 - idx).padStart(3, "0")}`;
               const phone = report.userId?.phoneNumber || report.phoneNumber || "N/A";
               const reporter = report.userId?.fullName || "Anonymous";
 
@@ -84,11 +60,6 @@ export default function ActiveIncidents({ reports = [] }) {
                   key={report._id || idx}
                   className="hover:bg-slate-50/40 transition-colors text-sm text-slate-700"
                 >
-                  {/* Incident ID */}
-                  <td className="px-6 py-4 font-mono font-bold text-slate-900">
-                    {incId}
-                  </td>
-
                   {/* Type */}
                   <td className="px-6 py-4">
                     {(() => {
@@ -119,22 +90,9 @@ export default function ActiveIncidents({ reports = [] }) {
                     {phone}
                   </td>
 
-                  {/* Date */}
-                  <td className="px-6 py-4 text-slate-500 font-medium whitespace-nowrap">
-                    {dateStr}
-                  </td>
-
                   {/* Time */}
                   <td className="px-6 py-4 text-slate-500 font-medium">
                     {timeStr}
-                  </td>
-
-                  {/* Status — read-only badge */}
-                  <td className="px-6 py-4">
-                    <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full ${statusInfo.className}`}>
-                      <span className="w-1.5 h-1.5 rounded-full bg-current opacity-70" />
-                      {statusInfo.label}
-                    </span>
                   </td>
 
                   {/* Action */}
@@ -157,7 +115,7 @@ export default function ActiveIncidents({ reports = [] }) {
             {activeReports.length === 0 && (
               <tr>
                 <td
-                  colSpan="9"
+                  colSpan="6"
                   className="px-6 py-14 text-center"
                 >
                   <div className="flex flex-col items-center gap-3">

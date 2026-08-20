@@ -3,7 +3,7 @@ import {
   LineChart, Line,
   XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from "recharts";
-import { STATUS_STYLES, TYPE_ICONS, getIncidentId } from "../../../utils/incidentFormatters.js";
+import { TYPE_ICONS } from "../../../utils/incidentFormatters.js";
 import IncidentDetailModal from "./IncidentDetailModal.jsx";
 
 /* ─── Brand (PNP violet) ─────────────────────────────────────────── */
@@ -171,7 +171,7 @@ export default function DashboardOverview({ reports = [], setActiveNav, onStatus
   ];
 
   return (
-    <div style={{
+    <div className="agency-dashboard" style={{
       width:"100%", height:"100%",
       display:"flex", flexDirection:"column",
       padding:"16px 20px", gap:12,
@@ -180,7 +180,7 @@ export default function DashboardOverview({ reports = [], setActiveNav, onStatus
     }}>
 
       {/* KPI Cards */}
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10, flexShrink:0 }}>
+      <div className="agency-dashboard-kpis" style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10, flexShrink:0 }}>
         {cards.map((c,i)=>(
           <div key={i} style={{
             background: c.highlight ? BRAND_BG : "#fff",
@@ -216,10 +216,10 @@ export default function DashboardOverview({ reports = [], setActiveNav, onStatus
       </div>
 
       {/* Charts row */}
-      <div style={{ display:"grid", gridTemplateColumns:"1.55fr 1fr", gap:10, flex:1, minHeight:0 }}>
+      <div className="agency-dashboard-charts" style={{ display:"grid", gridTemplateColumns:"1.55fr 1fr", gap:10, flex:1, minHeight:0 }}>
 
         {/* Case Overview chart — this month daily */}
-        <div style={{ background:"#fff", borderRadius:12, padding:"14px 16px", boxShadow:"0 1px 4px rgba(0,0,0,0.05)", display:"flex", flexDirection:"column" }}>
+        <div className="agency-dashboard-chart" style={{ background:"#fff", borderRadius:12, padding:"14px 16px", boxShadow:"0 1px 4px rgba(0,0,0,0.05)", display:"flex", flexDirection:"column" }}>
           <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10, flexShrink:0 }}>
             <span style={{ fontSize:13, fontWeight:800, color:"#0f172a" }}>Case Overview</span>
             <div style={{ display:"flex", gap:12 }}>
@@ -250,17 +250,17 @@ export default function DashboardOverview({ reports = [], setActiveNav, onStatus
         </div>
 
         {/* Calendar */}
-        <div style={{ background:"#fff", borderRadius:12, padding:"14px 16px", boxShadow:"0 1px 4px rgba(0,0,0,0.05)" }}>
+        <div className="agency-dashboard-calendar" style={{ background:"#fff", borderRadius:12, padding:"14px 16px", boxShadow:"0 1px 4px rgba(0,0,0,0.05)" }}>
           <MiniCalendar reports={safe}/>
         </div>
       </div>
 
       {/* Police Case Reports table */}
-      <div style={{ background:"#fff", borderRadius:12, boxShadow:"0 1px 4px rgba(0,0,0,0.05)", overflow:"hidden", flexShrink:0 }}>
-        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 16px", borderBottom:"1px solid #f1f5f9" }}>
+      <div className="agency-dashboard-reports" style={{ background:"#fff", borderRadius:12, boxShadow:"0 1px 4px rgba(0,0,0,0.05)", overflow:"hidden", flexShrink:0 }}>
+        <div className="agency-dashboard-reports-header" style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 16px", borderBottom:"1px solid #f1f5f9" }}>
           <div>
             <span style={{ fontSize:13, fontWeight:800, color:"#0f172a" }}>Police Case Reports</span>
-            <span style={{ fontSize:9, color:"#94a3b8", marginLeft:8, fontWeight:500 }}>
+            <span className="agency-dashboard-reports-summary" style={{ fontSize:9, color:"#94a3b8", marginLeft:8, fontWeight:500 }}>
               Live reports filed through AlertoCalbayog
             </span>
           </div>
@@ -272,33 +272,27 @@ export default function DashboardOverview({ reports = [], setActiveNav, onStatus
           </div>
         </div>
 
-        <table style={{ width:"100%", borderCollapse:"collapse" }}>
+        <table className="agency-dashboard-reports-table" style={{ width:"100%", borderCollapse:"collapse" }}>
           <thead>
             <tr style={{ background:"#f8fafc" }}>
-              <th style={TH}><input type="checkbox" style={{ cursor:"pointer" }}/></th>
-              {["No.","Complainant","Case Type","Date Filed","Status","Location","Contact No.","Action"].map(h=>(
+              {["Complainant","Case Type","Location","Contact No.","Action"].map(h=>(
                 <th key={h} style={TH}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {tableRows.length===0 ? (
-              <tr><td colSpan={9} style={{ padding:"20px 0", textAlign:"center", fontSize:11, color:"#94a3b8" }}>No cases for this period</td></tr>
+              <tr><td colSpan={5} style={{ padding:"20px 0", textAlign:"center", fontSize:11, color:"#94a3b8" }}>No cases for this period</td></tr>
             ) : tableRows.map((r,i)=>{
               const typeKey  = (r.emergencyType||"others").toLowerCase();
-              const statKey  = (r.status||"pending").toLowerCase();
               const typeInfo = TYPE_ICONS[typeKey]||TYPE_ICONS.others;
-              const statInfo = STATUS_STYLES[statKey]||STATUS_STYLES.pending;
               const reporter = r.userId?.fullName||r.name||"Anonymous";
               const phone    = r.userId?.phoneNumber||r.phoneNumber||"N/A";
               const loc      = typeof r.location==="string"?r.location:(r.location?.name||[r.location?.barangay,r.location?.street].filter(Boolean).join(", ")||"Unknown");
-              const dateStr  = r.createdAt?new Date(r.createdAt).toLocaleDateString("en-PH",{day:"numeric",month:"short",year:"numeric"}):"—";
               return (
                 <tr key={r._id||i} style={{ borderTop:"1px solid #f8fafc", transition:"background .12s" }}
                   onMouseEnter={e=>e.currentTarget.style.background="#f8fafc"}
                   onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                  <td style={TD}><input type="checkbox" style={{ cursor:"pointer" }}/></td>
-                  <td style={{ ...TD, color:"#94a3b8", fontWeight:700 }}>{String(i+1).padStart(2,"0")}</td>
                   <td style={TD}>
                     <div style={{ display:"flex", alignItems:"center", gap:7 }}>
                       <div style={{ width:28, height:28, borderRadius:"50%", background:BRAND_BG, color:BRAND_D, display:"flex", alignItems:"center", justifyContent:"center", fontSize:10, fontWeight:800, flexShrink:0 }}>
@@ -311,14 +305,6 @@ export default function DashboardOverview({ reports = [], setActiveNav, onStatus
                     </div>
                   </td>
                   <td style={{ ...TD, fontWeight:600, color:"#374151" }}>{typeInfo.label}</td>
-                  <td style={{ ...TD, color:"#64748b" }}>{dateStr}</td>
-                  <td style={TD}>
-                    <span className={`${statInfo.bg} ${statInfo.text} border ${statInfo.border}`}
-                      style={{ display:"inline-flex", alignItems:"center", gap:4, padding:"2px 8px", borderRadius:20, fontSize:9, fontWeight:700 }}>
-                      <span className={statInfo.dot} style={{ width:5, height:5, borderRadius:"50%", display:"inline-block" }}/>
-                      {statInfo.label}
-                    </span>
-                  </td>
                   <td style={{ ...TD, color:"#64748b", maxWidth:130, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{loc}</td>
                   <td style={{ ...TD, color:"#64748b", fontFamily:"monospace", fontSize:10 }}>{phone}</td>
                   <td style={TD}>
