@@ -673,7 +673,7 @@ function CdrrmoDashboard() {
         {/* Logo / Brand */}
         <div className="flex items-center gap-3 px-4 h-16 shrink-0" style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
           <img src="/logo.png" alt="Alerto Calbayog Logo" className="w-8 h-8 object-contain transition-transform duration-300 hover:scale-105 shrink-0" />
-          <div className={`min-w-0 transition-all duration-300 ${isSidebarHovered ? "opacity-100 w-auto" : "opacity-0 w-0 lg:overflow-hidden"}`}>
+          <div className={`min-w-0 transition-all duration-300 ${isSidebarOpen || isSidebarHovered ? "opacity-100 w-auto" : "opacity-0 w-0 lg:overflow-hidden"}`}>
             <p className="text-sm font-bold text-white leading-none truncate whitespace-nowrap">Alerto Calbayog</p>
             <p className="text-[10px] text-emerald-300 font-semibold mt-0.5 tracking-wide whitespace-nowrap">Dispatch Command</p>
           </div>
@@ -704,11 +704,11 @@ function CdrrmoDashboard() {
                 </span>
 
                 {/* Label */}
-                <span className={`truncate transition-all duration-300 ${isSidebarHovered ? "opacity-100 w-auto" : "opacity-0 w-0 overflow-hidden"}`}>{item.label}</span>
+                <span className={`truncate transition-all duration-300 ${isSidebarOpen || isSidebarHovered ? "opacity-100 w-auto" : "opacity-0 w-0 overflow-hidden"}`}>{item.label}</span>
 
                 {/* Badge for pending incidents */}
                 {item.badge && pendingCount > 0 && (
-                  <span className={`ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0 transition-all duration-300 ${isSidebarHovered ? "opacity-100" : "opacity-0"} ${isActive ? "bg-white/20 text-white" : "bg-amber-400/90 text-amber-900"
+                   <span className={`ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0 transition-all duration-300 ${isSidebarOpen || isSidebarHovered ? "opacity-100" : "opacity-0"} ${isActive ? "bg-white/20 text-white" : "bg-amber-400/90 text-amber-900"
                     }`}>
                     {pendingCount}
                   </span>
@@ -728,7 +728,7 @@ function CdrrmoDashboard() {
             <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
             </svg>
-            <span className={`transition-all duration-300 whitespace-nowrap ${isSidebarHovered ? "opacity-100 w-auto" : "opacity-0 w-0 overflow-hidden"}`}>Logout</span>
+            <span className={`transition-all duration-300 whitespace-nowrap ${isSidebarOpen || isSidebarHovered ? "opacity-100 w-auto" : "opacity-0 w-0 overflow-hidden"}`}>Logout</span>
           </button>
         </div>
 

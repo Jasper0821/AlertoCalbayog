@@ -214,3 +214,73 @@
   height: 100% !important;
   width: 100% !important;
 }
+
+/* Agency dashboard layouts: stack content and preserve table access on phones. */
+@media (max-width: 767px) {
+  .agency-dashboard {
+    height: auto !important;
+    min-height: 100%;
+    padding: 12px !important;
+    gap: 12px !important;
+    overflow-y: auto !important;
+  }
+
+  .agency-dashboard-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+  }
+
+  .agency-dashboard-charts {
+    grid-template-columns: minmax(0, 1fr) !important;
+    flex: none !important;
+    gap: 12px !important;
+  }
+
+  .agency-dashboard-chart {
+    min-height: 250px;
+  }
+
+  .agency-dashboard-calendar {
+    min-height: 270px;
+  }
+
+  .agency-dashboard-reports {
+    overflow-x: auto !important;
+  }
+
+  .agency-dashboard-reports-header {
+    align-items: flex-start !important;
+    gap: 8px;
+  }
+
+  .agency-dashboard-reports-summary {
+    display: none;
+  }
+
+  .agency-dashboard-reports-table {
+    min-width: 0;
+  }
+
+  .agency-dashboard-reports-table th:not(:nth-child(1)):not(:nth-child(3)):not(:nth-child(5)),
+  .agency-dashboard-reports-table td:not(:nth-child(1)):not(:nth-child(3)):not(:nth-child(5)) {
+    display: none;
+  }
+
+  .agency-dashboard-reports-table td[colspan] {
+    display: table-cell;
+  }
+
+  /* Keep the mobile incident list focused on location, reporter, and details. */
+  .incident-reports-table {
+    min-width: 0 !important;
+  }
+
+  .incident-reports-table th:not(:nth-child(2)):not(:nth-child(3)):not(:nth-child(6)),
+  .incident-reports-table td:not(:nth-child(2)):not(:nth-child(3)):not(:nth-child(6)) {
+    display: none;
+  }
+
+  .incident-reports-table td[colspan] {
+    display: table-cell;
+  }
+}

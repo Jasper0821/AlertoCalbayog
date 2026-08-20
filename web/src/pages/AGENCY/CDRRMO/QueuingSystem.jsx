@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { STATUS_STYLES, TYPE_ICONS, getPriority, getIncidentId, PRIORITY_STYLES, formatLocationForTable } from "../../../utils/incidentFormatters.js";
+import { formatLocationForTable } from "../../../utils/incidentFormatters.js";
 import IncidentDetailModal from "../PNP/IncidentDetailModal.jsx";
 
 export default function QueuingSystem({ reports = [], onStatusChange }) {
@@ -40,25 +40,19 @@ export default function QueuingSystem({ reports = [], onStatusChange }) {
 
       <div className="min-h-0 flex-1 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="hidden h-full overflow-auto lg:block">
-        <table className="min-w-[820px] w-full text-left border-collapse">
+        <table className="min-w-[650px] w-full text-left border-collapse">
           <thead className="sticky top-0 z-10">
             <tr className="bg-slate-50/70 border-b border-slate-200 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-              <th className="px-6 py-4">Incident ID</th>
               <th className="px-6 py-4">Type</th>
               <th className="px-6 py-4">Location</th>
               <th className="px-6 py-4">Reporter</th>
               <th className="px-6 py-4">Contact No.</th>
-              <th className="px-6 py-4">Date</th>
               <th className="px-6 py-4">Time</th>
-              <th className="px-6 py-4">Status</th>
               <th className="px-6 py-4">Action</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {activeReports.map((report, idx) => {
-              const status = (report.status || "pending").toLowerCase();
-              const type = (report.emergencyType || "others").toLowerCase();
-              const isResolved = ["resolved", "responded", "closed"].includes(status);
               const typeLabel = (report.emergencyType) ? report.emergencyType.charAt(0).toUpperCase() + report.emergencyType.slice(1) : "Emergency";
               
               // Location formatting
@@ -68,18 +62,8 @@ export default function QueuingSystem({ reports = [], onStatusChange }) {
               const timeStr = report.createdAt 
                 ? new Date(report.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
                 : "--:--";
-              const dateStr = report.createdAt
-                ? new Date(report.createdAt).toLocaleDateString("en-PH", { day: "numeric", month: "short", year: "numeric" })
-                : "—";
-
-              const incId = report.incidentId || `INC-2024-${String(90 - idx).padStart(3, "0")}`;
-
-              // Select status styles
-              const statusInfo = STATUS_STYLES[status] || STATUS_STYLES.pending;
-
               return (
                 <tr key={report._id || idx} className="hover:bg-slate-50/30 transition-colors text-sm text-slate-700">
-                  <td className="px-6 py-4 font-bold text-slate-900">{incId}</td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2">
                       <span className="w-2.5 h-2.5 rounded-full bg-blue-600"></span>
@@ -91,29 +75,7 @@ export default function QueuingSystem({ reports = [], onStatusChange }) {
                   </td>
                   <td className="px-6 py-4 text-slate-600">{report.userId?.fullName || "Anonymous"}</td>
                   <td className="px-6 py-4 text-slate-600 font-mono text-xs">{report.userId?.phoneNumber || report.phoneNumber || "N/A"}</td>
-                  <td className="px-6 py-4 text-slate-500 font-medium whitespace-nowrap">{dateStr}</td>
                   <td className="px-6 py-4 text-slate-500 font-medium">{timeStr}</td>
-                  <td className="px-6 py-4">
-                    {isResolved ? (
-                      <div className="flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                        <span className="text-xs font-bold text-emerald-600">Responded</span>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-2">
-                        <span className={`w-2 h-2 rounded-full ${statusInfo.dot}`}></span>
-                        <select
-                          value={status === "active" ? "responding" : (status === "responded" ? "resolved" : status)}
-                          onChange={(e) => handleStatusSelect(report._id, e.target.value)}
-                          className={`text-xs font-bold bg-transparent border-none p-0 pr-6 focus:outline-none focus:ring-0 cursor-pointer ${statusInfo.text}`}
-                        >
-                          <option value="pending" className="text-amber-600 font-bold">Pending</option>
-                          <option value="responding" className="text-indigo-600 font-bold">Responding</option>
-                          <option value="resolved" className="text-emerald-600 font-bold">Resolved</option>
-                        </select>
-                      </div>
-                    )}
-                  </td>
 
                   {/* Action */}
                   <td className="px-6 py-4">
@@ -133,7 +95,7 @@ export default function QueuingSystem({ reports = [], onStatusChange }) {
             })}
             {activeReports.length === 0 && (
               <tr>
-                <td colSpan="9" className="px-6 py-8 text-center text-slate-400">
+                <td colSpan="6" className="px-6 py-8 text-center text-slate-400">
                   No active incidents in the queue.
                 </td>
               </tr>
@@ -143,14 +105,10 @@ export default function QueuingSystem({ reports = [], onStatusChange }) {
         </div>
         <div className="space-y-3 p-3 lg:hidden">
           {activeReports.map((report, idx) => {
-            const status = (report.status || "pending").toLowerCase();
-            const statusInfo = STATUS_STYLES[status] || STATUS_STYLES.pending;
-            const date = report.createdAt ? new Date(report.createdAt) : null;
             return (
               <article key={report._id || idx} className="rounded-xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="font-mono text-xs font-bold text-blue-600">{getIncidentId(report, idx)}</p>
                     <p className="mt-1 text-sm font-bold capitalize text-slate-800">{report.emergencyType || "Emergency"}</p>
                   </div>
                   <button onClick={() => setSelectedReport(report)} className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-violet-200 bg-violet-50 px-2.5 py-1.5 text-[11px] font-semibold text-violet-700"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>View</button>
@@ -159,9 +117,7 @@ export default function QueuingSystem({ reports = [], onStatusChange }) {
                   <div><dt className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Location</dt><dd className="mt-0.5 text-slate-700">{formatLocationForTable(report.location)}</dd></div>
                   <div><dt className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Reporter</dt><dd className="mt-0.5 text-slate-700">{report.userId?.fullName || "Anonymous"}</dd></div>
                   <div><dt className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Contact</dt><dd className="mt-0.5 font-mono text-slate-700">{report.userId?.phoneNumber || report.phoneNumber || "N/A"}</dd></div>
-                  <div><dt className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Reported</dt><dd className="mt-0.5 text-slate-700">{date && !Number.isNaN(date.getTime()) ? `${date.toLocaleDateString("en-PH", { day: "numeric", month: "short", year: "numeric" })} · ${date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : "—"}</dd></div>
                 </dl>
-                <div className="mt-3 flex items-center gap-2 border-t border-slate-200 pt-3"><span className={`h-2 w-2 rounded-full ${statusInfo.dot}`} /><select value={status === "active" ? "responding" : status} onChange={(event) => handleStatusSelect(report._id, event.target.value)} className={`bg-transparent text-xs font-bold outline-none ${statusInfo.text}`}><option value="pending">Pending</option><option value="responding">Responding</option><option value="resolved">Resolved</option></select></div>
               </article>
             );
           })}
