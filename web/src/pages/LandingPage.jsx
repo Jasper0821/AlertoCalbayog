@@ -172,26 +172,43 @@ function LandingPage() {
  <p className="mx-auto mb-5 max-w-md text-[13px] leading-relaxed text-[#334155] drop-shadow-[0_1px_1px_rgba(255,255,255,0.95)] sm:text-[14px]">
  Providing the citizens of Calbayog City with a direct, high-speed connection to first responders. Real-time monitoring and coordinated dispatch for a safer community.
  </p>
+ <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-3">
+   <a
+  href="https://github.com/Jasper0821/AlertoCalbayog/releases/latest/download/myapp.apk"
+  target="_blank"
+  rel="noopener noreferrer"
+  className="flex items-center justify-center gap-2 h-9 px-5 rounded-md bg-emerald-600 hover:bg-emerald-700 text-[12px] font-bold text-white transition-all duration-150 active:scale-95 transform w-full sm:w-auto shadow-lg shadow-emerald-600/20 group"
+>
+  <svg
+    className="w-4 h-4 fill-current transition-transform group-hover:translate-y-0.5"
+    viewBox="0 0 24 24"
+  >
+    <path d="M5 20h14v-2H5v2zM19 9h-4V3H9v6H5l7 7 7-7z"/>
+  </svg>
 
- <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
- <Link
- to="/register"
- className="flex items-center justify-center gap-2 h-9 px-5 rounded-md bg-[#0a1e3f] text-[12px] font-bold text-white hover:bg-[#07152c] transition-all duration-150 active:scale-95 transform w-full sm:w-auto shadow-lg shadow-[#0a1e3f]/20"
- >
- Register for Alerts
- <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
- <line x1="5" y1="12" x2="19" y2="12"></line>
- <polyline points="12 5 19 12 12 19"></polyline>
- </svg>
- </Link>
- <Link
- to="/about"
- className="flex items-center justify-center h-9 px-5 rounded-md bg-white border border-[#e5e7eb] text-[12px] font-bold text-[#0a1e3f] hover:bg-slate-50 transition-all duration-150 active:scale-95 transform w-full sm:w-auto"
- >
- Learn More
- </Link>
- </div>
- </div>
+  <span>Download App</span>
+
+  <span className="text-[10px] bg-emerald-800/50 text-emerald-100 px-1.5 py-0.5 rounded font-mono font-medium">
+    APK
+  </span>
+</a>
+              <Link
+                to="/register"
+                className="flex items-center justify-center gap-2 h-9 px-5 rounded-md bg-[#0a1e3f] text-[12px] font-bold text-white hover:bg-[#07152c] transition-all duration-150 active:scale-95 transform w-full sm:w-auto shadow-lg shadow-[#0a1e3f]/20"
+              >
+                Register for Alerts
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="5" y1="12" x2="19" y2="12"></line>
+                  <polyline points="12 5 19 12 12 19"></polyline>
+                </svg>
+              </Link>
+            </div>
+            
+            <div className="flex items-center justify-center lg:justify-start gap-2 mt-3 text-[11px] font-medium text-slate-500">
+              <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span>Mobile App Available • Direct GitHub Release APK Download</span>
+            </div>
+          </div>
 
  </div>
  </div>
