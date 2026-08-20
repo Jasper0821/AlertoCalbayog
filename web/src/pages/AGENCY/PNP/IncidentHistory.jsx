@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { getIncidentStatusInfo, TYPE_ICONS, getPriority, getIncidentId, PRIORITY_STYLES, formatLocationForTable } from "../../../utils/incidentFormatters.js";
+import { TYPE_ICONS, getPriority, getIncidentId, formatLocationForTable } from "../../../utils/incidentFormatters.js";
 import IncidentDetailModal from "./IncidentDetailModal.jsx";
 
 export default function IncidentHistory({ reports = [] }) {
@@ -230,69 +230,52 @@ export default function IncidentHistory({ reports = [] }) {
 
       {/* Table */}
       <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead>
+        <div className="overflow-x-hidden lg:overflow-x-auto">
+          <table className="block w-full text-left lg:table">
+            <thead className="hidden lg:table-header-group">
               <tr className="bg-slate-50 border-b border-slate-200">
-                {["Incident ID", "Type", "Location", "Reporter", "Contact No.", "Date", "Time", "Priority", "Status", "Action"].map(h => (
+                {["Type", "Location", "Reporter", "Contact No.", "Date", "Time", "Action"].map(h => (
                   <th key={h} className="px-5 py-3.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">{h}</th>
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="block space-y-3 p-3 lg:table-row-group lg:space-y-0 lg:p-0 lg:divide-y lg:divide-slate-100">
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-14 text-center text-sm text-slate-400">
+                  <td colSpan={7} className="py-14 text-center text-sm text-slate-400">
                     No history records match your filters.
                   </td>
                 </tr>
               ) : filtered.map((r, i) => {
                 const type = (r.emergencyType || "others").toLowerCase();
                 const typeInfo = TYPE_ICONS[type] || TYPE_ICONS.others;
-                const statusInfo = getIncidentStatusInfo(r.status);
-                const priority = getPriority(r);
-                const incId = getIncidentId(r, i);
                 const locationText = formatLocationForTable(r.location);
                 const date = r.createdAt ? new Date(r.createdAt) : new Date();
 
                 return (
-                  <tr key={r._id || i} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-5 py-3.5">
-                      <span className="text-xs font-mono font-bold text-blue-600">{incId}</span>
-                    </td>
-                    <td className="px-5 py-3.5">
+                  <tr key={r._id || i} className="block rounded-xl border border-slate-200 bg-slate-50 p-4 shadow-sm transition-colors hover:bg-slate-100 lg:table-row lg:rounded-none lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none lg:hover:bg-slate-50">
+                    <td className="block px-0 py-1.5 lg:table-cell lg:px-5 lg:py-3.5">
                       <div className="flex items-center gap-2">
                         <span className="text-base">{typeInfo.icon}</span>
                         <span className="text-xs font-medium text-slate-700">{typeInfo.label}</span>
                       </div>
                     </td>
-                    <td className="px-5 py-3.5">
+                    <td className="block px-0 py-1.5 lg:table-cell lg:px-5 lg:py-3.5">
                       <span className="text-xs text-slate-600">{locationText}</span>
                     </td>
-                    <td className="px-5 py-3.5">
+                    <td className="block px-0 py-1.5 lg:table-cell lg:px-5 lg:py-3.5">
                       <span className="text-xs text-slate-600">{r.userId?.fullName || "Unknown"}</span>
                     </td>
-                    <td className="px-5 py-3.5">
+                    <td className="block px-0 py-1.5 lg:table-cell lg:px-5 lg:py-3.5">
                       <span className="text-xs font-mono text-slate-600">{r.userId?.phoneNumber || r.phoneNumber || "N/A"}</span>
                     </td>
-                    <td className="px-5 py-3.5">
+                    <td className="block px-0 py-1.5 lg:table-cell lg:px-5 lg:py-3.5">
                       <span className="text-xs text-slate-600 whitespace-nowrap">{date.toLocaleDateString("en-PH", { day: "numeric", month: "short", year: "numeric" })}</span>
                     </td>
-                    <td className="px-5 py-3.5">
+                    <td className="block px-0 py-1.5 lg:table-cell lg:px-5 lg:py-3.5">
                       <span className="text-xs text-slate-600">{date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
                     </td>
-                    <td className="px-5 py-3.5">
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${PRIORITY_STYLES[priority]}`}>
-                        {priority}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full ${statusInfo.className}`}>
-                        <span className="w-1.5 h-1.5 rounded-full bg-current opacity-70" />
-                        {statusInfo.label}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3.5">
+                    <td className="block px-0 py-1.5 lg:table-cell lg:px-5 lg:py-3.5">
                       <button
                         onClick={() => setSelectedReport(r)}
                         className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold text-violet-700 bg-violet-50 border border-violet-200 hover:bg-violet-100 transition-colors"

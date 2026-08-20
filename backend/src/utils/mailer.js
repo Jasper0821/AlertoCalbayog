@@ -165,6 +165,30 @@ async function sendOtpEmail(toEmail, otpCode, expiryMinutes = 7) {
   return info;
 }
 
+async function sendRegistrationOtpEmail(toEmail, otpCode, expiryMinutes = 7) {
+  const recipient = toEmail?.toString().trim().toLowerCase();
+  if (!recipient) throw new Error("Invalid recipient email address.");
+
+  const transporter = await createTransporter();
+  const fromAddress = process.env.GMAIL_USER?.trim() || "noreply@alertocalbayog.local";
+
+  try {
+    const info = await transporter.sendMail({
+      from: `"Alerto Calbayog" <${fromAddress}>`,
+      to: recipient,
+      subject: "Verify your Alerto Calbayog Gmail address",
+      text: `Your Alerto Calbayog registration code is: ${otpCode}. This code expires in ${expiryMinutes} minutes. If you did not start registration, you can ignore this email.`,
+      html: `<div style="font-family:Arial,sans-serif;color:#0f172a"><h2>Verify your Gmail address</h2><p>Use this code to finish creating your Alerto Calbayog account:</p><p style="font-size:32px;font-weight:700;letter-spacing:7px">${otpCode}</p><p>This code expires in ${expiryMinutes} minutes.</p></div>`,
+    });
+    if (info.rejected?.length) {
+      throw new Error("The Gmail server rejected this recipient address.");
+    }
+  } catch (error) {
+    console.error("[Registration OTP] Failed to send email to", recipient, "-", error.message || error);
+    throw new Error("Unable to verify this Gmail address. Please check the address and try again.");
+  }
+}
+
 async function sendResponderApprovalEmail(toEmail, fullName) {
   const recipient = toEmail?.toString().trim().toLowerCase();
   if (!recipient) {
@@ -228,4 +252,4 @@ async function sendResponderApprovalEmail(toEmail, fullName) {
   return info;
 }
 
-module.exports = { sendOtpEmail, sendResponderApprovalEmail };
+module.exports = { sendOtpEmail, sendRegistrationOtpEmail, sendResponderApprovalEmail };

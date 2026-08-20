@@ -1,3 +1,5 @@
+import { getIncidentId, getPriority } from "../../../utils/incidentFormatters.js";
+
 const BRAND = "#7c3aed";
 
 /**
@@ -20,11 +22,13 @@ export default function IncidentDetailModal({ report, onClose }) {
     : "Unknown";
 
   const rows = [
+    { label: "Incident ID", value: getIncidentId(report), mono: true },
     { label: "Reporter", value: report.userId?.fullName || "Anonymous" },
     { label: "Contact No.", value: phone ?? "N/A", mono: !!phone },
     { label: "Type", value: report.emergencyType || "Others", capitalize: true },
     { label: "Location", value: location },
     { label: "Status", value: report.status || "pending", capitalize: true },
+    { label: "Priority", value: getPriority(report), capitalize: true },
     { label: "Date & Time", value: dateStr },
   ];
 

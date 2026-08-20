@@ -283,13 +283,9 @@ export default function AdminDashboard() {
   const [isTrashModalOpen, setIsTrashModalOpen] = useState(false);
   const [deletedReports, setDeletedReports] = useState([]);
   const [isFetchingDeleted, setIsFetchingDeleted] = useState(false);
-  const [reports, setReports] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem("adminReports")) || [];
-    } catch {
-      return [];
-    }
-  });
+  // Analytics and incident lists are populated from the database API only.
+  // Do not seed these with browser-cached reports, which can be stale.
+  const [reports, setReports] = useState([]);
   const [users, setUsers] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem("adminUsers")) || [];
@@ -347,7 +343,6 @@ export default function AdminDashboard() {
     const response = await api.get("/emergency");
     const data = Array.isArray(response.data) ? response.data : [];
     setReports(data);
-    localStorage.setItem("adminReports", JSON.stringify(data));
   };
 
   const fetchUsers = async () => {
@@ -745,10 +740,6 @@ export default function AdminDashboard() {
   useEffect(() => {
     localStorage.setItem("adminAuditTab", auditTab);
   }, [auditTab]);
-
-  useEffect(() => {
-    localStorage.setItem("adminReports", JSON.stringify(reports));
-  }, [reports]);
 
   useEffect(() => {
     localStorage.setItem("adminUsers", JSON.stringify(users));
