@@ -112,27 +112,7 @@ function About() {
  </div>
  </div>
  </div>
-
- {/* Partner Agencies */}
- <div className="bg-[#f8fafc] border-t border-slate-200 py-20 px-6 sm:px-10">
- <div className="max-w-7xl mx-auto">
- <h2 className="text-3xl font-bold text-[#0a1e3f] mb-3 text-center">Our Partner Agencies</h2>
- <p className="text-[#5f6368] text-center mb-12 text-[16px]">Working together to keep every citizen safe.</p>
- <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
- {team.map((t) => (
- <div key={t.name} className="bg-white border border-slate-200 rounded-2xl p-6 flex flex-col items-center text-center">
- <div className="w-14 h-14 rounded-full bg-[#0a1e3f] text-white font-black text-lg flex items-center justify-center mb-4">
- {t.initial}
- </div>
- <h3 className="text-[15px] font-bold text-[#0a1e3f] mb-1">{t.name}</h3>
- <p className="text-[12px] font-semibold text-[#5f6368] uppercase tracking-wider">{t.role}</p>
- </div>
- ))}
- </div>
- </div>
- </div>
-
-
+ 
  <Footer />
  </main>
  );
