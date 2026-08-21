@@ -1,3 +1,7 @@
+
+const XCircle = (props) => (
+  <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={props.className || "h-5 w-5"}><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>
+);
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -35,6 +39,7 @@ import Swal from "sweetalert2";
 import { getValidCalbayogBarangay } from "../../utils/barangays.js";
 import { formatLocationForTable } from "../../utils/incidentFormatters.js";
 import { clearDashboardNavigationState } from "../../utils/dashboardSession.js";
+import AdminQueuingSystem from "./AdminQueuingSystem.jsx";
 
 const STATUS_STYLES = {
   pending: { dot: "bg-amber-400", text: "text-amber-700", bg: "bg-amber-50", border: "border-amber-200", label: "Pending" },
@@ -44,6 +49,7 @@ const STATUS_STYLES = {
   resolved: { dot: "bg-emerald-500", text: "text-emerald-700", bg: "bg-emerald-50", border: "border-emerald-200", label: "Resolved" },
   responded: { dot: "bg-emerald-500", text: "text-emerald-700", bg: "bg-emerald-50", border: "border-emerald-200", label: "Responded" },
   closed: { dot: "bg-slate-400", text: "text-slate-600", bg: "bg-slate-100", border: "border-slate-200", label: "Closed" },
+  rejected: { dot: "bg-red-500", text: "text-red-700", bg: "bg-red-50", border: "border-red-200", label: "Rejected" },
 };
 
 const TYPE_LABELS = {
@@ -87,7 +93,9 @@ const PIE_COLORS = ["#f59e0b", "#0d9488", "#2563eb", "#059669", "#64748b", "#4f4
 const NAV = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "incidents", label: "Incidents", icon: AlertTriangle },
+  { id: "queuing", label: "Queuing System", icon: Menu },
   { id: "closed-incidents", label: "Closed Incidents", icon: ArchiveIcon },
+  { id: "rejected-incidents", label: "Rejected Reports", icon: XCircle },
   { id: "analytics", label: "Analytics", icon: BarChart2 },
   { id: "users", label: "User Management", icon: Users },
   { id: "responder-approvals", label: "Responder Approvals", icon: ResponderIcon },
@@ -873,7 +881,7 @@ export default function AdminDashboard() {
     const q = searchQuery.trim().toLowerCase();
     return reports.filter((report, index) => {
       const status = (report.status || "pending").toLowerCase();
-      if (status === "closed") return false;
+      if (!["pending", "verified", "responding", "active", "ongoing", "en_route", "dispatching"].includes(status)) return false;
       const incidentId = getIncidentId(report, index).toLowerCase();
       const haystack = [
         incidentId,
@@ -1710,19 +1718,33 @@ export default function AdminDashboard() {
     );
   };
 
-  const renderIncidents = (showOnlyClosed = false) => {
-    const displayReports = showOnlyClosed ? closedReports : filteredReports;
+  const renderIncidents = (type = "active") => {
+    let displayReports;
+    let title;
+    let description;
+    
+    if (type === "closed") {
+      displayReports = closedReports;
+      title = "Closed Incidents";
+      description = "View history of officially closed emergency reports.";
+    } else if (type === "rejected") {
+      displayReports = rejectedReports;
+      title = "Rejected Reports";
+      description = "View history of rejected emergency reports.";
+    } else {
+      displayReports = filteredReports;
+      title = "Incident Management";
+      description = "Monitor every report, update status, assign responders, and export history.";
+    }
     return (
       <section className="flex flex-col h-full rounded-xl border border-slate-200 bg-white shadow-md shadow-slate-200/50">
         <div className="flex-none flex flex-col gap-3 border-b border-slate-100 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h2 className="text-sm font-black text-slate-900">
-              {showOnlyClosed ? "Closed Incidents" : "Incident Management"}
+              {title}
             </h2>
             <p className="text-xs text-slate-500">
-              {showOnlyClosed
-                ? "View history of officially closed emergency reports."
-                : "Monitor every report, update status, assign responders, and export history."}
+              {description}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -3110,7 +3132,9 @@ export default function AdminDashboard() {
   const renderContent = () => {
     if (activeNav === "overview") return renderOverview();
     if (activeNav === "incidents") return renderIncidents();
-    if (activeNav === "closed-incidents") return renderIncidents(true);
+    if (activeNav === "queuing") return <AdminQueuingSystem reports={reports} onStatusChange={updateReportStatus} onViewReport={(report, idx) => setSelectedReport({ report, index: idx })} />;
+    if (activeNav === "closed-incidents") return renderIncidents("closed");
+    if (activeNav === "rejected-incidents") return renderIncidents("rejected");
     if (activeNav === "analytics") return renderAnalytics();
     if (activeNav === "users") return renderUsers();
     if (activeNav === "responder-approvals") return renderResponderApprovals();
@@ -3145,10 +3169,10 @@ export default function AdminDashboard() {
                   setActiveNav(item.id);
                   if (window.innerWidth < 768) setIsSidebarOpen(false);
                 }}
-                className={`relative flex w-full items-center gap-4 rounded-xl px-3 py-3 text-left text-sm font-bold transition-all duration-200 ${isActive ? "bg-emerald-900 text-white shadow-sm shadow-emerald-900/50" : "text-emerald-100/70 hover:bg-emerald-900/50 hover:text-white"}`}
+                className={`relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-[13px] font-bold transition-all duration-200 ${isActive ? "bg-emerald-900 text-white shadow-sm shadow-emerald-900/50" : "text-emerald-100/70 hover:bg-emerald-900/50 hover:text-white"}`}
               >
                 {isActive && <div className="absolute left-0 top-1/2 h-1/2 w-1 -translate-y-1/2 rounded-r-full bg-emerald-400" />}
-                <Icon className={`h-5 w-5 shrink-0 ${isActive ? "text-white" : "text-emerald-400/70"}`} />
+                <Icon className={`h-[18px] w-[18px] shrink-0 ${isActive ? "text-white" : "text-emerald-400/70"}`} />
                 <span className={`whitespace-nowrap transition-opacity duration-300 ${isSidebarOpen ? "opacity-100" : "md:opacity-0 md:group-hover/sidebar:opacity-100 opacity-100"}`}>{item.label}</span>
               </button>
             );
@@ -3156,8 +3180,8 @@ export default function AdminDashboard() {
         </nav>
 
         <div className="p-4 border-t border-emerald-800/50">
-          <button onClick={logout} className="flex w-full items-center gap-4 rounded-xl px-3 py-3 text-left text-sm font-bold text-emerald-100/70 transition-colors hover:bg-red-500/10 hover:text-red-400 group">
-            <LogOut className="h-5 w-5 shrink-0 text-emerald-400/70 group-hover:text-red-400" />
+          <button onClick={logout} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-[13px] font-bold text-emerald-100/70 transition-colors hover:bg-red-500/10 hover:text-red-400 group">
+            <LogOut className="h-[18px] w-[18px] shrink-0 text-emerald-400/70 group-hover:text-red-400" />
             <span className={`whitespace-nowrap transition-opacity duration-300 ${isSidebarOpen ? "opacity-100" : "md:opacity-0 md:group-hover/sidebar:opacity-100 opacity-100"}`}>Logout</span>
           </button>
         </div>

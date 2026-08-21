@@ -35,8 +35,8 @@ export default function LiveTrackingScreen({
 
   const getStatusTextAndColor = () => {
     switch (reportStatus?.toLowerCase()) {
-      case "verified":
-        return { text: "Report Verified", desc: "Your emergency report has been verified by the command center. Dispatching responders now.", color: "#8B5CF6" };
+      case "rejected":
+        return { text: "Report Rejected", desc: "Your report was reviewed and rejected. Please contact support if you believe this is a mistake.", color: "#EF4444" };
       case "responding":
       case "active":
         return { text: "Rescue on the Way", desc: "Help is coming! A professional responder has been dispatched and is heading to your location. Please stay safe.", color: "#d6d827da" };

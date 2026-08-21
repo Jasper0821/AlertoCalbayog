@@ -2,7 +2,7 @@ const EmergencyReport = require("../models/EmergencyReport");
 const User = require("../models/User");
 const Notification = require("../models/Notification");
 
-const ALLOWED_STATUS_UPDATES = new Set(["pending", "responding", "resolved", "closed", "cancelled"]);
+const ALLOWED_STATUS_UPDATES = new Set(["pending", "responding", "resolved", "closed", "cancelled", "rejected"]);
 
 const populateReport = (query) =>
   query
@@ -24,6 +24,9 @@ const buildStatusMessage = (status) => {
   }
   if (status === "cancelled") {
     return "Your incident report has been cancelled and removed from the active queue.";
+  }
+  if (status === "rejected") {
+    return "Your incident report has been rejected. Please ensure your reports are legitimate emergencies.";
   }
   return `Your incident report status has been updated to ${status}.`;
 };

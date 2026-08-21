@@ -118,6 +118,7 @@ export const STATUS_STYLES_BASE = {
   pending: "bg-amber-100 text-amber-700 border border-amber-200",
   responding: "bg-indigo-100 text-indigo-700 border border-indigo-200",
   resolved: "bg-emerald-100 text-emerald-700 border border-emerald-200",
+  rejected: "bg-red-100 text-red-700 border border-red-200",
 };
 
 export function getIncidentStatusInfo(status) {
@@ -127,6 +128,7 @@ export function getIncidentStatusInfo(status) {
     pending: { label: "Pending", className: STATUS_STYLES_BASE.pending },
     responding: { label: "Responding", className: STATUS_STYLES_BASE.responding },
     resolved: { label: "Resolved", className: STATUS_STYLES_BASE.resolved },
+    rejected: { label: "Rejected", className: STATUS_STYLES_BASE.rejected },
   };
   
   return infoMap[normalized] || { label: status || "Unknown", className: "bg-slate-100 text-slate-700 border-slate-200" };
@@ -142,6 +144,7 @@ export const STATUS_STYLES = {
   responded: STATUS_STYLES_BASE.resolved,
   closed: STATUS_STYLES_BASE.resolved,
   cancelled: STATUS_STYLES_BASE.resolved,
+  rejected: STATUS_STYLES_BASE.rejected,
 };
 
 export const PRIORITY_STYLES = {

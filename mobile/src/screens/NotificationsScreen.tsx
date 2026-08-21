@@ -58,8 +58,8 @@ function getRelativeTime(dateString: string): string {
 
 function getStatusAccent(status: string): { color: string; bg: string; icon: string; label: string } {
   switch (status?.toLowerCase()) {
-    case "verified":
-      return { color: "#8B5CF6", bg: "rgba(139, 92, 246, 0.08)", icon: "✓", label: "Verified" };
+    case "rejected":
+      return { color: "#EF4444", bg: "rgba(239, 68, 68, 0.08)", icon: "❌", label: "Rejected" };
     case "responding":
     case "active":
       return { color: "#3B82F6", bg: "rgba(59, 130, 246, 0.08)", icon: "🚨", label: "Responding" };

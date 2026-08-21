@@ -115,7 +115,7 @@ export default function ReportHistoryScreen(): React.JSX.Element {
       case 'responded': return { border: 'border-green', text: 'text-green', bg: 'bg-green/10' };
       case 'responding':
       case 'active': return { border: 'border-blue', text: 'text-blue', bg: 'bg-blue/10' };
-      case 'verified': return { border: 'border-purple', text: 'text-purple', bg: 'bg-purple/10' };
+      case 'rejected': return { border: 'border-red', text: 'text-red', bg: 'bg-red/10' };
       case 'pending': return { border: 'border-primary', text: 'text-primary', bg: 'bg-primary/10' };
       default: return { border: 'border-textGray', text: 'text-textGray', bg: 'bg-textGray/10' };
     }
@@ -207,7 +207,7 @@ export default function ReportHistoryScreen(): React.JSX.Element {
             {(expanded ? reports : reports.slice(0, INITIAL_DISPLAY_COUNT)).map((report) => {
               const { border, text, bg } = getStatusConfig(report.status);
               const incident = getIncidentConfig(report.emergencyType);
-              const isLiveTrackable = ["pending", "verified", "responding", "active"].includes(report.status?.toLowerCase());
+              const isLiveTrackable = ["pending", "responding", "active"].includes(report.status?.toLowerCase());
               
               return (
                 <TouchableOpacity
