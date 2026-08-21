@@ -3121,20 +3121,20 @@ export default function AdminDashboard() {
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50 text-slate-900">
       {isSidebarOpen && (
-        <button className="fixed inset-0 z-40 bg-slate-950/40 lg:hidden" onClick={() => setIsSidebarOpen(false)} aria-label="Close menu" />
+        <button className="fixed inset-0 z-40 bg-slate-950/40 md:hidden" onClick={() => setIsSidebarOpen(false)} aria-label="Close menu" />
       )}
 
-      <aside className={`fixed inset-y-0 left-0 z-50 flex flex-col bg-[#052e16] text-white border-r border-emerald-900 transition-all duration-300 lg:static lg:translate-x-0 overflow-x-hidden group/sidebar ${isSidebarOpen ? "w-64 translate-x-0" : "w-64 lg:w-20 hover:lg:w-64 -translate-x-full shadow-xl lg:shadow-none"}`}>
+      <aside className={`fixed inset-y-0 left-0 z-50 flex flex-col bg-[#052e16] text-white border-r border-emerald-900 transition-all duration-300 md:static md:translate-x-0 overflow-x-hidden group/sidebar ${isSidebarOpen ? "w-64 translate-x-0" : "w-64 md:w-20 md:hover:w-64 -translate-x-full shadow-xl md:shadow-none"}`}>
         <div className="flex h-20 shrink-0 items-center gap-4 px-5 border-b border-emerald-800/50">
           <img src="/logo.png" alt="Alerto Calbayog" className="h-10 w-10 shrink-0 object-contain" />
-          <div className={`flex flex-col whitespace-nowrap transition-opacity duration-300 ${isSidebarOpen ? "opacity-100" : "lg:opacity-0 lg:group-hover/sidebar:opacity-100 opacity-100"}`}>
+          <div className={`flex flex-col whitespace-nowrap transition-opacity duration-300 ${isSidebarOpen ? "opacity-100" : "md:opacity-0 md:group-hover/sidebar:opacity-100 opacity-100"}`}>
             <p className="text-base font-black tracking-tight text-white">Alerto Calbayog</p>
             <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-200/80">Admin Console</p>
           </div>
         </div>
 
         <nav className="flex-1 space-y-1.5 overflow-y-auto overflow-x-hidden p-3 mt-2">
-          <p className={`px-3 mb-3 text-[10px] font-black uppercase tracking-widest text-emerald-400/80 transition-opacity duration-300 ${isSidebarOpen ? "opacity-100" : "lg:opacity-0 lg:group-hover/sidebar:opacity-100 opacity-100"}`}>Menu</p>
+          <p className={`px-3 mb-3 text-[10px] font-black uppercase tracking-widest text-emerald-400/80 transition-opacity duration-300 ${isSidebarOpen ? "opacity-100" : "md:opacity-0 md:group-hover/sidebar:opacity-100 opacity-100"}`}>Menu</p>
           {NAV.map((item) => {
             const Icon = item.icon;
             const isActive = activeNav === item.id;
@@ -3143,13 +3143,13 @@ export default function AdminDashboard() {
                 key={item.id}
                 onClick={() => {
                   setActiveNav(item.id);
-                  if (window.innerWidth < 1024) setIsSidebarOpen(false);
+                  if (window.innerWidth < 768) setIsSidebarOpen(false);
                 }}
                 className={`relative flex w-full items-center gap-4 rounded-xl px-3 py-3 text-left text-sm font-bold transition-all duration-200 ${isActive ? "bg-emerald-900 text-white shadow-sm shadow-emerald-900/50" : "text-emerald-100/70 hover:bg-emerald-900/50 hover:text-white"}`}
               >
                 {isActive && <div className="absolute left-0 top-1/2 h-1/2 w-1 -translate-y-1/2 rounded-r-full bg-emerald-400" />}
                 <Icon className={`h-5 w-5 shrink-0 ${isActive ? "text-white" : "text-emerald-400/70"}`} />
-                <span className={`whitespace-nowrap transition-opacity duration-300 ${isSidebarOpen ? "opacity-100" : "lg:opacity-0 lg:group-hover/sidebar:opacity-100 opacity-100"}`}>{item.label}</span>
+                <span className={`whitespace-nowrap transition-opacity duration-300 ${isSidebarOpen ? "opacity-100" : "md:opacity-0 md:group-hover/sidebar:opacity-100 opacity-100"}`}>{item.label}</span>
               </button>
             );
           })}
@@ -3158,15 +3158,15 @@ export default function AdminDashboard() {
         <div className="p-4 border-t border-emerald-800/50">
           <button onClick={logout} className="flex w-full items-center gap-4 rounded-xl px-3 py-3 text-left text-sm font-bold text-emerald-100/70 transition-colors hover:bg-red-500/10 hover:text-red-400 group">
             <LogOut className="h-5 w-5 shrink-0 text-emerald-400/70 group-hover:text-red-400" />
-            <span className={`whitespace-nowrap transition-opacity duration-300 ${isSidebarOpen ? "opacity-100" : "lg:opacity-0 lg:group-hover/sidebar:opacity-100 opacity-100"}`}>Logout</span>
+            <span className={`whitespace-nowrap transition-opacity duration-300 ${isSidebarOpen ? "opacity-100" : "md:opacity-0 md:group-hover/sidebar:opacity-100 opacity-100"}`}>Logout</span>
           </button>
         </div>
       </aside>
 
       <main className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-20 shrink-0 items-center justify-between gap-4 bg-white px-4 lg:px-8 border-b border-slate-100">
+        <header className="flex h-16 shrink-0 items-center justify-between gap-2 bg-white px-3 sm:gap-4 sm:px-4 md:h-20 md:px-8 border-b border-slate-100">
           <div className="flex items-center gap-4">
-            <button onClick={() => setIsSidebarOpen(true)} className="shrink-0 rounded-lg p-2 lg:hidden hover:bg-slate-50" aria-label="Open menu">
+            <button onClick={() => setIsSidebarOpen(true)} className="shrink-0 rounded-lg p-2 md:hidden hover:bg-slate-50" aria-label="Open menu">
               <Menu className="h-5 w-5 text-slate-700" />
             </button>
             <h1 className="text-xl font-black text-slate-900 hidden sm:block">
@@ -3174,7 +3174,7 @@ export default function AdminDashboard() {
             </h1>
           </div>
 
-          <div className="flex flex-1 items-center justify-end gap-6">
+          <div className="flex flex-1 items-center justify-end gap-2 sm:gap-6">
             <div className="hidden max-w-sm flex-1 sm:block">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -3187,14 +3187,14 @@ export default function AdminDashboard() {
               </div>
             </div>
 
-            <div className="flex shrink-0 items-center gap-5">
+            <div className="flex shrink-0 items-center gap-2 sm:gap-5">
               <button onClick={() => { fetchNotifications(); setIsNotificationsModalOpen(true); }} className="relative rounded-lg bg-slate-50 p-2.5 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 border border-slate-100" aria-label="Open notifications">
                 <Bell className="h-5 w-5" />
                 {notifications.some((item) => !item.read) && (
                   <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-red-500 ring-2 ring-slate-50" />
                 )}
               </button>
-              <div className="flex items-center gap-3 border-l border-slate-100 pl-5">
+              <div className="flex items-center gap-3 border-l border-slate-100 pl-2 sm:pl-5">
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-sm font-bold text-emerald-700">
                   {storedUser.fullName?.charAt(0) || "A"}
                 </div>
@@ -3207,7 +3207,7 @@ export default function AdminDashboard() {
           </div>
         </header>
 
-        <section className="flex-1 overflow-hidden px-4 py-3 lg:px-6 lg:py-4 flex flex-col min-h-0">
+        <section className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-3 sm:px-4 md:overflow-hidden md:px-6 md:py-4 flex flex-col min-h-0">
           {error && (
             <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
               {error}

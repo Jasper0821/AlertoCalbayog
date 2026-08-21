@@ -40,7 +40,6 @@ const NAV = [
   {
     id: "queuing",
     label: "Queuing System",
-    badge: true,
     icon: (
       <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
@@ -534,7 +533,7 @@ function AdminDashboard() {
       {/* Mobile overlay — for non-live-map pages */}
       {isSidebarOpen && activeNav !== "live-map" && (
         <div
-          className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm lg:hidden"
+          className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm md:hidden"
           onClick={() => setIsSidebarOpen(false)}
         />
       )}
@@ -649,8 +648,8 @@ function AdminDashboard() {
           ${activeNav === "live-map"
             ? isSidebarOpen ? "translate-x-0 w-64" : "-translate-x-full w-64"
             : `${isSidebarOpen ? "translate-x-0 w-64" : "-translate-x-full w-64"}
-               lg:translate-x-0 lg:static lg:shadow-none
-               ${isSidebarHovered ? "lg:w-64" : "lg:w-16"}`
+               md:translate-x-0 md:static md:shadow-none
+               ${isSidebarHovered ? "md:w-64" : "md:w-16"}`
           }
         `}
         style={{ background: "#0a1e3f", overflow: "hidden" }}
@@ -658,7 +657,7 @@ function AdminDashboard() {
         {/* Logo / Brand */}
         <div className="flex items-center gap-3 px-4 h-16 shrink-0" style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
           <img src="/logo.png" alt="Alerto Calbayog Logo" className="w-8 h-8 object-contain transition-transform duration-300 hover:scale-105 shrink-0" />
-          <div className={`min-w-0 transition-all duration-300 ${isSidebarOpen || isSidebarHovered ? "opacity-100 w-auto" : "opacity-0 w-0 lg:overflow-hidden"}`}>
+          <div className={`min-w-0 transition-all duration-300 ${isSidebarOpen || isSidebarHovered ? "opacity-100 w-auto" : "opacity-0 w-0 md:overflow-hidden"}`}>
             <p className="text-sm font-bold text-white leading-none truncate whitespace-nowrap">Alerto Calbayog</p>
             <p className="text-[10px] text-emerald-300 font-semibold mt-0.5 tracking-wide whitespace-nowrap">Dispatch Command</p>
           </div>
@@ -691,13 +690,6 @@ function AdminDashboard() {
                 {/* Label */}
                 <span className={`truncate transition-all duration-300 ${isSidebarOpen || isSidebarHovered ? "opacity-100 w-auto" : "opacity-0 w-0 overflow-hidden"}`}>{item.label}</span>
 
-                {/* Badge for pending incidents */}
-                {item.badge && pendingCount > 0 && (
-                   <span className={`ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0 transition-all duration-300 ${isSidebarOpen || isSidebarHovered ? "opacity-100" : "opacity-0"} ${isActive ? "bg-white/20 text-white" : "bg-amber-400/90 text-amber-900"
-                    }`}>
-                    {pendingCount}
-                  </span>
-                )}
               </button>
             );
           })}
@@ -723,13 +715,13 @@ function AdminDashboard() {
       <main className="flex-1 flex flex-col overflow-hidden bg-slate-50 min-w-0">
 
         {/* ── TOP NAVIGATION BAR ── */}
-        <header className={`${activeNav === "live-map" ? "hidden" : "flex"} h-16 items-center justify-between bg-white border-b border-slate-200 px-4 lg:px-6 shrink-0 gap-4`}>
+        <header className={`${activeNav === "live-map" ? "hidden" : "flex"} h-16 items-center justify-between bg-white border-b border-slate-200 px-4 md:px-6 shrink-0 gap-4`}>
 
           {/* Left: hamburger + page title + search */}
           <div className="flex items-center gap-3 flex-1 min-w-0">
             <button
               onClick={() => setIsSidebarOpen(true)}
-              className="lg:hidden p-2 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-all"
+              className="md:hidden p-2 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-all"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
@@ -737,21 +729,21 @@ function AdminDashboard() {
             </button>
 
             {/* Page breadcrumb */}
-            <div className="hidden lg:flex items-center gap-2 text-sm text-slate-500">
+            <div className="hidden md:flex items-center gap-2 text-sm text-slate-500">
               <span className="font-semibold text-[#0a1e3f]">{pageTitle}</span>
             </div>
 
             {/* Separator */}
-            <div className="h-5 w-px bg-slate-200 hidden lg:block"></div>
+            <div className="h-5 w-px bg-slate-200 hidden md:block"></div>
 
             {/* Real-time Dynamic Clock */}
-            <div className="hidden lg:flex items-center gap-2 text-xs font-bold text-slate-600 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 shrink-0">
+            <div className="hidden md:flex items-center gap-2 text-xs font-bold text-slate-600 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 shrink-0">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
               <span>{currentTime.toLocaleDateString()} — {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
             </div>
 
             {/* Separator */}
-            <div className="h-5 w-px bg-slate-200 hidden lg:block"></div>
+            <div className="h-5 w-px bg-slate-200 hidden md:block"></div>
 
             {/* Search */}
             <div className="relative flex-1 max-w-sm hidden sm:block">
@@ -859,7 +851,7 @@ function AdminDashboard() {
         {/* ── PAGE CONTENT ── */}
         <section className={`flex-1 min-h-0 ${activeNav === "live-map" || activeNav === "dashboard"
           ? "overflow-hidden p-0 m-0 w-full h-full"
-          : "overflow-y-auto p-5 lg:p-7"
+          : "overflow-y-auto p-5 md:p-7"
           }`}>
           <div className={
             activeNav === "live-map" || activeNav === "dashboard"
