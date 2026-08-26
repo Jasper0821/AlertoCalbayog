@@ -3,6 +3,21 @@ const User = require("../models/User");
 const Notification = require("../models/Notification");
 
 const ALLOWED_STATUS_UPDATES = new Set(["pending", "responding", "resolved", "closed", "cancelled", "rejected"]);
+const TERMINAL_REPORT_STATUSES = new Set(["resolved", "closed", "cancelled", "rejected"]);
+const MAX_RESOLUTION_EVIDENCE_IMAGES = 10;
+
+const isAllowedStatusTransition = (fromStatus, toStatus, isAdmin = false) => {
+  if (fromStatus === toStatus) return true;
+  // A completed incident awaits administrative closure. Agencies cannot alter it.
+  if (fromStatus === "resolved") return isAdmin && toStatus === "closed";
+  if (TERMINAL_REPORT_STATUSES.has(fromStatus)) return false;
+
+  // Agency queues progress incidents in one direction only:
+  // pending -> responding -> resolved. Rejection is only possible while pending.
+  if (fromStatus === "pending") return ["responding", "rejected"].includes(toStatus);
+  if (fromStatus === "responding") return toStatus === "resolved";
+  return false;
+};
 
 const populateReport = (query) =>
   query
@@ -127,6 +142,23 @@ exports.updateReportStatus = async (req, res) => {
     }
 
     const previousStatus = report.status;
+    if (!isAllowedStatusTransition(previousStatus, status, isAdmin)) {
+      return res.status(400).json({
+        message: `Invalid status transition from ${previousStatus} to ${status}`
+      });
+    }
+
+    const evidenceImages = Array.isArray(req.body.evidenceImages) ? req.body.evidenceImages : [];
+    if (previousStatus === "responding" && status === "resolved") {
+      if (evidenceImages.length === 0) {
+        return res.status(400).json({ message: "At least one incident proof image is required before resolving." });
+      }
+      if (evidenceImages.length > MAX_RESOLUTION_EVIDENCE_IMAGES || evidenceImages.some(image => typeof image !== "string" || !image.startsWith("data:image/"))) {
+        return res.status(400).json({ message: "Submit between 1 and 10 valid incident proof images." });
+      }
+      report.resolutionEvidence = evidenceImages;
+    }
+
     report.status = status;
     if (status === "resolved" && previousStatus !== "resolved") {
       report.resolvedAt = new Date();

@@ -2,18 +2,33 @@ import { useState } from "react";
 import { TYPE_ICONS, getPriority, getIncidentId, formatLocationForTable } from "../../../utils/incidentFormatters.js";
 import IncidentDetailModal from "./IncidentDetailModal.jsx";
 
+const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
 export default function IncidentHistory({ reports = [] }) {
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
+  const [yearFilter, setYearFilter] = useState("all");
+  const [monthFilter, setMonthFilter] = useState("all");
+  const [dayFilter, setDayFilter] = useState("all");
   const [selectedReport, setSelectedReport] = useState(null);
 
-  const resolved = reports.filter(r => ["resolved", "closed", "cancelled", "responded"].includes((r.status || "").toLowerCase()));
+  const resolved = reports.filter(r => ["resolved", "responded"].includes((r.status || "").toLowerCase()));
+  const historyYears = Array.from(new Set(
+    resolved
+      .map(report => report.createdAt ? new Date(report.createdAt) : null)
+      .filter(date => date && !Number.isNaN(date.getTime()))
+      .map(date => date.getFullYear())
+  )).sort((a, b) => b - a);
   
   const filtered = resolved.filter(r => {
     const type = (r.emergencyType || "").toLowerCase();
     const loc = typeof r.location === "string" ? r.location : (r.location?.name || "");
     const name = r.userId?.fullName || "";
+    const date = r.createdAt ? new Date(r.createdAt) : null;
     if (typeFilter !== "all" && type !== typeFilter) return false;
+    if (yearFilter !== "all" && (!date || date.getFullYear() !== Number(yearFilter))) return false;
+    if (monthFilter !== "all" && (!date || date.getMonth() + 1 !== Number(monthFilter))) return false;
+    if (dayFilter !== "all" && (!date || date.getDate() !== Number(dayFilter))) return false;
     if (search && !loc.toLowerCase().includes(search) && !name.toLowerCase().includes(search)) return false;
     return true;
   });
@@ -185,7 +200,7 @@ export default function IncidentHistory({ reports = [] }) {
     <div className="space-y-5">
       <div>
         <h1 className="text-xl font-bold text-slate-800">Incident History</h1>
-        <p className="text-sm text-slate-500 mt-0.5">Archive of all resolved, closed, and cancelled incidents.</p>
+        <p className="text-sm text-slate-500 mt-0.5">Archive of resolved incidents.</p>
       </div>
 
       {/* Filters */}
@@ -211,6 +226,18 @@ export default function IncidentHistory({ reports = [] }) {
           <option value="police">Police</option>
           <option value="flood">Flood</option>
           <option value="accident">Accident</option>
+        </select>
+        <select value={yearFilter} onChange={e => setYearFilter(e.target.value)} className="px-3 py-2 text-xs border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-slate-700 cursor-pointer">
+          <option value="all">All Years</option>
+          {historyYears.map(year => <option key={year} value={year}>{year}</option>)}
+        </select>
+        <select value={monthFilter} onChange={e => setMonthFilter(e.target.value)} className="px-3 py-2 text-xs border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-slate-700 cursor-pointer">
+          <option value="all">All Months</option>
+          {MONTH_NAMES.map((month, index) => <option key={month} value={index + 1}>{month}</option>)}
+        </select>
+        <select value={dayFilter} onChange={e => setDayFilter(e.target.value)} className="px-3 py-2 text-xs border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-slate-700 cursor-pointer">
+          <option value="all">All Days</option>
+          {Array.from({ length: 31 }, (_, index) => index + 1).map(day => <option key={day} value={day}>{day}</option>)}
         </select>
         <div className="flex items-center gap-3 ml-auto shrink-0">
           <span className="text-xs text-slate-400">

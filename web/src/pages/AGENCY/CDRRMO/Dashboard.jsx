@@ -15,7 +15,6 @@ import ActiveIncidents from "./ActiveIncidents.jsx";
 import LiveMap from "./LiveMap.jsx";
 import IncidentHistory from "./IncidentHistory.jsx";
 import RejectedReports from "./RejectedReports.jsx";
-import ClosedIncidents from "./ClosedIncidents.jsx";
 import Analytics from "./Analytics.jsx";
 import Settings from "./Settings.jsx";
 
@@ -71,15 +70,6 @@ const NAV = [
     ),
   },
   {
-    id: "closed-incidents",
-    label: "Closed Incidents",
-    icon: (
-      <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M4 7.5 12 3l8 4.5M5 10v8.5A2.5 2.5 0 0 0 7.5 21h9a2.5 2.5 0 0 0 2.5-2.5V10M8.5 13l2.25 2.25L15.5 10.5" />
-      </svg>
-    ),
-  },
-  {
     id: "rejected-incidents",
     label: "Rejected Reports",
     icon: (
@@ -111,7 +101,8 @@ function CdrrmoDashboard() {
 
   const [isOffline, setIsOffline] = useState(false);
   const [activeNav, setActiveNav] = useState(() => {
-    return localStorage.getItem("cdrrmoActiveNav") || "dashboard";
+    const savedNav = localStorage.getItem("cdrrmoActiveNav");
+    return savedNav === "closed-incidents" ? "dashboard" : (savedNav || "dashboard");
   });
 
   useEffect(() => {
@@ -194,10 +185,10 @@ function CdrrmoDashboard() {
     return () => clearInterval(timer);
   }, []);
 
-  const handleStatusChange = async (id, newStatus) => {
+  const handleStatusChange = async (id, newStatus, evidenceImages = []) => {
     setStatusOverrides(prev => ({ ...prev, [id]: newStatus }));
     try {
-      const res = await api.put(`/reports/${id}/status`, { status: newStatus });
+      const res = await api.put(`/reports/${id}/status`, { status: newStatus, evidenceImages });
       const updatedReport = res.data?.report;
       if (updatedReport?._id) {
         setReports(prev => prev.map(r => r._id === updatedReport._id ? updatedReport : r));
@@ -543,8 +534,9 @@ function CdrrmoDashboard() {
       case "incident-reports": return <ActiveIncidents reports={filteredReports} onStatusChange={handleStatusChange} />;
       case "queuing": return <QueuingSystem reports={filteredReports} onStatusChange={handleStatusChange} />;
       case "live-map": return <LiveMap reports={filteredReports} />;
-      case "incident-history": return <IncidentHistory reports={filteredReports} />;
-      case "closed-incidents": return <ClosedIncidents reports={filteredReports} />;
+      // Incident History must always receive the complete CDRRMO report set.
+      // Its own filters control which resolved records are shown or exported.
+      case "incident-history": return <IncidentHistory reports={safeReports} />;
       case "rejected-incidents": return <RejectedReports reports={filteredReports} />;
       case "analytics": return <Analytics reports={filteredReports} />;
       case "settings": return <Settings user={user} onUserUpdate={setUser} />;
@@ -555,7 +547,7 @@ function CdrrmoDashboard() {
   const currentNav = NAV.find(n => n.id === activeNav);
   const pageTitle = currentNav?.label || "Dashboard";
   const incomingAlertCount = (activeAlert ? 1 : 0) + alertQueue.length;
-  const fixedHeightPages = ["incident-reports", "queuing", "incident-history", "closed-incidents", "rejected-incidents"];
+  const fixedHeightPages = ["incident-reports", "queuing", "incident-history", "rejected-incidents"];
 
   return (
     <div className="flex h-screen bg-slate-50 font-sans antialiased overflow-hidden">

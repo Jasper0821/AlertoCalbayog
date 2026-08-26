@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { formatLocationForTable } from "../../../utils/incidentFormatters.js";
 import IncidentDetailModal from "../PNP/IncidentDetailModal.jsx";
+import ResolutionEvidenceModal from "../ResolutionEvidenceModal.jsx";
 
 const TYPE_LABELS = { fire: "Fire", flood: "Flood", crime: "Crime", medical: "Medical", emergency: "Others", others: "Others" };
 const TYPE_COLORS = {
@@ -21,11 +22,12 @@ const STATUS_STYLES = {
 
 export default function QueuingSystem({ reports = [], onStatusChange }) {
   const [resolvingIncidentId, setResolvingIncidentId] = useState(null);
+  const [evidenceIncidentId, setEvidenceIncidentId] = useState(null);
   const [selectedReport, setSelectedReport] = useState(null);
 
   // Only display active queues (pending & active), resolved ones go to Incident History
   const activeReports = reports.filter(r => 
-    !["resolved", "responded", "closed", "rejected"].includes((r.status || "").toLowerCase())
+    !["closed", "rejected"].includes((r.status || "").toLowerCase())
   );
 
   const handleStatusSelect = (id, newStatus) => {
@@ -34,6 +36,17 @@ export default function QueuingSystem({ reports = [], onStatusChange }) {
     } else {
       onStatusChange(id, newStatus);
     }
+  };
+
+  const statusOptions = (status) => {
+    const current = (status || "pending").toLowerCase();
+    if (current === "responding" || current === "active") {
+      return <><option value="responding">Responding</option><option value="resolved">Resolved</option></>;
+    }
+    if (current === "resolved" || current === "responded") {
+      return <option value="resolved">Awaiting admin closure</option>;
+    }
+    return <><option value="pending">Pending</option><option value="rejected">Rejected</option><option value="responding">Responding</option></>;
   };
 
   return (
@@ -103,12 +116,10 @@ export default function QueuingSystem({ reports = [], onStatusChange }) {
                     <select
                       value={report.status || "pending"}
                       onChange={(e) => handleStatusSelect(report._id, e.target.value)}
-                      className="text-xs font-bold border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-700 outline-none cursor-pointer hover:border-[#0a1e3f] focus:border-[#0a1e3f] focus:ring-1 focus:ring-[#0a1e3f]/30 transition-all shadow-sm"
+                      disabled={["resolved", "responded"].includes((report.status || "").toLowerCase())}
+                      className="text-xs font-bold border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-700 outline-none cursor-pointer hover:border-[#0a1e3f] focus:border-[#0a1e3f] focus:ring-1 focus:ring-[#0a1e3f]/30 transition-all shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      <option value="pending">Pending</option>
-                      <option value="rejected">Rejected</option>
-                      <option value="responding">Responding</option>
-                      <option value="resolved">Resolved</option>
+                      {statusOptions(report.status)}
                     </select>
                   </td>
                   <td className="px-5 py-4">
@@ -174,12 +185,10 @@ export default function QueuingSystem({ reports = [], onStatusChange }) {
                   <select
                     value={report.status || "pending"}
                     onChange={(e) => handleStatusSelect(report._id, e.target.value)}
-                    className="w-full text-xs font-bold border border-slate-200 rounded-lg px-3 py-2 bg-white text-slate-700 outline-none"
+                    disabled={["resolved", "responded"].includes((report.status || "").toLowerCase())}
+                    className="w-full text-xs font-bold border border-slate-200 rounded-lg px-3 py-2 bg-white text-slate-700 outline-none disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    <option value="pending">Pending</option>
-                    <option value="rejected">Rejected</option>
-                    <option value="responding">Responding</option>
-                    <option value="resolved">Resolved</option>
+                    {statusOptions(report.status)}
                   </select>
                 </div>
               </article>
@@ -227,7 +236,7 @@ export default function QueuingSystem({ reports = [], onStatusChange }) {
               </button>
               <button
                 onClick={() => {
-                  onStatusChange(resolvingIncidentId, "resolved");
+                  setEvidenceIncidentId(resolvingIncidentId);
                   setResolvingIncidentId(null);
                 }}
                 className="px-5 py-2 rounded-lg text-[13px] font-black text-white bg-[#0a1e3f] hover:bg-emerald-600 active:scale-95 transition-all uppercase tracking-wide shadow-lg shadow-[#0a1e3f]/20 hover:shadow-emerald-600/30"
@@ -241,6 +250,7 @@ export default function QueuingSystem({ reports = [], onStatusChange }) {
           </div>
         </div>
       )}
+      {evidenceIncidentId && <ResolutionEvidenceModal onClose={() => setEvidenceIncidentId(null)} onSubmit={async (images) => { await onStatusChange(evidenceIncidentId, "resolved", images); setEvidenceIncidentId(null); }} />}
       <IncidentDetailModal report={selectedReport} onClose={() => setSelectedReport(null)} />
     </div>
   );

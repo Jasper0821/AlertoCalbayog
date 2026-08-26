@@ -5,6 +5,7 @@ import {
 } from "recharts";
 import { TYPE_ICONS } from "../../../utils/incidentFormatters.js";
 import IncidentDetailModal from "../PNP/IncidentDetailModal.jsx";
+import ResolutionEvidenceModal from "../ResolutionEvidenceModal.jsx";
 
 /* ─── Brand (CDRRMO Emerald) ─────────────────────────────────────────── */
 const BRAND    = "#10b981";
@@ -142,6 +143,7 @@ function ChartTip({ active, payload, label }) {
 export default function DashboardOverview({ reports = [], setActiveNav, onStatusChange }) {
   const safe = Array.isArray(reports) ? reports : [];
   const [selectedReport, setSelectedReport] = useState(null);
+  const [resolvingReportId, setResolvingReportId] = useState(null);
   const [tab, setTab] = useState("Today");
 
   /* KPIs */
@@ -317,12 +319,12 @@ export default function DashboardOverview({ reports = [], setActiveNav, onStatus
                           <circle cx="12" cy="12" r="3"></circle>
                         </svg>
                       </button>
-                      <button title="Mark Resolved" onClick={()=>onStatusChange?.(r._id,"resolved")}
-                        style={{ background:"none", border:"none", cursor:"pointer", color:"#ef4444", padding:3, borderRadius:5 }}
-                        onMouseEnter={e=>e.currentTarget.style.background="#fef2f2"}
+                      <button title="Mark Resolved" onClick={()=>setResolvingReportId(r._id)}
+                        style={{ background:"none", border:"none", cursor:"pointer", color:"#10b981", padding:3, borderRadius:5 }}
+                        onMouseEnter={e=>e.currentTarget.style.background="#ecfdf5"}
                         onMouseLeave={e=>e.currentTarget.style.background="none"}>
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <polyline points="3 6 5 6 21 6"/><path strokeLinecap="round" strokeLinejoin="round" d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6m5 0V4a1 1 0 011-1h2a1 1 0 011 1v2"/>
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                          <polyline points="20 6 9 17 4 12"/>
                         </svg>
                       </button>
                     </div>
@@ -338,6 +340,16 @@ export default function DashboardOverview({ reports = [], setActiveNav, onStatus
         <IncidentDetailModal 
           report={selectedReport} 
           onClose={() => setSelectedReport(null)} 
+        />
+      )}
+
+      {resolvingReportId && (
+        <ResolutionEvidenceModal
+          onClose={() => setResolvingReportId(null)}
+          onSubmit={async (images) => {
+            await onStatusChange?.(resolvingReportId, "resolved", images);
+            setResolvingReportId(null);
+          }}
         />
       )}
     </div>
