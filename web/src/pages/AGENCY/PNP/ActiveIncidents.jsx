@@ -4,7 +4,7 @@ import IncidentDetailModal from "./IncidentDetailModal.jsx";
 
 export default function ActiveIncidents({ reports = [] }) {
   const activeReports = (Array.isArray(reports) ? reports : []).filter(r =>
-    normalizeIncidentStatus(r.status) !== "resolved"
+    ["pending", "responding"].includes(normalizeIncidentStatus(r.status))
   );
   const [selectedReport, setSelectedReport] = useState(null);
 

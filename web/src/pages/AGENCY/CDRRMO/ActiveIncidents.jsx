@@ -6,7 +6,7 @@ export default function ActiveIncidents({ reports = [] }) {
   const [selectedReport, setSelectedReport] = useState(null);
   // Show all unresolved reports so responders can progress incidents without opening the queue.
   const activeReports = (Array.isArray(reports) ? reports : []).filter(r =>
-    normalizeIncidentStatus(r.status) !== "resolved"
+    ["pending", "responding"].includes(normalizeIncidentStatus(r.status))
   );
 
   return (

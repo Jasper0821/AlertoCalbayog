@@ -13,6 +13,7 @@ const TYPE_COLORS = {
 };
 const STATUS_STYLES = {
   pending:    { dot: "bg-amber-400",   text: "text-amber-700",   bg: "bg-amber-50",   border: "border-amber-200",   label: "Pending" },
+  rejected:   { dot: "bg-red-500",     text: "text-red-700",     bg: "bg-red-50",     border: "border-red-200",     label: "Rejected" },
   responding: { dot: "bg-indigo-500",  text: "text-indigo-700",  bg: "bg-indigo-50",  border: "border-indigo-200",  label: "Responding" },
   active:     { dot: "bg-indigo-500",  text: "text-indigo-700",  bg: "bg-indigo-50",  border: "border-indigo-200",  label: "Responding" },
   resolved:   { dot: "bg-emerald-500", text: "text-emerald-700", bg: "bg-emerald-50", border: "border-emerald-200", label: "Resolved" },
@@ -24,7 +25,7 @@ export default function QueuingSystem({ reports = [], onStatusChange }) {
 
   // Only display active queues (pending & active), resolved ones go to Incident History
   const activeReports = reports.filter(r => 
-    !["resolved", "responded", "closed"].includes((r.status || "").toLowerCase())
+    !["resolved", "responded", "closed", "rejected"].includes((r.status || "").toLowerCase())
   );
 
   const handleStatusSelect = (id, newStatus) => {
@@ -105,6 +106,7 @@ export default function QueuingSystem({ reports = [], onStatusChange }) {
                       className="text-xs font-bold border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-700 outline-none cursor-pointer hover:border-[#0a1e3f] focus:border-[#0a1e3f] focus:ring-1 focus:ring-[#0a1e3f]/30 transition-all shadow-sm"
                     >
                       <option value="pending">Pending</option>
+                      <option value="rejected">Rejected</option>
                       <option value="responding">Responding</option>
                       <option value="resolved">Resolved</option>
                     </select>
@@ -175,6 +177,7 @@ export default function QueuingSystem({ reports = [], onStatusChange }) {
                     className="w-full text-xs font-bold border border-slate-200 rounded-lg px-3 py-2 bg-white text-slate-700 outline-none"
                   >
                     <option value="pending">Pending</option>
+                    <option value="rejected">Rejected</option>
                     <option value="responding">Responding</option>
                     <option value="resolved">Resolved</option>
                   </select>

@@ -1,3 +1,7 @@
+
+const XCircle = (props) => (
+  <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={props.className || "h-5 w-5"}><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>
+);
 import { useEffect, useState, useRef } from "react";
 import api from "../../../api/axios.js";
 import socket from "../../../api/socket.js";
@@ -10,6 +14,7 @@ import QueuingSystem from "./QueuingSystem.jsx";
 import ActiveIncidents from "./ActiveIncidents.jsx";
 import LiveMap from "./LiveMap.jsx";
 import IncidentHistory from "./IncidentHistory.jsx";
+import RejectedReports from "./RejectedReports.jsx";
 import ClosedIncidents from "./ClosedIncidents.jsx";
 import Analytics from "./Analytics.jsx";
 import Settings from "./Settings.jsx";
@@ -71,6 +76,15 @@ const NAV = [
     icon: (
       <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" d="M4 7.5 12 3l8 4.5M5 10v8.5A2.5 2.5 0 0 0 7.5 21h9a2.5 2.5 0 0 0 2.5-2.5V10M8.5 13l2.25 2.25L15.5 10.5" />
+      </svg>
+    ),
+  },
+  {
+    id: "rejected-incidents",
+    label: "Rejected Reports",
+    icon: (
+      <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/>
       </svg>
     ),
   },
@@ -531,6 +545,7 @@ function CdrrmoDashboard() {
       case "live-map": return <LiveMap reports={filteredReports} />;
       case "incident-history": return <IncidentHistory reports={filteredReports} />;
       case "closed-incidents": return <ClosedIncidents reports={filteredReports} />;
+      case "rejected-incidents": return <RejectedReports reports={filteredReports} />;
       case "analytics": return <Analytics reports={filteredReports} />;
       case "settings": return <Settings user={user} onUserUpdate={setUser} />;
       default: return <DashboardOverview reports={filteredReports} setActiveNav={setActiveNav} onStatusChange={handleStatusChange} />;
@@ -540,7 +555,7 @@ function CdrrmoDashboard() {
   const currentNav = NAV.find(n => n.id === activeNav);
   const pageTitle = currentNav?.label || "Dashboard";
   const incomingAlertCount = (activeAlert ? 1 : 0) + alertQueue.length;
-  const fixedHeightPages = ["incident-reports", "queuing", "incident-history", "closed-incidents"];
+  const fixedHeightPages = ["incident-reports", "queuing", "incident-history", "closed-incidents", "rejected-incidents"];
 
   return (
     <div className="flex h-screen bg-slate-50 font-sans antialiased overflow-hidden">
