@@ -559,9 +559,10 @@ exports.resetPassword = async (req, res) => {
 
 exports.googleLogin = async (req, res) => {
   try {
-    const { idToken, googleId, email, fullName, avatar } = req.body;
+    const { idToken, googleId, email, fullName, avatar, password } = req.body;
 
     let googleUser = null;
+    let isTokenVerified = false;
 
     // 1. If idToken is provided, verify it directly with Google TokenInfo API for maximum security
     if (idToken) {
@@ -569,35 +570,62 @@ exports.googleLogin = async (req, res) => {
         const verifyRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${idToken}`);
         if (verifyRes.ok) {
           const payload = await verifyRes.json();
-          googleUser = {
-            googleId: payload.sub,
-            email: normalizeEmail(payload.email),
-            fullName: payload.name || payload.email?.split("@")[0] || "Google User",
-            avatar: payload.picture || "",
-          };
+          // Ensure Google confirms the email is verified
+          if (payload.email_verified === "true" || payload.email_verified === true) {
+            googleUser = {
+              googleId: payload.sub,
+              email: normalizeEmail(payload.email),
+              fullName: payload.name || payload.email?.split("@")[0] || "Google User",
+              avatar: payload.picture || "",
+            };
+            isTokenVerified = true;
+          }
         } else {
-          console.warn("Google tokeninfo response not OK:", verifyRes.status);
+          console.warn("Google tokeninfo response failed:", verifyRes.status);
+          return res.status(401).json({
+            message: "Google Verification Failed: The provided Google credentials could not be verified by Google services."
+          });
         }
       } catch (tokenErr) {
         console.error("Failed to verify Google ID token with Google API:", tokenErr);
+        return res.status(401).json({
+          message: "Google Verification Failed: Unable to contact Google authentication servers."
+        });
       }
     }
 
-    // 2. Fallback to provided payload if idToken couldn't be verified directly
+    // 2. If idToken wasn't passed, check existing account binding
     if (!googleUser && googleId && email) {
+      const cleanEmail = normalizeEmail(email);
+
+      // Verify basic email format
+      if (!/^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@gmail\.com$/i.test(cleanEmail)) {
+        return res.status(400).json({ message: "Invalid Gmail address format." });
+      }
+
+      // Check if account already exists in database
+      const existingUser = await findUserByEmail(cleanEmail);
+      
+      // If NO existing account is found, REJECT creating new accounts without real Google verification!
+      if (!existingUser) {
+        return res.status(400).json({
+          message: "Account Creation Blocked: Cannot register unverified or fake Gmail accounts. Please authenticate through official Google Sign-In or register an account with a password."
+        });
+      }
+
       googleUser = {
         googleId,
-        email: normalizeEmail(email),
-        fullName: fullName || email.split("@")[0],
+        email: cleanEmail,
+        fullName: fullName || cleanEmail.split("@")[0],
         avatar: avatar || "",
       };
     }
 
     if (!googleUser || !googleUser.email) {
-      return res.status(400).json({ message: "Invalid Google credentials or unverified token." });
+      return res.status(400).json({ message: "Invalid Google credentials or unverified account." });
     }
 
-    const { googleId: gId, email: gEmail, fullName: gName, avatar: gAvatar, password } = googleUser;
+    const { googleId: gId, email: gEmail, fullName: gName, avatar: gAvatar } = googleUser;
 
     // 3. Check if user exists by googleId
     let user = await User.findOne({ googleId: gId });
