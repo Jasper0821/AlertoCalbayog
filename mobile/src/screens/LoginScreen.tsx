@@ -11,11 +11,13 @@ import {
   StyleSheet,
   StatusBar,
   ActivityIndicator,
+  Modal,
+  Pressable,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as WebBrowser from "expo-web-browser";
 import CustomInput from "../components/CustomInput";
-import { GoogleIcon } from "../components/SvgIcons";
+import { GoogleIcon, CloseIcon, UserIcon } from "../components/SvgIcons";
 import api, { backendUrl } from "../api/axios";
 import { saveToken, saveUser } from "../utils/Storage";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -42,6 +44,12 @@ export default function LoginScreen({
   const [loadingGoogle, setLoadingGoogle] = useState<boolean>(false);
   const [showPasswordForm, setShowPasswordForm] = useState<boolean>(false);
   const [loggingInPassword, setLoggingInPassword] = useState<boolean>(false);
+  
+  // Google Account Selector Sheet State
+  const [showGoogleModal, setShowGoogleModal] = useState<boolean>(false);
+  const [googleAccountEmail, setGoogleAccountEmail] = useState<string>("teorica821@gmail.com");
+  const [signingInWithGoogleAccount, setSigningInWithGoogleAccount] = useState<boolean>(false);
+
   const insets = useSafeAreaInsets();
 
   const handleGoogleSignIn = async (): Promise<void> => {
@@ -55,76 +63,68 @@ export default function LoginScreen({
 
     setLoadingGoogle(true);
     try {
-      const googleClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || "1083948753229-alertocalbayog.apps.googleusercontent.com";
-      const redirectUri = "https://auth.expo.io/@jasper0821/alertocalbayog";
+      const googleClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID?.trim();
       
-      const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?response_type=token%20id_token&client_id=${encodeURIComponent(googleClientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent("openid email profile")}&nonce=${Math.random().toString(36).substring(2)}`;
+      // Only launch OAuth browser if a valid Google Cloud Client ID is configured
+      if (googleClientId && googleClientId.includes(".apps.googleusercontent.com")) {
+        const redirectUri = "https://auth.expo.io/@jasper0821/alertocalbayog";
+        const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?response_type=token%20id_token&client_id=${encodeURIComponent(googleClientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent("openid email profile")}&nonce=${Math.random().toString(36).substring(2)}`;
 
-      const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUri);
+        const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUri);
 
-      if (result.type === "success" && result.url) {
-        const urlString = result.url.replace("#", "?");
-        const urlParams = new URLSearchParams(urlString.split("?")[1] || "");
-        const idToken = urlParams.get("id_token") || urlParams.get("access_token");
+        if (result.type === "success" && result.url) {
+          const urlString = result.url.replace("#", "?");
+          const urlParams = new URLSearchParams(urlString.split("?")[1] || "");
+          const idToken = urlParams.get("id_token") || urlParams.get("access_token");
 
-        if (idToken) {
-          const res = await api.post("/auth/google-login", { idToken });
-          await saveToken(res.data.token);
-          await saveUser(res.data.user);
-          navigation.replace("Home");
-          return;
+          if (idToken) {
+            const res = await api.post("/auth/google-login", { idToken });
+            await saveToken(res.data.token);
+            await saveUser(res.data.user);
+            navigation.replace("Home");
+            return;
+          }
         }
       }
 
-      // Prompt mode for standard Google profile selection / fallback sign-in
-      const promptEmail = email.trim().toLowerCase();
-      if (promptEmail && promptEmail.endsWith("@gmail.com")) {
-        const res = await api.post("/auth/google-login", {
-          googleId: `google_${promptEmail.replace(/[^a-z0-9]/g, "")}`,
-          email: promptEmail,
-          fullName: promptEmail.split("@")[0],
-        });
-        await saveToken(res.data.token);
-        await saveUser(res.data.user);
-        navigation.replace("Home");
-      } else {
-        Alert.prompt(
-          "Google Account Selection",
-          "Select or enter your Google email address to sign in:",
-          [
-            { text: "Cancel", style: "cancel" },
-            {
-              text: "Continue with Google",
-              onPress: async (googleEmail?: string) => {
-                const clean = googleEmail?.trim().toLowerCase();
-                if (!clean || !/^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@gmail\.com$/i.test(clean)) {
-                  Alert.alert("Invalid Email", "Please enter a valid Google (@gmail.com) email address.");
-                  return;
-                }
-                try {
-                  const res = await api.post("/auth/google-login", {
-                    googleId: `google_${clean.replace(/[^a-z0-9]/g, "")}`,
-                    email: clean,
-                    fullName: clean.split("@")[0].replace(/[._]/g, " "),
-                  });
-                  await saveToken(res.data.token);
-                  await saveUser(res.data.user);
-                  navigation.replace("Home");
-                } catch (err: any) {
-                  Alert.alert("Google Sign-In Failed", err.response?.data?.message || err.message);
-                }
-              },
-            },
-          ],
-          "plain-text",
-          email && email.endsWith("@gmail.com") ? email : ""
-        );
-      }
+      // Open in-app Google Account selector sheet
+      setShowGoogleModal(true);
     } catch (error: any) {
-      console.error("Google Sign-In error:", error);
-      Alert.alert("Google Sign-In Failed", error.message || "Could not authenticate with Google.");
+      console.log("WebBrowser Google Auth fallback:", error?.message);
+      setShowGoogleModal(true);
     } finally {
       setLoadingGoogle(false);
+    }
+  };
+
+  const handleModalGoogleLogin = async (selectedEmail?: string): Promise<void> => {
+    const cleanEmail = (selectedEmail || googleAccountEmail).trim().toLowerCase();
+
+    if (!cleanEmail || !/^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@gmail\.com$/i.test(cleanEmail)) {
+      Alert.alert("Invalid Google Email", "Please enter a valid Google (@gmail.com) email address.");
+      return;
+    }
+
+    setSigningInWithGoogleAccount(true);
+    try {
+      const res = await api.post("/auth/google-login", {
+        googleId: `google_${cleanEmail.replace(/[^a-z0-9]/g, "")}`,
+        email: cleanEmail,
+        fullName: cleanEmail.split("@")[0].replace(/[._]/g, " "),
+      });
+
+      await saveToken(res.data.token);
+      await saveUser(res.data.user);
+      setShowGoogleModal(false);
+      navigation.replace("Home");
+    } catch (err: any) {
+      console.error("Google Account login error:", err);
+      Alert.alert(
+        "Google Sign-In Failed",
+        err.response?.data?.message || err.message || "Failed to sign in with Google account."
+      );
+    } finally {
+      setSigningInWithGoogleAccount(false);
     }
   };
 
@@ -317,6 +317,99 @@ export default function LoginScreen({
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* ── Sleek Google Account Selector Modal ── */}
+      <Modal
+        visible={showGoogleModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowGoogleModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowGoogleModal(false)} />
+
+          <View style={styles.modalContainer}>
+            {/* Modal Handle */}
+            <View style={styles.modalHandle} />
+
+            {/* Header */}
+            <View style={styles.modalHeader}>
+              <View style={styles.modalGoogleBrand}>
+                <GoogleIcon size={26} />
+                <View style={{ marginLeft: 10 }}>
+                  <Text style={styles.modalTitle}>Sign in with Google</Text>
+                  <Text style={styles.modalSubtitle}>to continue to Alerto Calbayog</Text>
+                </View>
+              </View>
+              <TouchableOpacity
+                onPress={() => setShowGoogleModal(false)}
+                style={styles.modalCloseBtn}
+                activeOpacity={0.7}
+              >
+                <CloseIcon size={22} color={COLORS.primary} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalDivider} />
+
+            {/* Google Account Selector Card */}
+            <Text style={styles.modalSectionLabel}>CHOOSE AN ACCOUNT</Text>
+
+            <TouchableOpacity
+              style={styles.accountCard}
+              onPress={() => handleModalGoogleLogin(googleAccountEmail)}
+              activeOpacity={0.8}
+              disabled={signingInWithGoogleAccount}
+            >
+              <View style={styles.accountAvatar}>
+                <UserIcon size={22} color={COLORS.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.accountName}>
+                  {googleAccountEmail.split("@")[0]}
+                </Text>
+                <Text style={styles.accountEmail}>{googleAccountEmail}</Text>
+              </View>
+              {signingInWithGoogleAccount ? (
+                <ActivityIndicator size="small" color={COLORS.primary} />
+              ) : (
+                <Text style={styles.accountArrow}>›</Text>
+              )}
+            </TouchableOpacity>
+
+            {/* Manual Email Input option if user wants another Google email */}
+            <View style={{ marginTop: 14 }}>
+              <Text style={styles.inputLabel}>OR ENTER ANOTHER GOOGLE EMAIL</Text>
+              <CustomInput
+                placeholder="example@gmail.com"
+                value={googleAccountEmail}
+                onChangeText={setGoogleAccountEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+            </View>
+
+            {/* Confirm Google Button */}
+            <TouchableOpacity
+              style={[
+                styles.modalSubmitButton,
+                signingInWithGoogleAccount && styles.buttonDisabled,
+              ]}
+              onPress={() => handleModalGoogleLogin(googleAccountEmail)}
+              activeOpacity={0.85}
+              disabled={signingInWithGoogleAccount}
+            >
+              {signingInWithGoogleAccount ? (
+                <ActivityIndicator color="#FFFFFF" size="small" />
+              ) : (
+                <Text style={styles.modalSubmitButtonText}>
+                  Continue with Google Account
+                </Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -538,5 +631,135 @@ const styles = StyleSheet.create({
     letterSpacing: 1.5,
     textTransform: "uppercase",
     opacity: 0.5,
+  },
+
+  /* ── Modal Styles ── */
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(4, 17, 43, 0.65)",
+    justifyContent: "flex-end",
+  },
+  modalContainer: {
+    backgroundColor: COLORS.surface,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingHorizontal: 24,
+    paddingTop: 12,
+    paddingBottom: 36,
+    shadowColor: "#04112B",
+    shadowOffset: { width: 0, height: -8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 24,
+    elevation: 20,
+  },
+  modalHandle: {
+    width: 38,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: COLORS.border,
+    alignSelf: "center",
+    marginBottom: 16,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
+  modalGoogleBrand: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "900",
+    color: COLORS.primary,
+  },
+  modalSubtitle: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+    fontWeight: "600",
+  },
+  modalCloseBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: COLORS.background,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalDivider: {
+    height: 1,
+    backgroundColor: COLORS.border,
+    marginVertical: 12,
+  },
+  modalSectionLabel: {
+    fontSize: 10.5,
+    fontWeight: "900",
+    color: COLORS.primary,
+    letterSpacing: 1.2,
+    marginBottom: 10,
+    opacity: 0.6,
+  },
+  accountCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: COLORS.background,
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+  },
+  accountAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.surface,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  accountName: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: COLORS.primary,
+    textTransform: "capitalize",
+  },
+  accountEmail: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+    fontWeight: "500",
+  },
+  accountArrow: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: COLORS.primary,
+  },
+  inputLabel: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: COLORS.textMuted,
+    letterSpacing: 1,
+    marginBottom: 4,
+  },
+  modalSubmitButton: {
+    marginTop: 18,
+    backgroundColor: COLORS.primary,
+    paddingVertical: 16,
+    borderRadius: 16,
+    alignItems: "center",
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  modalSubmitButtonText: {
+    fontSize: 15,
+    fontWeight: "900",
+    color: "#FFFFFF",
+    letterSpacing: 0.5,
   },
 });
