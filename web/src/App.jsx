@@ -5,6 +5,7 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import CdrrmoDashboard from "./pages/AGENCY/CDRRMO/Dashboard.jsx";
 import PnpDashboard from "./pages/AGENCY/PNP/Dashboard.jsx";
+import BfpDashboard from "./pages/AGENCY/BFP/Dashboard.jsx";
 import AdminDashboard from "./pages/ADMIN/Dashboard.jsx";
 import Reports from "./pages/Reports";
 import Services from "./pages/Services";
@@ -18,6 +19,7 @@ import { clearDashboardNavigationState } from "./utils/dashboardSession.js";
 const getAgencyRoute = (user) => {
   if (user?.role === "admin") return "/admindashboard";
   if (user?.agency === "PNP") return "/crimedashboard";
+  if (user?.agency === "BFP") return "/firedashboard";
   return "/dashboard";
 };
 
@@ -107,6 +109,15 @@ function App() {
           element={
             <PrivateRoute allowedAgency="PNP">
               <PnpDashboard />
+            </PrivateRoute>
+          }
+        />
+
+        <Route
+          path="/firedashboard"
+          element={
+            <PrivateRoute allowedAgency="BFP">
+              <BfpDashboard />
             </PrivateRoute>
           }
         />

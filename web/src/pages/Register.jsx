@@ -195,6 +195,7 @@ function Register() {
  <option value="">Select Agency</option>
  <option value="CDRRMO">CDRRMO (Calbayog)</option>
  <option value="PNP">PNP (Calbayog)</option>
+ <option value="BFP">BFP (Bureau of Fire Protection)</option>
  </select>
  </div>
 
