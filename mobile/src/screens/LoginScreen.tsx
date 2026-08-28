@@ -45,14 +45,17 @@ export default function LoginScreen({
   const [showPasswordForm, setShowPasswordForm] = useState<boolean>(false);
   const [loggingInPassword, setLoggingInPassword] = useState<boolean>(false);
   
-  // Google Account Selector Sheet State
+  // Google Account Selector & Password Verification State
   const [showGoogleModal, setShowGoogleModal] = useState<boolean>(false);
   const [googleAccountEmail, setGoogleAccountEmail] = useState<string>("teorica821@gmail.com");
   const [signingInWithGoogleAccount, setSigningInWithGoogleAccount] = useState<boolean>(false);
+  const [requiresPassword, setRequiresPassword] = useState<boolean>(false);
+  const [isNewUser, setIsNewUser] = useState<boolean>(false);
+  const [bindPassword, setBindPassword] = useState<string>("");
 
   const insets = useSafeAreaInsets();
 
-  const handleGoogleSignIn = (): void => {
+  const handleGoogleSignIn = async (): Promise<void> => {
     if (!agreed) {
       Alert.alert(
         "User Agreement Required",
@@ -61,11 +64,61 @@ export default function LoginScreen({
       return;
     }
 
-    // Open native in-app Google Account Selector Sheet directly
-    setShowGoogleModal(true);
+    setLoadingGoogle(true);
+    let nativeSuccess = false;
+
+    try {
+      const { NativeModules } = require("react-native");
+      if (NativeModules.RNGoogleSignin) {
+        const { GoogleSignin } = require("@react-native-google-signin/google-signin");
+        GoogleSignin.configure({
+          webClientId:
+            process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ||
+            "892430385717-3i8g8ue561rqftv859o8i6gg1q4gk1nt.apps.googleusercontent.com",
+          offlineAccess: false,
+        });
+
+        await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+        const response = await GoogleSignin.signIn();
+        const idToken = response.idToken || response.data?.idToken;
+
+        if (idToken) {
+          const res = await api.post("/auth/google-login", { idToken });
+
+          await saveToken(res.data.token);
+          await saveUser(res.data.user);
+          nativeSuccess = true;
+
+          if (res.data.termsAccepted === false) {
+            navigation.replace("UserAgreement");
+          } else {
+            navigation.replace("Home");
+          }
+          return;
+        }
+      }
+    } catch (err: any) {
+      console.log("Native Google Sign-In fallback notice:", err?.message || err);
+
+      // If user manually cancelled native prompt, do not open modal
+      if (err?.code === "SIGN_IN_CANCELLED" || err?.message?.includes("cancel")) {
+        setLoadingGoogle(false);
+        return;
+      }
+    } finally {
+      setLoadingGoogle(false);
+    }
+
+    // Fallback for Expo Go (where RNGoogleSignin native binary is not available)
+    if (!nativeSuccess) {
+      setRequiresPassword(false);
+      setIsNewUser(false);
+      setBindPassword("");
+      setShowGoogleModal(true);
+    }
   };
 
-  const handleModalGoogleLogin = async (selectedEmail?: string): Promise<void> => {
+  const handleModalGoogleLogin = async (selectedEmail?: string, pass?: string): Promise<void> => {
     const cleanEmail = (selectedEmail || googleAccountEmail).trim().toLowerCase();
 
     if (!cleanEmail || !/^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@gmail\.com$/i.test(cleanEmail)) {
@@ -79,12 +132,31 @@ export default function LoginScreen({
         googleId: `google_${cleanEmail.replace(/[^a-z0-9]/g, "")}`,
         email: cleanEmail,
         fullName: cleanEmail.split("@")[0].replace(/[._]/g, " "),
+        password: pass || bindPassword || undefined,
       });
+
+      if (res.data?.requiresPassword) {
+        setRequiresPassword(true);
+        setIsNewUser(!!res.data.isNewUser);
+        Alert.alert(
+          res.data.isNewUser ? "Set Account Password" : "Verify Account Password",
+          res.data.message || "Please enter a password to proceed with Google account login."
+        );
+        return;
+      }
 
       await saveToken(res.data.token);
       await saveUser(res.data.user);
       setShowGoogleModal(false);
-      navigation.replace("Home");
+      setRequiresPassword(false);
+      setIsNewUser(false);
+      setBindPassword("");
+
+      if (res.data.termsAccepted === false) {
+        navigation.replace("UserAgreement");
+      } else {
+        navigation.replace("Home");
+      }
     } catch (err: any) {
       console.error("Google Account login error:", err);
       Alert.alert(
@@ -320,61 +392,123 @@ export default function LoginScreen({
 
             <View style={styles.modalDivider} />
 
-            {/* Google Account Selector Card */}
-            <Text style={styles.modalSectionLabel}>CHOOSE AN ACCOUNT</Text>
-
-            <TouchableOpacity
-              style={styles.accountCard}
-              onPress={() => handleModalGoogleLogin(googleAccountEmail)}
-              activeOpacity={0.8}
-              disabled={signingInWithGoogleAccount}
-            >
-              <View style={styles.accountAvatar}>
-                <UserIcon size={22} color={COLORS.primary} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.accountName}>
-                  {googleAccountEmail.split("@")[0]}
+            {/* Google Account Selector or Password Verification */}
+            {requiresPassword ? (
+              <View style={{ marginTop: 8 }}>
+                <Text style={styles.modalSectionLabel}>
+                  {isNewUser ? "CREATE ACCOUNT PASSWORD" : "ACCOUNT BINDING & VERIFICATION"}
                 </Text>
-                <Text style={styles.accountEmail}>{googleAccountEmail}</Text>
-              </View>
-              {signingInWithGoogleAccount ? (
-                <ActivityIndicator size="small" color={COLORS.primary} />
-              ) : (
-                <Text style={styles.accountArrow}>›</Text>
-              )}
-            </TouchableOpacity>
-
-            {/* Manual Email Input option if user wants another Google email */}
-            <View style={{ marginTop: 14 }}>
-              <Text style={styles.inputLabel}>OR ENTER ANOTHER GOOGLE EMAIL</Text>
-              <CustomInput
-                placeholder="example@gmail.com"
-                value={googleAccountEmail}
-                onChangeText={setGoogleAccountEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
-            </View>
-
-            {/* Confirm Google Button */}
-            <TouchableOpacity
-              style={[
-                styles.modalSubmitButton,
-                signingInWithGoogleAccount && styles.buttonDisabled,
-              ]}
-              onPress={() => handleModalGoogleLogin(googleAccountEmail)}
-              activeOpacity={0.85}
-              disabled={signingInWithGoogleAccount}
-            >
-              {signingInWithGoogleAccount ? (
-                <ActivityIndicator color="#FFFFFF" size="small" />
-              ) : (
-                <Text style={styles.modalSubmitButtonText}>
-                  Continue with Google Account
+                <Text style={{ fontSize: 13, color: COLORS.textMuted, marginBottom: 14, lineHeight: 19 }}>
+                  {isNewUser ? (
+                    <>
+                      Set a password for your account (<Text style={{ fontWeight: "800", color: COLORS.primary }}>{googleAccountEmail}</Text>) to complete registration and secure your login.
+                    </>
+                  ) : (
+                    <>
+                      An existing account for <Text style={{ fontWeight: "800", color: COLORS.primary }}>{googleAccountEmail}</Text> was found. Please enter your password to confirm account ownership and bind your Google account.
+                    </>
+                  )}
                 </Text>
-              )}
-            </TouchableOpacity>
+
+                <Text style={styles.inputLabel}>
+                  {isNewUser ? "CREATE PASSWORD" : "ACCOUNT PASSWORD"}
+                </Text>
+                <CustomInput
+                  placeholder={isNewUser ? "Create password (min 6 chars)" : "Enter your password"}
+                  secureTextEntry
+                  value={bindPassword}
+                  onChangeText={setBindPassword}
+                />
+
+                <TouchableOpacity
+                  style={[
+                    styles.modalSubmitButton,
+                    (!bindPassword || signingInWithGoogleAccount) && styles.buttonDisabled,
+                  ]}
+                  onPress={() => handleModalGoogleLogin(googleAccountEmail, bindPassword)}
+                  activeOpacity={0.85}
+                  disabled={!bindPassword || signingInWithGoogleAccount}
+                >
+                  {signingInWithGoogleAccount ? (
+                    <ActivityIndicator color="#FFFFFF" size="small" />
+                  ) : (
+                    <Text style={styles.modalSubmitButtonText}>
+                      {isNewUser ? "Create Account & Sign In" : "Verify & Bind Google Account"}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={{ alignSelf: "center", marginTop: 12 }}
+                  onPress={() => {
+                    setRequiresPassword(false);
+                    setIsNewUser(false);
+                    setBindPassword("");
+                  }}
+                >
+                  <Text style={{ fontSize: 13, color: COLORS.textMuted, fontWeight: "700" }}>
+                    ← Choose another Google account
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <>
+                <Text style={styles.modalSectionLabel}>CHOOSE AN ACCOUNT</Text>
+
+                <TouchableOpacity
+                  style={styles.accountCard}
+                  onPress={() => handleModalGoogleLogin(googleAccountEmail)}
+                  activeOpacity={0.8}
+                  disabled={signingInWithGoogleAccount}
+                >
+                  <View style={styles.accountAvatar}>
+                    <UserIcon size={22} color={COLORS.primary} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.accountName}>
+                      {googleAccountEmail.split("@")[0]}
+                    </Text>
+                    <Text style={styles.accountEmail}>{googleAccountEmail}</Text>
+                  </View>
+                  {signingInWithGoogleAccount ? (
+                    <ActivityIndicator size="small" color={COLORS.primary} />
+                  ) : (
+                    <Text style={styles.accountArrow}>›</Text>
+                  )}
+                </TouchableOpacity>
+
+                {/* Manual Email Input option if user wants another Google email */}
+                <View style={{ marginTop: 14 }}>
+                  <Text style={styles.inputLabel}>OR ENTER ANOTHER GOOGLE EMAIL</Text>
+                  <CustomInput
+                    placeholder="example@gmail.com"
+                    value={googleAccountEmail}
+                    onChangeText={setGoogleAccountEmail}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                  />
+                </View>
+
+                {/* Confirm Google Button */}
+                <TouchableOpacity
+                  style={[
+                    styles.modalSubmitButton,
+                    signingInWithGoogleAccount && styles.buttonDisabled,
+                  ]}
+                  onPress={() => handleModalGoogleLogin(googleAccountEmail)}
+                  activeOpacity={0.85}
+                  disabled={signingInWithGoogleAccount}
+                >
+                  {signingInWithGoogleAccount ? (
+                    <ActivityIndicator color="#FFFFFF" size="small" />
+                  ) : (
+                    <Text style={styles.modalSubmitButtonText}>
+                      Continue with Google Account
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              </>
+            )}
           </View>
         </View>
       </Modal>

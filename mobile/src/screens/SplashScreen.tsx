@@ -30,7 +30,13 @@ export default function SplashScreen({ navigation }: Props): React.JSX.Element {
 
         if (res.data && res.data.valid && res.data.user) {
           await saveUser(res.data.user);
-          if (isMounted) navigation.replace("Home");
+          if (isMounted) {
+            if (res.data.termsAccepted === false) {
+              navigation.replace("UserAgreement");
+            } else {
+              navigation.replace("Home");
+            }
+          }
         } else {
           await clearStorage();
           if (isMounted) navigation.replace("Login");
