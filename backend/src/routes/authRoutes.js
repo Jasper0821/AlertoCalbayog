@@ -8,12 +8,16 @@ const {
   forgotPassword,
   verifyOtp,
   resetPassword,
+  googleLogin,
+  verifySession,
 } = require("../controllers/authController");
 
 router.post("/register", register);
 router.post("/request-registration-otp", requestRegistrationOtp);
 router.post("/verify-registration-otp", verifyRegistrationOtp);
 router.post("/login", login);
+router.post("/google-login", googleLogin);
+router.get("/me", verifySession);
 router.post("/forgot-password", forgotPassword);
 router.post("/verify-otp", verifyOtp);
 router.post("/reset-password", resetPassword);

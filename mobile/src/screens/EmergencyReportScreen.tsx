@@ -145,7 +145,11 @@ export default function EmergencyReportScreen({ route, navigation }: Props): Rea
         emergencyType
       });
     } catch (error: any) {
-      Alert.alert("Error", error.response?.data?.message || error.message || "Failed to send report");
+      const isRateLimit = error.response?.status === 429;
+      Alert.alert(
+        isRateLimit ? "Spam Protection Active" : "Error",
+        error.response?.data?.message || error.message || "Failed to send report"
+      );
     } finally {
       setLoading(false);
     }

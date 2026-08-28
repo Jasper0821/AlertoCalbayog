@@ -2,6 +2,8 @@ import React, { useEffect } from "react";
 import { Image, View, Text } from "react-native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../navigation/AppNavigator";
+import { getToken, saveUser, clearStorage } from "../utils/Storage";
+import api from "../api/axios";
 
 type SplashScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, "Splash">;
 
@@ -11,11 +13,49 @@ interface Props {
 
 export default function SplashScreen({ navigation }: Props): React.JSX.Element {
   useEffect(() => {
-    const timer = setTimeout(() => {
-      navigation.replace("Login");
-    }, 2000);
+    let isMounted = true;
 
-    return () => clearTimeout(timer);
+    const checkSession = async () => {
+      try {
+        const token = await getToken();
+        if (!token) {
+          if (isMounted) navigation.replace("Login");
+          return;
+        }
+
+        // Verify session token with backend endpoint
+        const res = await api.get("/auth/me", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (res.data && res.data.valid && res.data.user) {
+          await saveUser(res.data.user);
+          if (isMounted) navigation.replace("Home");
+        } else {
+          await clearStorage();
+          if (isMounted) navigation.replace("Login");
+        }
+      } catch (err: any) {
+        console.log("Session check error:", err?.message || err);
+        // If offline / network error but stored token exists, maintain persistent session
+        const token = await getToken();
+        if (token) {
+          if (isMounted) navigation.replace("Home");
+        } else {
+          await clearStorage();
+          if (isMounted) navigation.replace("Login");
+        }
+      }
+    };
+
+    const timer = setTimeout(() => {
+      checkSession();
+    }, 1000);
+
+    return () => {
+      isMounted = false;
+      clearTimeout(timer);
+    };
   }, [navigation]);
 
   return (
