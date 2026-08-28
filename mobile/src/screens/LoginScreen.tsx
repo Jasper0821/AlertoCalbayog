@@ -45,10 +45,12 @@ export default function LoginScreen({
   const [showPasswordForm, setShowPasswordForm] = useState<boolean>(false);
   const [loggingInPassword, setLoggingInPassword] = useState<boolean>(false);
   
-  // Google Account Selector Sheet State
+  // Google Account Selector & Password Verification State
   const [showGoogleModal, setShowGoogleModal] = useState<boolean>(false);
   const [googleAccountEmail, setGoogleAccountEmail] = useState<string>("teorica821@gmail.com");
   const [signingInWithGoogleAccount, setSigningInWithGoogleAccount] = useState<boolean>(false);
+  const [requiresPassword, setRequiresPassword] = useState<boolean>(false);
+  const [bindPassword, setBindPassword] = useState<string>("");
 
   const insets = useSafeAreaInsets();
 
@@ -61,11 +63,12 @@ export default function LoginScreen({
       return;
     }
 
-    // Open native in-app Google Account Selector Sheet directly
+    setRequiresPassword(false);
+    setBindPassword("");
     setShowGoogleModal(true);
   };
 
-  const handleModalGoogleLogin = async (selectedEmail?: string): Promise<void> => {
+  const handleModalGoogleLogin = async (selectedEmail?: string, pass?: string): Promise<void> => {
     const cleanEmail = (selectedEmail || googleAccountEmail).trim().toLowerCase();
 
     if (!cleanEmail || !/^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@gmail\.com$/i.test(cleanEmail)) {
@@ -79,11 +82,23 @@ export default function LoginScreen({
         googleId: `google_${cleanEmail.replace(/[^a-z0-9]/g, "")}`,
         email: cleanEmail,
         fullName: cleanEmail.split("@")[0].replace(/[._]/g, " "),
+        password: pass || bindPassword || undefined,
       });
+
+      if (res.data?.requiresPassword) {
+        setRequiresPassword(true);
+        Alert.alert(
+          "Verify Account Password",
+          res.data.message || "An account with this email already exists. Please enter your password to bind your Google account."
+        );
+        return;
+      }
 
       await saveToken(res.data.token);
       await saveUser(res.data.user);
       setShowGoogleModal(false);
+      setRequiresPassword(false);
+      setBindPassword("");
       navigation.replace("Home");
     } catch (err: any) {
       console.error("Google Account login error:", err);
@@ -320,61 +335,110 @@ export default function LoginScreen({
 
             <View style={styles.modalDivider} />
 
-            {/* Google Account Selector Card */}
-            <Text style={styles.modalSectionLabel}>CHOOSE AN ACCOUNT</Text>
-
-            <TouchableOpacity
-              style={styles.accountCard}
-              onPress={() => handleModalGoogleLogin(googleAccountEmail)}
-              activeOpacity={0.8}
-              disabled={signingInWithGoogleAccount}
-            >
-              <View style={styles.accountAvatar}>
-                <UserIcon size={22} color={COLORS.primary} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.accountName}>
-                  {googleAccountEmail.split("@")[0]}
+            {/* Google Account Selector or Password Verification */}
+            {requiresPassword ? (
+              <View style={{ marginTop: 8 }}>
+                <Text style={styles.modalSectionLabel}>ACCOUNT BINDING &amp; VERIFICATION</Text>
+                <Text style={{ fontSize: 13, color: COLORS.textMuted, marginBottom: 14, lineHeight: 19 }}>
+                  An existing account for <Text style={{ fontWeight: "800", color: COLORS.primary }}>{googleAccountEmail}</Text> was found. Please enter your password to confirm account ownership and bind your Google Account.
                 </Text>
-                <Text style={styles.accountEmail}>{googleAccountEmail}</Text>
+
+                <Text style={styles.inputLabel}>ACCOUNT PASSWORD</Text>
+                <CustomInput
+                  placeholder="Enter your password"
+                  secureTextEntry
+                  value={bindPassword}
+                  onChangeText={setBindPassword}
+                />
+
+                <TouchableOpacity
+                  style={[
+                    styles.modalSubmitButton,
+                    (!bindPassword || signingInWithGoogleAccount) && styles.buttonDisabled,
+                  ]}
+                  onPress={() => handleModalGoogleLogin(googleAccountEmail, bindPassword)}
+                  activeOpacity={0.85}
+                  disabled={!bindPassword || signingInWithGoogleAccount}
+                >
+                  {signingInWithGoogleAccount ? (
+                    <ActivityIndicator color="#FFFFFF" size="small" />
+                  ) : (
+                    <Text style={styles.modalSubmitButtonText}>
+                      Verify &amp; Bind Google Account
+                    </Text>
+                  )}
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={{ alignSelf: "center", marginTop: 12 }}
+                  onPress={() => {
+                    setRequiresPassword(false);
+                    setBindPassword("");
+                  }}
+                >
+                  <Text style={{ fontSize: 13, color: COLORS.textMuted, fontWeight: "700" }}>
+                    ← Choose another Google account
+                  </Text>
+                </TouchableOpacity>
               </View>
-              {signingInWithGoogleAccount ? (
-                <ActivityIndicator size="small" color={COLORS.primary} />
-              ) : (
-                <Text style={styles.accountArrow}>›</Text>
-              )}
-            </TouchableOpacity>
+            ) : (
+              <>
+                <Text style={styles.modalSectionLabel}>CHOOSE AN ACCOUNT</Text>
 
-            {/* Manual Email Input option if user wants another Google email */}
-            <View style={{ marginTop: 14 }}>
-              <Text style={styles.inputLabel}>OR ENTER ANOTHER GOOGLE EMAIL</Text>
-              <CustomInput
-                placeholder="example@gmail.com"
-                value={googleAccountEmail}
-                onChangeText={setGoogleAccountEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
-            </View>
+                <TouchableOpacity
+                  style={styles.accountCard}
+                  onPress={() => handleModalGoogleLogin(googleAccountEmail)}
+                  activeOpacity={0.8}
+                  disabled={signingInWithGoogleAccount}
+                >
+                  <View style={styles.accountAvatar}>
+                    <UserIcon size={22} color={COLORS.primary} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.accountName}>
+                      {googleAccountEmail.split("@")[0]}
+                    </Text>
+                    <Text style={styles.accountEmail}>{googleAccountEmail}</Text>
+                  </View>
+                  {signingInWithGoogleAccount ? (
+                    <ActivityIndicator size="small" color={COLORS.primary} />
+                  ) : (
+                    <Text style={styles.accountArrow}>›</Text>
+                  )}
+                </TouchableOpacity>
 
-            {/* Confirm Google Button */}
-            <TouchableOpacity
-              style={[
-                styles.modalSubmitButton,
-                signingInWithGoogleAccount && styles.buttonDisabled,
-              ]}
-              onPress={() => handleModalGoogleLogin(googleAccountEmail)}
-              activeOpacity={0.85}
-              disabled={signingInWithGoogleAccount}
-            >
-              {signingInWithGoogleAccount ? (
-                <ActivityIndicator color="#FFFFFF" size="small" />
-              ) : (
-                <Text style={styles.modalSubmitButtonText}>
-                  Continue with Google Account
-                </Text>
-              )}
-            </TouchableOpacity>
+                {/* Manual Email Input option if user wants another Google email */}
+                <View style={{ marginTop: 14 }}>
+                  <Text style={styles.inputLabel}>OR ENTER ANOTHER GOOGLE EMAIL</Text>
+                  <CustomInput
+                    placeholder="example@gmail.com"
+                    value={googleAccountEmail}
+                    onChangeText={setGoogleAccountEmail}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                  />
+                </View>
+
+                {/* Confirm Google Button */}
+                <TouchableOpacity
+                  style={[
+                    styles.modalSubmitButton,
+                    signingInWithGoogleAccount && styles.buttonDisabled,
+                  ]}
+                  onPress={() => handleModalGoogleLogin(googleAccountEmail)}
+                  activeOpacity={0.85}
+                  disabled={signingInWithGoogleAccount}
+                >
+                  {signingInWithGoogleAccount ? (
+                    <ActivityIndicator color="#FFFFFF" size="small" />
+                  ) : (
+                    <Text style={styles.modalSubmitButtonText}>
+                      Continue with Google Account
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              </>
+            )}
           </View>
         </View>
       </Modal>

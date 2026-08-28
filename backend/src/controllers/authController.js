@@ -597,15 +597,32 @@ exports.googleLogin = async (req, res) => {
       return res.status(400).json({ message: "Invalid Google credentials or unverified token." });
     }
 
-    const { googleId: gId, email: gEmail, fullName: gName, avatar: gAvatar } = googleUser;
+    const { googleId: gId, email: gEmail, fullName: gName, avatar: gAvatar, password } = googleUser;
 
     // 3. Check if user exists by googleId
     let user = await User.findOne({ googleId: gId });
 
-    // 4. Account Binding: If not found by googleId, check if user exists by email
+    // 4. Account Binding & Password Verification: If not found by googleId, check if user exists by email
     if (!user) {
       user = await findUserByEmail(gEmail);
       if (user) {
+        // If the user has a password set and password is not provided yet, request password confirmation
+        if (user.password && !password) {
+          return res.status(200).json({
+            requiresPassword: true,
+            email: gEmail,
+            message: "An existing account was found for this email. Please enter your password to bind your Google account.",
+          });
+        }
+
+        // Verify provided password if account has password
+        if (user.password && password) {
+          const isMatch = await bcrypt.compare(password, user.password);
+          if (!isMatch) {
+            return res.status(401).json({ message: "Incorrect password. Could not verify and bind Google account." });
+          }
+        }
+
         // Link Google ID to existing account & mark email as verified by Google
         user.googleId = gId;
         user.isEmailVerified = true;
