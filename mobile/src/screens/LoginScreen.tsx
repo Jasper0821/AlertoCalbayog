@@ -50,11 +50,12 @@ export default function LoginScreen({
   const [googleAccountEmail, setGoogleAccountEmail] = useState<string>("teorica821@gmail.com");
   const [signingInWithGoogleAccount, setSigningInWithGoogleAccount] = useState<boolean>(false);
   const [requiresPassword, setRequiresPassword] = useState<boolean>(false);
+  const [isNewUser, setIsNewUser] = useState<boolean>(false);
   const [bindPassword, setBindPassword] = useState<string>("");
 
   const insets = useSafeAreaInsets();
 
-  const handleGoogleSignIn = (): void => {
+  const handleGoogleSignIn = async (): Promise<void> => {
     if (!agreed) {
       Alert.alert(
         "User Agreement Required",
@@ -63,9 +64,58 @@ export default function LoginScreen({
       return;
     }
 
-    setRequiresPassword(false);
-    setBindPassword("");
-    setShowGoogleModal(true);
+    setLoadingGoogle(true);
+    let nativeSuccess = false;
+
+    try {
+      const { NativeModules } = require("react-native");
+      if (NativeModules.RNGoogleSignin) {
+        const { GoogleSignin } = require("@react-native-google-signin/google-signin");
+        GoogleSignin.configure({
+          webClientId:
+            process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ||
+            "892430385717-3i8g8ue561rqftv859o8i6gg1q4gk1nt.apps.googleusercontent.com",
+          offlineAccess: false,
+        });
+
+        await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+        const response = await GoogleSignin.signIn();
+        const idToken = response.idToken || response.data?.idToken;
+
+        if (idToken) {
+          const res = await api.post("/auth/google-login", { idToken });
+
+          await saveToken(res.data.token);
+          await saveUser(res.data.user);
+          nativeSuccess = true;
+
+          if (res.data.termsAccepted === false) {
+            navigation.replace("UserAgreement");
+          } else {
+            navigation.replace("Home");
+          }
+          return;
+        }
+      }
+    } catch (err: any) {
+      console.log("Native Google Sign-In fallback notice:", err?.message || err);
+
+      // If user manually cancelled native prompt, do not open modal
+      if (err?.code === "SIGN_IN_CANCELLED" || err?.message?.includes("cancel")) {
+        setLoadingGoogle(false);
+        return;
+      }
+    } finally {
+      setLoadingGoogle(false);
+    }
+
+    // Fallback for Expo Go (where RNGoogleSignin native binary is not available)
+    if (!nativeSuccess) {
+      setRequiresPassword(false);
+      setIsNewUser(false);
+      setBindPassword("");
+      setShowGoogleModal(true);
+    }
   };
 
   const handleModalGoogleLogin = async (selectedEmail?: string, pass?: string): Promise<void> => {
@@ -87,9 +137,10 @@ export default function LoginScreen({
 
       if (res.data?.requiresPassword) {
         setRequiresPassword(true);
+        setIsNewUser(!!res.data.isNewUser);
         Alert.alert(
-          "Verify Account Password",
-          res.data.message || "An account with this email already exists. Please enter your password to bind your Google account."
+          res.data.isNewUser ? "Set Account Password" : "Verify Account Password",
+          res.data.message || "Please enter a password to proceed with Google account login."
         );
         return;
       }
@@ -98,8 +149,14 @@ export default function LoginScreen({
       await saveUser(res.data.user);
       setShowGoogleModal(false);
       setRequiresPassword(false);
+      setIsNewUser(false);
       setBindPassword("");
-      navigation.replace("Home");
+
+      if (res.data.termsAccepted === false) {
+        navigation.replace("UserAgreement");
+      } else {
+        navigation.replace("Home");
+      }
     } catch (err: any) {
       console.error("Google Account login error:", err);
       Alert.alert(
@@ -338,14 +395,26 @@ export default function LoginScreen({
             {/* Google Account Selector or Password Verification */}
             {requiresPassword ? (
               <View style={{ marginTop: 8 }}>
-                <Text style={styles.modalSectionLabel}>ACCOUNT BINDING &amp; VERIFICATION</Text>
+                <Text style={styles.modalSectionLabel}>
+                  {isNewUser ? "CREATE ACCOUNT PASSWORD" : "ACCOUNT BINDING & VERIFICATION"}
+                </Text>
                 <Text style={{ fontSize: 13, color: COLORS.textMuted, marginBottom: 14, lineHeight: 19 }}>
-                  An existing account for <Text style={{ fontWeight: "800", color: COLORS.primary }}>{googleAccountEmail}</Text> was found. Please enter your password to confirm account ownership and bind your Google Account.
+                  {isNewUser ? (
+                    <>
+                      Set a password for your account (<Text style={{ fontWeight: "800", color: COLORS.primary }}>{googleAccountEmail}</Text>) to complete registration and secure your login.
+                    </>
+                  ) : (
+                    <>
+                      An existing account for <Text style={{ fontWeight: "800", color: COLORS.primary }}>{googleAccountEmail}</Text> was found. Please enter your password to confirm account ownership and bind your Google account.
+                    </>
+                  )}
                 </Text>
 
-                <Text style={styles.inputLabel}>ACCOUNT PASSWORD</Text>
+                <Text style={styles.inputLabel}>
+                  {isNewUser ? "CREATE PASSWORD" : "ACCOUNT PASSWORD"}
+                </Text>
                 <CustomInput
-                  placeholder="Enter your password"
+                  placeholder={isNewUser ? "Create password (min 6 chars)" : "Enter your password"}
                   secureTextEntry
                   value={bindPassword}
                   onChangeText={setBindPassword}
@@ -364,7 +433,7 @@ export default function LoginScreen({
                     <ActivityIndicator color="#FFFFFF" size="small" />
                   ) : (
                     <Text style={styles.modalSubmitButtonText}>
-                      Verify &amp; Bind Google Account
+                      {isNewUser ? "Create Account & Sign In" : "Verify & Bind Google Account"}
                     </Text>
                   )}
                 </TouchableOpacity>
@@ -373,6 +442,7 @@ export default function LoginScreen({
                   style={{ alignSelf: "center", marginTop: 12 }}
                   onPress={() => {
                     setRequiresPassword(false);
+                    setIsNewUser(false);
                     setBindPassword("");
                   }}
                 >

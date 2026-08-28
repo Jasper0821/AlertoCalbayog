@@ -99,6 +99,15 @@ export default function HamburgerMenuSheet({ visible, onClose }: Props): React.J
           style: "destructive",
           onPress: async () => {
             onClose();
+            try {
+              const { NativeModules } = require("react-native");
+              if (NativeModules.RNGoogleSignin) {
+                const { GoogleSignin } = require("@react-native-google-signin/google-signin");
+                await GoogleSignin.signOut();
+              }
+            } catch (e) {
+              // Ignore
+            }
             await clearStorage();
             navigation.reset({
               index: 0,

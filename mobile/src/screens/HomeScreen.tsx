@@ -83,6 +83,15 @@ export default function HomeScreen({
   }, [pulseAnim]);
 
   const logout = async (): Promise<void> => {
+    try {
+      const { NativeModules } = require("react-native");
+      if (NativeModules.RNGoogleSignin) {
+        const { GoogleSignin } = require("@react-native-google-signin/google-signin");
+        await GoogleSignin.signOut();
+      }
+    } catch (e) {
+      // Ignore if native google signin is missing
+    }
     await clearStorage();
     navigation.replace("Login");
   };
