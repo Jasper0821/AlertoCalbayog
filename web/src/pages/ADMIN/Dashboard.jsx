@@ -2132,6 +2132,7 @@ export default function AdminDashboard() {
                 <option value="all">All agencies</option>
                 <option value="CDRRMO">CDRRMO</option>
                 <option value="PNP">PNP</option>
+                <option value="BFP">BFP</option>
               </select>
             )}
           </div>
