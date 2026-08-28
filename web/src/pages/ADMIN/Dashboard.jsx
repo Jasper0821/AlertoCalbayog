@@ -48,7 +48,7 @@ const STATUS_STYLES = {
   active: { dot: "bg-indigo-500", text: "text-indigo-700", bg: "bg-indigo-50", border: "border-indigo-200", label: "Active" },
   resolved: { dot: "bg-emerald-500", text: "text-emerald-700", bg: "bg-emerald-50", border: "border-emerald-200", label: "Resolved" },
   responded: { dot: "bg-emerald-500", text: "text-emerald-700", bg: "bg-emerald-50", border: "border-emerald-200", label: "Responded" },
-  closed: { dot: "bg-slate-400", text: "text-slate-600", bg: "bg-slate-100", border: "border-slate-200", label: "Closed" },
+  closed: { dot: "bg-slate-600", text: "text-slate-700", bg: "bg-slate-200", border: "border-slate-400", label: "Closed" },
   rejected: { dot: "bg-red-500", text: "text-red-700", bg: "bg-red-50", border: "border-red-200", label: "Rejected" },
 };
 
@@ -338,6 +338,12 @@ export default function AdminDashboard() {
   const [auditTotal, setAuditTotal] = useState(0);
   const [auditLoading, setAuditLoading] = useState(false);
   const [auditDetailEntry, setAuditDetailEntry] = useState(null);
+  // Closed incidents filters
+  const [closedAgencyFilter, setClosedAgencyFilter] = useState("all");
+  const [closedTypeFilter, setClosedTypeFilter] = useState("all");
+  const [closedYearFilter, setClosedYearFilter] = useState("all");
+  const [closedMonthFilter, setClosedMonthFilter] = useState("all");
+  const [closedDayFilter, setClosedDayFilter] = useState("all");
 
   const storedUser = (() => {
     try {
@@ -877,6 +883,15 @@ export default function AdminDashboard() {
       : activeUsers.filter((user) => (user.role || "resident").toLowerCase() === userCategoryFilter);
   }, [userCategoryFilter, users]);
 
+  // Calculate available years from closed reports
+  const closedYearOptions = useMemo(() => {
+    const years = new Set(reports
+      .filter(r => (r.status || "").toLowerCase() === "closed")
+      .map(r => new Date(r.createdAt).getFullYear())
+    );
+    return Array.from(years).sort((a, b) => b - a);
+  }, [reports]);
+
   const filteredReports = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     return reports.filter((report, index) => {
@@ -911,11 +926,25 @@ export default function AdminDashboard() {
       ].join(" ").toLowerCase();
 
       if (status !== "closed") return false;
-      if (agencyFilter !== "all" && !(report.notifiedAgencies || []).includes(agencyFilter)) return false;
+      if (closedAgencyFilter !== "all" && !(report.notifiedAgencies || []).includes(closedAgencyFilter)) return false;
+      if (closedTypeFilter !== "all" && (report.emergencyType || "").toLowerCase() !== closedTypeFilter) return false;
+      
+      // Apply date filters if specified
+      if (closedYearFilter !== "all" || closedMonthFilter !== "all" || closedDayFilter !== "all") {
+        const reportDate = new Date(report.createdAt);
+        const reportYear = reportDate.getFullYear().toString();
+        const reportMonth = (reportDate.getMonth() + 1).toString();
+        const reportDay = reportDate.getDate().toString();
+        
+        if (closedYearFilter !== "all" && reportYear !== closedYearFilter) return false;
+        if (closedMonthFilter !== "all" && reportMonth !== closedMonthFilter) return false;
+        if (closedDayFilter !== "all" && reportDay !== closedDayFilter) return false;
+      }
+      
       if (q && !haystack.includes(q)) return false;
       return true;
     });
-  }, [agencyFilter, reports, searchQuery]);
+  }, [closedAgencyFilter, closedTypeFilter, closedYearFilter, closedMonthFilter, closedDayFilter, reports, searchQuery]);
 
   const rejectedReports = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -1215,6 +1244,183 @@ export default function AdminDashboard() {
     );
     if (!shouldClose) return;
     await updateReportStatus(reportId, "closed");
+  };
+
+  const exportClosedReportsPDF = (reports) => {
+    if (!reports || reports.length === 0) {
+      alert("No closed incidents to export.");
+      return;
+    }
+
+    const printWindow = window.open("", "_blank");
+    
+    // Build incident rows
+    const rowsHtml = reports.map((r, i) => {
+      const type = (r.emergencyType || "others").toUpperCase();
+      const status = (r.status || "pending").toUpperCase();
+      const incId = getIncidentId(r, i);
+      const loc = getLocation(r) || "Unknown";
+      const date = r.createdAt ? new Date(r.createdAt) : new Date();
+      const dateStr = `${date.toLocaleDateString()} ${date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+      const reporter = r.userId?.fullName || "Unknown";
+      const agency = r.assignedAgency || (r.notifiedAgencies || []).join(", ") || "N/A";
+      
+      return `
+        <tr>
+          <td>${incId}</td>
+          <td>${type}</td>
+          <td>${loc}</td>
+          <td>${agency}</td>
+          <td>${reporter}</td>
+          <td>${dateStr}</td>
+          <td>${status}</td>
+        </tr>
+      `;
+    }).join("");
+
+    const htmlContent = `
+      <html>
+      <head>
+        <title>Alerto Calbayog - Closed Cases</title>
+        <style>
+          body {
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            color: #334155;
+            padding: 30px;
+            margin: 0;
+          }
+          .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 2px solid #0a1e3f;
+            padding-bottom: 15px;
+            margin-bottom: 30px;
+          }
+          .logo-section {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+          }
+          .logo {
+            height: 50px;
+            width: auto;
+          }
+          .header-title h1 {
+            font-size: 24px;
+            font-weight: bold;
+            color: #0a1e3f;
+            margin: 0;
+          }
+          .header-title p {
+            font-size: 12px;
+            color: #64748b;
+            margin: 5px 0 0 0;
+          }
+          .report-info {
+            font-size: 11px;
+            color: #64748b;
+            text-align: right;
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 30px;
+          }
+          th {
+            background-color: #f1f5f9;
+            color: #475569;
+            font-size: 11px;
+            font-weight: bold;
+            text-transform: uppercase;
+            padding: 10px 12px;
+            border: 1px solid #cbd5e1;
+            text-align: left;
+          }
+          td {
+            padding: 10px 12px;
+            font-size: 11px;
+            border: 1px solid #cbd5e1;
+            color: #334155;
+          }
+          tr:nth-child(even) {
+            background-color: #f8fafc;
+          }
+          .summary {
+            font-size: 12px;
+            font-weight: bold;
+            color: #0a1e3f;
+            margin-bottom: 40px;
+          }
+          .footer {
+            margin-top: 50px;
+            border-top: 1px dashed #cbd5e1;
+            padding-top: 15px;
+            font-size: 10px;
+            color: #94a3b8;
+            text-align: center;
+          }
+          @media print {
+            body {
+              padding: 0;
+            }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div class="logo-section">
+            <img src="/logo.png" alt="Alerto Calbayog" class="logo" />
+            <div class="header-title">
+              <h1>ALERTO CALBAYOG</h1>
+              <p>Closed Cases</p>
+            </div>
+          </div>
+          <div class="report-info">
+            <p><strong>Generated:</strong> ${new Date().toLocaleString()}</p>
+            <p><strong>Total Closed Incidents:</strong> ${reports.length}</p>
+          </div>
+        </div>
+        
+        <table>
+          <thead>
+            <tr>
+              <th>Incident ID</th>
+              <th>Type</th>
+              <th>Location</th>
+              <th>Agency</th>
+              <th>Reporter</th>
+              <th>Date & Time</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml || '<tr><td colspan="7" style="text-align:center">No incident records found.</td></tr>'}
+          </tbody>
+        </table>
+
+        <div class="summary">
+          Report summary: Compiled ${reports.length} closed incident records.
+        </div>
+
+        <div class="footer">
+          Alerto Calbayog © ${new Date().getFullYear()} — Confidential Admin Report. All rights reserved.
+        </div>
+
+        <script>
+          window.onload = function() {
+            window.print();
+            window.onafterprint = function() {
+              window.close();
+            };
+          }
+        </script>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
   };
 
   const saveUser = async (event) => {
