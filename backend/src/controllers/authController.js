@@ -651,8 +651,14 @@ exports.googleLogin = async (req, res) => {
       }
     }
 
-    // 5. If user still does not exist, create new user account automatically
+    // 5. If user still does not exist: Require Google Token verification to create a NEW Google account
     if (!user) {
+      if (!isTokenVerified) {
+        return res.status(400).json({
+          message: "Google Verification Required: Cannot create an account for an unverified or fake email address. Please authenticate using a real Google account or register an account with a password."
+        });
+      }
+
       user = await User.create({
         fullName: gName,
         username: gEmail,
