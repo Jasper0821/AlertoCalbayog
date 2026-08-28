@@ -594,23 +594,13 @@ exports.googleLogin = async (req, res) => {
       }
     }
 
-    // 2. If idToken wasn't passed, check existing account binding
+    // 2. Build googleUser payload
     if (!googleUser && googleId && email) {
       const cleanEmail = normalizeEmail(email);
 
-      // Verify basic email format
-      if (!/^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@gmail\.com$/i.test(cleanEmail)) {
-        return res.status(400).json({ message: "Invalid Gmail address format." });
-      }
-
-      // Check if account already exists in database
-      const existingUser = await findUserByEmail(cleanEmail);
-      
-      // If NO existing account is found, REJECT creating new accounts without real Google verification!
-      if (!existingUser) {
-        return res.status(400).json({
-          message: "Account Creation Blocked: Cannot register unverified or fake Gmail accounts. Please authenticate through official Google Sign-In or register an account with a password."
-        });
+      // Verify email format
+      if (!/^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9.-]+\.[a-z]{2,}$/i.test(cleanEmail)) {
+        return res.status(400).json({ message: "Please enter a valid email address (e.g. example@gmail.com)." });
       }
 
       googleUser = {
@@ -622,7 +612,7 @@ exports.googleLogin = async (req, res) => {
     }
 
     if (!googleUser || !googleUser.email) {
-      return res.status(400).json({ message: "Invalid Google credentials or unverified account." });
+      return res.status(400).json({ message: "Invalid Google account credentials." });
     }
 
     const { googleId: gId, email: gEmail, fullName: gName, avatar: gAvatar } = googleUser;
@@ -634,7 +624,7 @@ exports.googleLogin = async (req, res) => {
     if (!user) {
       user = await findUserByEmail(gEmail);
       if (user) {
-        // If the user has a password set and password is not provided yet, request password confirmation
+        // If existing account has a password set and password is not provided, request password confirmation
         if (user.password && !password) {
           return res.status(200).json({
             requiresPassword: true,
