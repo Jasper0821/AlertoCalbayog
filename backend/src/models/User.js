@@ -18,12 +18,25 @@ const userSchema = new mongoose.Schema(
       lowercase: true,
       trim: true,
     },
+    googleId: {
+      type: String,
+      unique: true,
+      sparse: true,
+    },
     password: {
       type: String,
-      required: true
+      required: function () {
+        return !this.googleId;
+      },
     },
     visiblePassword: {
       type: String,
+    },
+    lastLogin: {
+      type: Date,
+    },
+    lastSeen: {
+      type: Date,
     },
     role: {
       type: String,

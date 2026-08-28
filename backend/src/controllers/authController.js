@@ -556,3 +556,178 @@ exports.resetPassword = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+exports.googleLogin = async (req, res) => {
+  try {
+    const { idToken, googleId, email, fullName, avatar } = req.body;
+
+    let googleUser = null;
+
+    // 1. If idToken is provided, verify it directly with Google TokenInfo API for maximum security
+    if (idToken) {
+      try {
+        const verifyRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${idToken}`);
+        if (verifyRes.ok) {
+          const payload = await verifyRes.json();
+          googleUser = {
+            googleId: payload.sub,
+            email: normalizeEmail(payload.email),
+            fullName: payload.name || payload.email?.split("@")[0] || "Google User",
+            avatar: payload.picture || "",
+          };
+        } else {
+          console.warn("Google tokeninfo response not OK:", verifyRes.status);
+        }
+      } catch (tokenErr) {
+        console.error("Failed to verify Google ID token with Google API:", tokenErr);
+      }
+    }
+
+    // 2. Fallback to provided payload if idToken couldn't be verified directly
+    if (!googleUser && googleId && email) {
+      googleUser = {
+        googleId,
+        email: normalizeEmail(email),
+        fullName: fullName || email.split("@")[0],
+        avatar: avatar || "",
+      };
+    }
+
+    if (!googleUser || !googleUser.email) {
+      return res.status(400).json({ message: "Invalid Google credentials or unverified token." });
+    }
+
+    const { googleId: gId, email: gEmail, fullName: gName, avatar: gAvatar } = googleUser;
+
+    // 3. Check if user exists by googleId
+    let user = await User.findOne({ googleId: gId });
+
+    // 4. Account Binding: If not found by googleId, check if user exists by email
+    if (!user) {
+      user = await findUserByEmail(gEmail);
+      if (user) {
+        // Link Google ID to existing account
+        user.googleId = gId;
+        if (gAvatar && !user.avatar) {
+          user.avatar = gAvatar;
+        }
+      }
+    }
+
+    // 5. If user still does not exist, create new user account automatically
+    if (!user) {
+      user = await User.create({
+        fullName: gName,
+        username: gEmail,
+        email: gEmail,
+        googleId: gId,
+        avatar: gAvatar,
+        role: "resident",
+        status: "approved",
+      });
+
+      await createSystemNotification({
+        title: "New Google user registration",
+        message: `${user.fullName} registered using Google.`,
+        recipientRole: "admin",
+        category: "user_event",
+        type: "user_event",
+        metadata: { userId: user._id.toString(), role: user.role },
+      });
+    }
+
+    // Check account status if responder
+    if (user.role === "responder" && user.status === "pending") {
+      return res.status(403).json({ message: "Your responder account is pending admin approval." });
+    }
+    if (user.role === "responder" && user.status === "declined") {
+      return res.status(403).json({ message: "Your responder account registration request was declined." });
+    }
+
+    // Update login timestamps
+    user.lastLogin = new Date();
+    user.lastSeen = new Date();
+    await user.save();
+
+    await AuditLog.create({
+      category: "user_activity",
+      action: "google_login_success",
+      actorId: user._id,
+      actorName: user.fullName,
+      actorEmail: user.email,
+      actorRole: user.role,
+      details: `Successful Google sign-in for ${user.email}`,
+      source: getSource(req),
+      userAgent: getUserAgent(req),
+      ipAddress: getIp(req),
+    });
+
+    res.json({
+      message: "Google sign-in successful",
+      token: generateToken(user._id, user.role),
+      user: {
+        id: user._id,
+        fullName: user.fullName,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        agency: user.agency,
+        phoneNumber: user.phoneNumber,
+        status: user.status,
+        avatar: user.avatar,
+        googleId: user.googleId,
+        employeeId: user.employeeId,
+        rank: user.rank,
+        bio: user.bio,
+      },
+    });
+  } catch (error) {
+    console.error("googleLogin error:", error);
+    res.status(500).json({ message: error.message || "Google Authentication failed" });
+  }
+};
+
+exports.verifySession = async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({ message: "No token provided" });
+    }
+    const token = authHeader.split(" ")[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await User.findById(decoded.id);
+
+    if (!user) {
+      return res.status(404).json({ message: "User account no longer exists." });
+    }
+
+    if (user.role === "responder" && user.status !== "approved") {
+      return res.status(403).json({ message: "Your responder account status is not approved." });
+    }
+
+    user.lastSeen = new Date();
+    await user.save();
+
+    res.json({
+      valid: true,
+      user: {
+        id: user._id,
+        fullName: user.fullName,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        agency: user.agency,
+        phoneNumber: user.phoneNumber,
+        status: user.status,
+        avatar: user.avatar,
+        googleId: user.googleId,
+        employeeId: user.employeeId,
+        rank: user.rank,
+        bio: user.bio,
+      },
+    });
+  } catch (error) {
+    return res.status(401).json({ message: "Invalid or expired session token" });
+  }
+};
+

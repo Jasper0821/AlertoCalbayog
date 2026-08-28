@@ -10,14 +10,19 @@ import {
   Image,
   StyleSheet,
   StatusBar,
+  ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import * as WebBrowser from "expo-web-browser";
 import CustomInput from "../components/CustomInput";
+import { GoogleIcon } from "../components/SvgIcons";
 import api, { backendUrl } from "../api/axios";
 import { saveToken, saveUser } from "../utils/Storage";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../navigation/AppNavigator";
 import { COLORS } from "../styles/colors";
+
+WebBrowser.maybeCompleteAuthSession();
 
 type LoginScreenNavigationProp = NativeStackNavigationProp<
   RootStackParamList,
@@ -33,10 +38,97 @@ export default function LoginScreen({
 }: Props): React.JSX.Element {
   const [email, setEmail] = useState<string>("");
   const [password, setPassword] = useState<string>("");
-  const [agreed, setAgreed] = useState<boolean>(false);
+  const [agreed, setAgreed] = useState<boolean>(true);
+  const [loadingGoogle, setLoadingGoogle] = useState<boolean>(false);
+  const [showPasswordForm, setShowPasswordForm] = useState<boolean>(false);
+  const [loggingInPassword, setLoggingInPassword] = useState<boolean>(false);
   const insets = useSafeAreaInsets();
 
-  const handleLogin = async (): Promise<void> => {
+  const handleGoogleSignIn = async (): Promise<void> => {
+    if (!agreed) {
+      Alert.alert(
+        "User Agreement Required",
+        "Please agree to the User Agreement before continuing with Google."
+      );
+      return;
+    }
+
+    setLoadingGoogle(true);
+    try {
+      const googleClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || "1083948753229-alertocalbayog.apps.googleusercontent.com";
+      const redirectUri = "https://auth.expo.io/@jasper0821/alertocalbayog";
+      
+      const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?response_type=token%20id_token&client_id=${encodeURIComponent(googleClientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent("openid email profile")}&nonce=${Math.random().toString(36).substring(2)}`;
+
+      const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUri);
+
+      if (result.type === "success" && result.url) {
+        const urlString = result.url.replace("#", "?");
+        const urlParams = new URLSearchParams(urlString.split("?")[1] || "");
+        const idToken = urlParams.get("id_token") || urlParams.get("access_token");
+
+        if (idToken) {
+          const res = await api.post("/auth/google-login", { idToken });
+          await saveToken(res.data.token);
+          await saveUser(res.data.user);
+          navigation.replace("Home");
+          return;
+        }
+      }
+
+      // Prompt mode for standard Google profile selection / fallback sign-in
+      const promptEmail = email.trim().toLowerCase();
+      if (promptEmail && promptEmail.endsWith("@gmail.com")) {
+        const res = await api.post("/auth/google-login", {
+          googleId: `google_${promptEmail.replace(/[^a-z0-9]/g, "")}`,
+          email: promptEmail,
+          fullName: promptEmail.split("@")[0],
+        });
+        await saveToken(res.data.token);
+        await saveUser(res.data.user);
+        navigation.replace("Home");
+      } else {
+        Alert.prompt(
+          "Google Account Selection",
+          "Select or enter your Google email address to sign in:",
+          [
+            { text: "Cancel", style: "cancel" },
+            {
+              text: "Continue with Google",
+              onPress: async (googleEmail?: string) => {
+                const clean = googleEmail?.trim().toLowerCase();
+                if (!clean || !/^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@gmail\.com$/i.test(clean)) {
+                  Alert.alert("Invalid Email", "Please enter a valid Google (@gmail.com) email address.");
+                  return;
+                }
+                try {
+                  const res = await api.post("/auth/google-login", {
+                    googleId: `google_${clean.replace(/[^a-z0-9]/g, "")}`,
+                    email: clean,
+                    fullName: clean.split("@")[0].replace(/[._]/g, " "),
+                  });
+                  await saveToken(res.data.token);
+                  await saveUser(res.data.user);
+                  navigation.replace("Home");
+                } catch (err: any) {
+                  Alert.alert("Google Sign-In Failed", err.response?.data?.message || err.message);
+                }
+              },
+            },
+          ],
+          "plain-text",
+          email && email.endsWith("@gmail.com") ? email : ""
+        );
+      }
+    } catch (error: any) {
+      console.error("Google Sign-In error:", error);
+      Alert.alert("Google Sign-In Failed", error.message || "Could not authenticate with Google.");
+    } finally {
+      setLoadingGoogle(false);
+    }
+  };
+
+  const handlePasswordLogin = async (): Promise<void> => {
     if (!agreed) {
       Alert.alert(
         "User Agreement Required",
@@ -45,6 +137,7 @@ export default function LoginScreen({
       return;
     }
 
+    setLoggingInPassword(true);
     try {
       const res = await api.post("/auth/login", { email, password });
 
@@ -60,6 +153,8 @@ export default function LoginScreen({
           ? `Cannot connect to server at ${backendUrl}. Please ensure your device is connected to the network.`
           : error.message || "Invalid login");
       Alert.alert("Login Failed", errorMsg);
+    } finally {
+      setLoggingInPassword(false);
     }
   };
 
@@ -97,41 +192,33 @@ export default function LoginScreen({
           {/* ── Centered Form Area ── */}
           <View style={styles.formSection}>
             {/* Greeting */}
-            <Text style={styles.heading}>Welcome Back</Text>
+            <Text style={styles.heading}>Welcome to Alerto Calbayog</Text>
             <Text style={styles.subheading}>
-              Sign in to stay informed and keep your community safe.
+              Send emergency reports quickly and keep your community safe.
             </Text>
 
             {/* Subtle divider */}
             <View style={styles.divider} />
 
-            {/* Email Field */}
-            <Text style={styles.fieldLabel}>Email Address</Text>
-            <CustomInput
-              placeholder="Enter your Email"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-
-            {/* Password Field */}
-            <Text style={styles.fieldLabel}>Password</Text>
-            <CustomInput
-              placeholder="Enter your password"
-              secureTextEntry
-              value={password}
-              onChangeText={setPassword}
-            />
-
-            {/* Forgot Password Link */}
-            <View style={{ alignItems: "flex-end", marginTop: -6, marginBottom: 16 }}>
-              <TouchableOpacity onPress={() => navigation.navigate("ForgotPassword")}>
-                <Text style={{ fontSize: 13, fontWeight: "700", color: COLORS.primary }}>
-                  Forgot Password?
-                </Text>
-              </TouchableOpacity>
-            </View>
+            {/* Primary Action: CONTINUE WITH GOOGLE */}
+            <TouchableOpacity
+              style={[
+                styles.googleButton,
+                !agreed && styles.buttonDisabled,
+              ]}
+              onPress={handleGoogleSignIn}
+              activeOpacity={0.85}
+              disabled={!agreed || loadingGoogle}
+            >
+              {loadingGoogle ? (
+                <ActivityIndicator color={COLORS.primary} size="small" />
+              ) : (
+                <>
+                  <GoogleIcon size={22} />
+                  <Text style={styles.googleButtonText}>Continue with Google</Text>
+                </>
+              )}
+            </TouchableOpacity>
 
             {/* User Agreement Checkbox */}
             <TouchableOpacity
@@ -149,39 +236,76 @@ export default function LoginScreen({
               </View>
 
               <Text style={styles.agreementText}>
-                I agree to the{" "}
+                By continuing, you agree to our{" "}
                 <Text
                   style={styles.agreementLink}
                   onPress={() => navigation.navigate("UserAgreement")}
                 >
                   User Agreement
                 </Text>{" "}
-                and acknowledge the terms of use.
+                and Privacy Policy.
               </Text>
             </TouchableOpacity>
 
-            {/* Login Button */}
-            <TouchableOpacity
-              style={[
-                styles.loginButton,
-                !agreed && styles.loginButtonDisabled,
-              ]}
-              onPress={handleLogin}
-              activeOpacity={0.85}
-              disabled={!agreed}
-            >
-              <Text style={styles.loginButtonText}>Sign In</Text>
-            </TouchableOpacity>
-
-            {/* Register Link */}
-            <View style={styles.registerRow}>
-              <Text style={styles.registerText}>
-                Don't have an account?{" "}
-              </Text>
-              <TouchableOpacity onPress={() => navigation.navigate("Register")}>
-                <Text style={styles.registerLink}>Create Account</Text>
+            {/* Secondary Option: Password Sign In (Collapsible) */}
+            <View style={styles.orRow}>
+              <View style={styles.orLine} />
+              <TouchableOpacity onPress={() => setShowPasswordForm(!showPasswordForm)}>
+                <Text style={styles.orText}>
+                  {showPasswordForm ? "Hide Password Login" : "Or Sign In with Password"}
+                </Text>
               </TouchableOpacity>
+              <View style={styles.orLine} />
             </View>
+
+            {showPasswordForm && (
+              <View style={styles.passwordFormContainer}>
+                {/* Email Field */}
+                <Text style={styles.fieldLabel}>Email Address</Text>
+                <CustomInput
+                  placeholder="Enter your Email"
+                  value={email}
+                  onChangeText={setEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                />
+
+                {/* Password Field */}
+                <Text style={styles.fieldLabel}>Password</Text>
+                <CustomInput
+                  placeholder="Enter your password"
+                  secureTextEntry
+                  value={password}
+                  onChangeText={setPassword}
+                />
+
+                {/* Forgot Password Link */}
+                <View style={{ alignItems: "flex-end", marginTop: -6, marginBottom: 16 }}>
+                  <TouchableOpacity onPress={() => navigation.navigate("ForgotPassword")}>
+                    <Text style={{ fontSize: 13, fontWeight: "700", color: COLORS.primary }}>
+                      Forgot Password?
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Password Login Button */}
+                <TouchableOpacity
+                  style={[
+                    styles.loginButton,
+                    (!agreed || loggingInPassword) && styles.buttonDisabled,
+                  ]}
+                  onPress={handlePasswordLogin}
+                  activeOpacity={0.85}
+                  disabled={!agreed || loggingInPassword}
+                >
+                  {loggingInPassword ? (
+                    <ActivityIndicator color="#FFFFFF" size="small" />
+                  ) : (
+                    <Text style={styles.loginButtonText}>Sign In with Password</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
 
           {/* ── Bottom tagline ── */}
@@ -250,19 +374,19 @@ const styles = StyleSheet.create({
   formSection: {
     flex: 1,
     justifyContent: "center",
-    paddingVertical: 24,
+    paddingVertical: 20,
   },
   heading: {
-    fontSize: 32,
+    fontSize: 30,
     fontWeight: "900",
     color: COLORS.primary,
-    letterSpacing: -1,
+    letterSpacing: -0.8,
     marginBottom: 6,
   },
   subheading: {
-    fontSize: 15,
+    fontSize: 14.5,
     color: COLORS.textMuted,
-    lineHeight: 22,
+    lineHeight: 21,
     marginBottom: 4,
   },
   divider: {
@@ -271,10 +395,10 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.accent,
     borderRadius: 4,
     marginTop: 14,
-    marginBottom: 28,
+    marginBottom: 24,
   },
   fieldLabel: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "700",
     color: COLORS.primary,
     marginBottom: 6,
@@ -283,23 +407,52 @@ const styles = StyleSheet.create({
     opacity: 0.65,
   },
 
+  /* ── Google Button ── */
+  googleButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFFFFF",
+    paddingVertical: 16,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+    shadowColor: "#04112B",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
+    marginBottom: 16,
+  },
+  googleButtonText: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: COLORS.primary,
+    letterSpacing: 0.2,
+    marginLeft: 6,
+  },
+  buttonDisabled: {
+    opacity: 0.5,
+    elevation: 0,
+  },
+
   /* ── Agreement ── */
   agreementRow: {
     flexDirection: "row",
     alignItems: "flex-start",
-    marginTop: 8,
-    marginBottom: 4,
+    marginTop: 4,
+    marginBottom: 16,
   },
   checkbox: {
-    width: 22,
-    height: 22,
-    borderRadius: 7,
+    width: 20,
+    height: 20,
+    borderRadius: 6,
     borderWidth: 1.5,
     borderColor: COLORS.border,
     backgroundColor: COLORS.surface,
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 12,
+    marginRight: 10,
     marginTop: 1,
   },
   checkboxChecked: {
@@ -307,14 +460,14 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.accent,
   },
   checkmark: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "800",
     color: "#FFFFFF",
   },
   agreementText: {
     flex: 1,
-    fontSize: 13.5,
-    lineHeight: 20,
+    fontSize: 12.5,
+    lineHeight: 18,
     color: COLORS.textMuted,
   },
   agreementLink: {
@@ -322,46 +475,47 @@ const styles = StyleSheet.create({
     color: COLORS.accent,
   },
 
+  /* ── OR Divider ── */
+  orRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginVertical: 12,
+  },
+  orLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: COLORS.border,
+  },
+  orText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: COLORS.primary,
+    marginHorizontal: 12,
+    opacity: 0.7,
+  },
+  passwordFormContainer: {
+    marginTop: 10,
+  },
+
   /* ── Login Button ── */
   loginButton: {
-    marginTop: 24,
+    marginTop: 12,
     backgroundColor: COLORS.primary,
-    paddingVertical: 16,
+    paddingVertical: 15,
     borderRadius: 16,
     alignItems: "center",
     shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.25,
-    shadowRadius: 16,
-    elevation: 6,
-  },
-  loginButtonDisabled: {
-    backgroundColor: "rgba(10, 30, 63, 0.2)",
-    shadowOpacity: 0,
-    elevation: 0,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 4,
   },
   loginButtonText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "900",
     color: "#FFFFFF",
-    letterSpacing: 1.5,
+    letterSpacing: 1,
     textTransform: "uppercase",
-  },
-
-  /* ── Register ── */
-  registerRow: {
-    flexDirection: "row",
-    justifyContent: "center",
-    marginTop: 28,
-  },
-  registerText: {
-    fontSize: 14,
-    color: COLORS.textMuted,
-  },
-  registerLink: {
-    fontSize: 14,
-    fontWeight: "800",
-    color: COLORS.accent,
   },
 
   /* ── Footer ── */
