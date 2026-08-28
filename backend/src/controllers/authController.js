@@ -606,8 +606,10 @@ exports.googleLogin = async (req, res) => {
     if (!user) {
       user = await findUserByEmail(gEmail);
       if (user) {
-        // Link Google ID to existing account
+        // Link Google ID to existing account & mark email as verified by Google
         user.googleId = gId;
+        user.isEmailVerified = true;
+        user.authProvider = "google";
         if (gAvatar && !user.avatar) {
           user.avatar = gAvatar;
         }
@@ -624,6 +626,8 @@ exports.googleLogin = async (req, res) => {
         avatar: gAvatar,
         role: "resident",
         status: "approved",
+        isEmailVerified: true,
+        authProvider: "google",
       });
 
       await createSystemNotification({
@@ -644,7 +648,11 @@ exports.googleLogin = async (req, res) => {
       return res.status(403).json({ message: "Your responder account registration request was declined." });
     }
 
-    // Update login timestamps
+    // Update login timestamps and verification status
+    user.isEmailVerified = true;
+    if (!user.authProvider || user.authProvider === "local") {
+      user.authProvider = "google";
+    }
     user.lastLogin = new Date();
     user.lastSeen = new Date();
     await user.save();

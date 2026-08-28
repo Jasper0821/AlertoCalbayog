@@ -36,6 +36,7 @@ export default function HamburgerMenuSheet({ visible, onClose }: Props): React.J
   const [showHotlines, setShowHotlines] = useState(false);
   const [userName, setUserName] = useState<string>("User");
   const [userRole, setUserRole] = useState<string>("Resident");
+  const [isVerified, setIsVerified] = useState<boolean>(false);
 
   const slideAnim = React.useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const fadeAnim = React.useRef(new Animated.Value(0)).current;
@@ -46,6 +47,7 @@ export default function HamburgerMenuSheet({ visible, onClose }: Props): React.J
         if (user) {
           setUserName(user.fullName || "User");
           setUserRole(user.role ? user.role.toUpperCase() : "RESIDENT");
+          setIsVerified(Boolean(user.isEmailVerified || user.googleId || user.authProvider === "google"));
         }
       });
 
@@ -155,8 +157,17 @@ export default function HamburgerMenuSheet({ visible, onClose }: Props): React.J
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.profileName}>{userName}</Text>
-              <View style={styles.roleBadge}>
-                <Text style={styles.roleBadgeText}>{userRole}</Text>
+              <View style={{ flexDirection: "row", alignItems: "center", marginTop: 4 }}>
+                <View style={styles.roleBadge}>
+                  <Text style={styles.roleBadgeText}>{userRole}</Text>
+                </View>
+                {isVerified && (
+                  <View style={[styles.roleBadge, { backgroundColor: "#DCFCE7", marginLeft: 6 }]}>
+                    <Text style={[styles.roleBadgeText, { color: "#166534", fontWeight: "900" }]}>
+                      ✓ GOOGLE VERIFIED
+                    </Text>
+                  </View>
+                )}
               </View>
             </View>
           </View>
