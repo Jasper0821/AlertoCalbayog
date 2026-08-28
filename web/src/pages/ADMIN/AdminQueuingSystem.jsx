@@ -15,7 +15,7 @@ const STATUS_STYLES = {
   rejected:   { dot: "bg-red-500",     text: "text-red-700",     bg: "bg-red-50",     border: "border-red-200",     label: "Rejected" },
   responding: { dot: "bg-indigo-500",  text: "text-indigo-700",  bg: "bg-indigo-50",  border: "border-indigo-200",  label: "Responding" },
   active:     { dot: "bg-indigo-500",  text: "text-indigo-700",  bg: "bg-indigo-50",  border: "border-indigo-200",  label: "Responding" },
-  resolved:   { dot: "bg-emerald-500", text: "text-emerald-700", bg: "bg-emerald-50", border: "border-emerald-200", label: "Resolved" },
+  resolved:   { dot: "bg-emerald-500", text: "text-emerald-700", bg: "bg-emerald-50", border: "border-emerald-200", label: "Awaiting Closure" },
 };
 
 export default function AdminQueuingSystem({ reports = [], onStatusChange, onViewReport }) {
@@ -27,6 +27,8 @@ export default function AdminQueuingSystem({ reports = [], onStatusChange, onVie
 
   const pendingCount = activeReports.filter(r => (r.status || "").toLowerCase() === "pending").length;
   const respondingCount = activeReports.filter(r => ["active", "responding"].includes((r.status || "").toLowerCase())).length;
+  const closureReports = reports.filter(r => ["resolved", "responded"].includes((r.status || "").toLowerCase()));
+  const queueReports = [...closureReports, ...activeReports];
 
   const handleStatusSelect = (id, newStatus) => {
     if (newStatus === "resolved") {
@@ -37,11 +39,11 @@ export default function AdminQueuingSystem({ reports = [], onStatusChange, onVie
   };
 
   return (
-    <div className="flex h-full min-h-0 w-full flex-col font-sans p-6">
-      <div className="flex shrink-0 flex-wrap items-start justify-between gap-3 mb-6">
+    <div className="flex h-full min-h-0 w-full flex-col font-sans p-4">
+      <div className="flex shrink-0 flex-wrap items-start justify-between gap-2.5 mb-4">
         <div>
-          <h1 className="text-2xl font-black tracking-tight text-slate-900">Queuing System</h1>
-          <p className="text-sm font-medium text-slate-500 mt-1">Manage active incident queues across all agencies.</p>
+          <h1 className="text-xl font-black tracking-tight text-slate-900">Queuing System</h1>
+          <p className="text-xs font-medium text-slate-500 mt-0.5">Manage active incident queues across all agencies.</p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <span className="flex items-center gap-1.5 text-xs font-bold bg-amber-50 border border-amber-200 text-amber-700 px-3 py-1.5 rounded-full">
@@ -52,6 +54,10 @@ export default function AdminQueuingSystem({ reports = [], onStatusChange, onVie
             <span className="w-2 h-2 rounded-full bg-indigo-400"></span>
             {respondingCount} Responding
           </span>
+          <span className="flex items-center gap-1.5 text-xs font-bold bg-emerald-50 border border-emerald-200 text-emerald-700 px-3 py-1.5 rounded-full">
+            <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+            {closureReports.length} Awaiting Closure
+          </span>
         </div>
       </div>
 
@@ -59,19 +65,19 @@ export default function AdminQueuingSystem({ reports = [], onStatusChange, onVie
         <div className="hidden h-full overflow-auto lg:block">
           <table className="w-full min-w-[800px] text-left border-collapse">
             <thead className="sticky top-0 z-10 bg-slate-50/90 backdrop-blur-sm border-b border-slate-200">
-              <tr className="text-[11px] font-black text-slate-400 uppercase tracking-widest">
-                <th className="px-6 py-4">Type</th>
-                <th className="px-6 py-4">Location</th>
-                <th className="px-6 py-4">Reporter</th>
-                <th className="px-6 py-4">Contact</th>
-                <th className="px-6 py-4">Current Status</th>
-                <th className="px-6 py-4">Time</th>
-                <th className="px-6 py-4">Update Status</th>
-                <th className="px-6 py-4 text-right">Action</th>
+              <tr className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                <th className="px-4 py-3">Type</th>
+                <th className="px-4 py-3">Location</th>
+                <th className="px-4 py-3">Reporter</th>
+                <th className="px-4 py-3">Contact</th>
+                <th className="px-4 py-3">Current Status</th>
+                <th className="px-4 py-3">Time</th>
+                <th className="px-4 py-3">Update Status</th>
+                <th className="px-4 py-3 text-right">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {activeReports.map((report, idx) => {
+              {queueReports.map((report, idx) => {
                 const type = (report.emergencyType || report.type || report.incidentType || "others").toLowerCase();
                 const tc = TYPE_COLORS[type] || TYPE_COLORS.others;
                 const sc = STATUS_STYLES[(report.status || "pending").toLowerCase()] || STATUS_STYLES.pending;
@@ -79,30 +85,33 @@ export default function AdminQueuingSystem({ reports = [], onStatusChange, onVie
                 const timeStr = report.createdAt
                   ? new Date(report.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })
                   : "--:--";
+                const isAwaitingClosure = ["resolved", "responded"].includes((report.status || "").toLowerCase());
                 return (
-                  <tr key={report._id || idx} className="hover:bg-slate-50/50 transition-colors text-sm text-slate-700">
-                    <td className="px-6 py-4">
-                      <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-bold ${tc.bg} ${tc.border} ${tc.text}`}>
+                  <tr key={report._id || idx} className="hover:bg-slate-50/50 transition-colors text-xs text-slate-700">
+                    <td className="px-4 py-2.5">
+                      <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold ${tc.bg} ${tc.border} ${tc.text}`}>
                         <span className={`w-1.5 h-1.5 rounded-full ${tc.dot}`}></span>
                         {TYPE_LABELS[type] || "Incident"}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-slate-500 font-medium max-w-[200px]" title={locationText}>
+                    <td className="px-4 py-2.5 text-slate-500 font-medium max-w-[180px]" title={locationText}>
                       <p className="truncate">{locationText}</p>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-4 py-2.5">
                       <span className="font-semibold text-slate-800">{report.userId?.fullName || report.reporterName || "Anonymous"}</span>
                     </td>
                     <td className="px-6 py-4 text-slate-500 font-mono text-[11px]">{report.userId?.phoneNumber || report.phoneNumber || "N/A"}</td>
-                    <td className="px-6 py-4">
-                      <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-black uppercase tracking-wider ${sc.bg} ${sc.border} ${sc.text}`}>
+                    <td className="px-4 py-2.5">
+                      <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-wide ${sc.bg} ${sc.border} ${sc.text}`}>
                         <span className={`h-1.5 w-1.5 rounded-full animate-pulse ${sc.dot}`}></span>
                         {sc.label}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-slate-500 font-medium">{timeStr}</td>
-                    <td className="px-6 py-4">
-                      <select
+                    <td className="px-4 py-2.5 text-slate-500 font-medium">{timeStr}</td>
+                    <td className="px-4 py-2.5">
+                      {isAwaitingClosure ? (
+                        <span className="text-[11px] font-bold text-emerald-700">Admin approval required</span>
+                      ) : <select
                         value={report.status || "pending"}
                         onChange={(e) => handleStatusSelect(report._id, e.target.value)}
                         className="text-[11px] font-bold border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-700 outline-none cursor-pointer hover:border-slate-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 transition-all shadow-sm"
@@ -111,12 +120,12 @@ export default function AdminQueuingSystem({ reports = [], onStatusChange, onVie
                         <option value="rejected">Rejected</option>
                         <option value="responding">Responding</option>
                         <option value="resolved">Resolved</option>
-                      </select>
+                      </select>}
                     </td>
-                    <td className="px-6 py-4 text-right">
+                    <td className="px-4 py-2.5 text-right whitespace-nowrap">
                       <button
                         onClick={() => onViewReport(report, idx)}
-                        className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-[10px] font-black text-blue-700 transition hover:bg-blue-100 active:scale-[0.98]"
+                        className="inline-flex items-center gap-1 rounded-md border border-blue-200 bg-blue-50 px-2 py-1 text-[9px] font-black text-blue-700 transition hover:bg-blue-100 active:scale-[0.98]"
                       >
                         <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                           <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -124,11 +133,19 @@ export default function AdminQueuingSystem({ reports = [], onStatusChange, onVie
                         </svg>
                         VIEW
                       </button>
+                      {isAwaitingClosure && (
+                        <button
+                          onClick={() => onStatusChange(report._id, "closed")}
+                          className="ml-1 inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-600 px-2 py-1 text-[9px] font-black text-white transition hover:bg-emerald-700 active:scale-[0.98]"
+                        >
+                          APPROVE & CLOSE
+                        </button>
+                      )}
                     </td>
                   </tr>
                 );
               })}
-              {activeReports.length === 0 && (
+              {queueReports.length === 0 && (
                 <tr>
                   <td colSpan="8" className="px-6 py-16 text-center">
                     <div className="flex flex-col items-center justify-center gap-3">
@@ -137,7 +154,7 @@ export default function AdminQueuingSystem({ reports = [], onStatusChange, onVie
                           <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                         </svg>
                       </div>
-                      <p className="text-sm font-semibold text-slate-500">No active incidents in the queue.</p>
+                      <p className="text-sm font-semibold text-slate-500">No incidents are awaiting action.</p>
                     </div>
                   </td>
                 </tr>
@@ -147,10 +164,11 @@ export default function AdminQueuingSystem({ reports = [], onStatusChange, onVie
         </div>
 
         <div className="space-y-4 p-4 lg:hidden overflow-y-auto h-full">
-          {activeReports.map((report, idx) => {
+          {queueReports.map((report, idx) => {
             const type = (report.emergencyType || report.type || report.incidentType || "others").toLowerCase();
             const tc = TYPE_COLORS[type] || TYPE_COLORS.others;
             const sc = STATUS_STYLES[(report.status || "pending").toLowerCase()] || STATUS_STYLES.pending;
+            const isAwaitingClosure = ["resolved", "responded"].includes((report.status || "").toLowerCase());
             return (
               <article key={report._id || idx} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm space-y-3">
                 <div className="flex items-start justify-between gap-3">
@@ -191,7 +209,11 @@ export default function AdminQueuingSystem({ reports = [], onStatusChange, onVie
                 </dl>
                 <div>
                   <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5">Update Status</p>
-                  <select
+                  {isAwaitingClosure ? (
+                    <button onClick={() => onStatusChange(report._id, "closed")} className="w-full rounded-lg bg-emerald-600 px-3 py-2 text-xs font-black text-white hover:bg-emerald-700">
+                      APPROVE & CLOSE CASE
+                    </button>
+                  ) : <select
                     value={report.status || "pending"}
                     onChange={(e) => handleStatusSelect(report._id, e.target.value)}
                     className="w-full text-xs font-bold border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-700 outline-none"
@@ -200,14 +222,14 @@ export default function AdminQueuingSystem({ reports = [], onStatusChange, onVie
                     <option value="rejected">Rejected</option>
                     <option value="responding">Responding</option>
                     <option value="resolved">Resolved</option>
-                  </select>
+                  </select>}
                 </div>
               </article>
             );
           })}
-          {activeReports.length === 0 && (
+          {queueReports.length === 0 && (
             <div className="py-12 text-center text-sm font-medium text-slate-400">
-              No active incidents in the queue.
+              No incidents are awaiting action.
             </div>
           )}
         </div>

@@ -5,7 +5,6 @@ const connectDB = require("./config/db");
 const app = require("./app");
 const setupSocket = require("./sockets/socket");
 const backfillReportStatuses = require("./utils/backfillReportStatuses");
-const { startResolvedReportAutoClose } = require("./utils/autoCloseResolvedReports");
 const { startScheduler } = require("./utils/scheduler");
 
 const server = http.createServer(app);
@@ -33,7 +32,6 @@ const lanIP = Object.values(networkInterfaces)
 connectDB()
   .then(async () => {
     await backfillReportStatuses();
-    startResolvedReportAutoClose(io);
     startScheduler();
   })
   .catch((err) => {
