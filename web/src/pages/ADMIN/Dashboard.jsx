@@ -36,8 +36,6 @@ import {
 import api from "../../api/axios.js";
 import socket from "../../api/socket.js";
 import Swal from "sweetalert2";
-import { jsPDF } from "jspdf";
-import autoTable from "jspdf-autotable";
 import { getValidCalbayogBarangay } from "../../utils/barangays.js";
 import { formatLocationForTable } from "../../utils/incidentFormatters.js";
 import { clearDashboardNavigationState } from "../../utils/dashboardSession.js";
@@ -95,7 +93,7 @@ const PIE_COLORS = ["#f59e0b", "#0d9488", "#2563eb", "#059669", "#64748b", "#4f4
 const NAV = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "queuing", label: "Queuing System", icon: Menu },
-  { id: "closed-incidents", label: "Closed Incidents", icon: ArchiveIcon },
+  { id: "closed-incidents", label: "Closed Cases", icon: ArchiveIcon },
   { id: "rejected-incidents", label: "Rejected Reports", icon: XCircle },
   { id: "analytics", label: "Analytics", icon: BarChart2 },
   { id: "users", label: "User Management", icon: Users },
@@ -112,55 +110,6 @@ const emptyUserForm = {
   agency: "NONE",
   phoneNumber: "",
 };
-
-// ── Scene Evidence Gallery (used inside the admin incident detail modal) ──────
-function AdminEvidenceGallery({ images }) {
-  const [lightbox, setLightbox] = useState(null);
-  return (
-    <>
-      <div className="grid grid-cols-5 gap-2">
-        {images.map((src, i) => (
-          <button
-            key={i}
-            type="button"
-            onClick={() => setLightbox(src)}
-            className="relative aspect-square overflow-hidden rounded-lg border border-slate-200 hover:ring-2 hover:ring-emerald-400 transition-all group"
-            title={`View photo ${i + 1}`}
-          >
-            <img src={src} alt={`Evidence ${i + 1}`} className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-200" />
-            <span className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-black/30 transition-opacity">
-              <svg className="h-5 w-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" /></svg>
-            </span>
-          </button>
-        ))}
-      </div>
-
-      {/* Lightbox */}
-      {lightbox && (
-        <div
-          className="fixed inset-0 z-[200] flex items-center justify-center bg-black/85 backdrop-blur-sm p-4"
-          onClick={() => setLightbox(null)}
-        >
-          <button
-            className="absolute top-4 right-4 text-white/70 hover:text-white transition-colors"
-            onClick={() => setLightbox(null)}
-          >
-            <svg className="h-8 w-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-          <img
-            src={lightbox}
-            alt="Evidence fullscreen"
-            className="max-h-[85vh] max-w-full rounded-xl shadow-2xl object-contain"
-            onClick={(e) => e.stopPropagation()}
-          />
-        </div>
-      )}
-    </>
-  );
-}
-
 
 function getIncidentId(report, index) {
   if (report.incidentId) return report.incidentId;
@@ -307,11 +256,6 @@ export default function AdminDashboard() {
   const navigate = useNavigate();
   const [activeNav, setActiveNav] = useState(() => localStorage.getItem("adminActiveNav") || "overview");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [closedAgencyFilter, setClosedAgencyFilter] = useState("all");
-  const [closedTypeFilter, setClosedTypeFilter] = useState("all");
-  const [closedYearFilter, setClosedYearFilter] = useState("all");
-  const [closedMonthFilter, setClosedMonthFilter] = useState("all");
-  const [closedDayFilter, setClosedDayFilter] = useState("all");
   const [activeSettingsTab, setActiveSettingsTab] = useState("system-info");
   const [activeCategories, setActiveCategories] = useState({
     fire: true,
@@ -952,49 +896,45 @@ export default function AdminDashboard() {
     });
   }, [agencyFilter, reports, searchQuery]);
 
-  const closedYearOptions = useMemo(() => {
-    const set = new Set();
-    reports.forEach(report => {
-      if ((report.status || "").toLowerCase() === "closed" && report.createdAt) {
-        const year = new Date(report.createdAt).getFullYear();
-        if (year) set.add(year);
-      }
-    });
-    return Array.from(set).sort((a, b) => b - a);
-  }, [reports]);
-
   const closedReports = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     return reports.filter((report, index) => {
       const status = (report.status || "pending").toLowerCase();
+      const incidentId = getIncidentId(report, index).toLowerCase();
+      const haystack = [
+        incidentId,
+        report.emergencyType,
+        report.userId?.fullName,
+        report.assignedResponder?.fullName,
+        getLocation(report),
+      ].join(" ").toLowerCase();
+
       if (status !== "closed") return false;
-
-      if (closedAgencyFilter !== "all" && !(report.notifiedAgencies || []).includes(closedAgencyFilter)) return false;
-      if (closedTypeFilter !== "all" && (report.emergencyType || "").toLowerCase() !== closedTypeFilter.toLowerCase()) return false;
-
-      if (report.createdAt) {
-        const dateObj = new Date(report.createdAt);
-        if (closedYearFilter !== "all" && dateObj.getFullYear().toString() !== closedYearFilter) return false;
-        if (closedMonthFilter !== "all" && (dateObj.getMonth() + 1).toString() !== closedMonthFilter) return false;
-        if (closedDayFilter !== "all" && dateObj.getDate().toString() !== closedDayFilter) return false;
-      } else {
-        if (closedYearFilter !== "all" || closedMonthFilter !== "all" || closedDayFilter !== "all") return false;
-      }
-
-      if (q) {
-        const incidentId = getIncidentId(report, index).toLowerCase();
-        const haystack = [
-          incidentId,
-          report.emergencyType,
-          report.userId?.fullName,
-          report.assignedResponder?.fullName,
-          getLocation(report),
-        ].join(" ").toLowerCase();
-        if (!haystack.includes(q)) return false;
-      }
+      if (agencyFilter !== "all" && !(report.notifiedAgencies || []).includes(agencyFilter)) return false;
+      if (q && !haystack.includes(q)) return false;
       return true;
     });
-  }, [reports, closedAgencyFilter, closedTypeFilter, closedYearFilter, closedMonthFilter, closedDayFilter, searchQuery]);
+  }, [agencyFilter, reports, searchQuery]);
+
+  const rejectedReports = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return reports.filter((report, index) => {
+      const status = (report.status || "pending").toLowerCase();
+      const incidentId = getIncidentId(report, index).toLowerCase();
+      const haystack = [
+        incidentId,
+        report.emergencyType,
+        report.userId?.fullName,
+        report.assignedResponder?.fullName,
+        getLocation(report),
+      ].join(" ").toLowerCase();
+
+      if (status !== "rejected") return false;
+      if (agencyFilter !== "all" && !(report.notifiedAgencies || []).includes(agencyFilter)) return false;
+      if (q && !haystack.includes(q)) return false;
+      return true;
+    });
+  }, [agencyFilter, reports, searchQuery]);
 
   const stats = useMemo(() => {
     const open = reports.filter((report) => !["resolved", "responded", "closed"].includes((report.status || "").toLowerCase())).length;
@@ -1157,7 +1097,7 @@ export default function AdminDashboard() {
       escape(r.location?.longitude ?? ""),
       escape(r.status || ""),
       escape((r.notifiedAgencies || []).join("; ")),
-      escape(r.assignedResponder?.fullName || (r.assignedAgency !== "NONE" ? r.assignedAgency : (r.notifiedAgencies || []).join("; ")) || "Unassigned"),
+      escape(r.assignedResponder?.fullName || "Unassigned"),
       escape(r.createdAt ? new Date(r.createdAt).toLocaleString() : ""),
       escape(r.updatedAt ? new Date(r.updatedAt).toLocaleString() : ""),
     ].join(","));
@@ -1214,7 +1154,7 @@ export default function AdminDashboard() {
         report.userId?.fullName || "Unknown",
         getLocation(report),
         report.status || "pending",
-        report.assignedResponder?.fullName || (report.assignedAgency !== "NONE" ? report.assignedAgency : (report.notifiedAgencies || []).join("; ")) || "Unassigned",
+        report.assignedResponder?.fullName || "Unassigned",
         report.createdAt || "",
       ]),
     ];
@@ -1667,7 +1607,7 @@ export default function AdminDashboard() {
                 <h2 className="text-[10px] font-black text-slate-900">Incident Scorecard</h2>
                 <p className="text-[8px] text-slate-400">Latest reports</p>
               </div>
-              <button onClick={() => setActiveNav("queuing")} className="rounded-lg bg-emerald-500 px-2 py-1 text-[9px] font-bold text-white transition hover:bg-emerald-600">
+              <button onClick={() => setActiveNav("incidents")} className="rounded-lg bg-emerald-500 px-2 py-1 text-[9px] font-bold text-white transition hover:bg-emerald-600">
                 View All
               </button>
             </div>
@@ -1797,218 +1737,11 @@ export default function AdminDashboard() {
     );
   };
 
-  const exportClosedReportsPDF = (reportsToExport) => {
-    const printWindow = window.open("", "_blank");
-
-    const safeLocation = (report) => {
-      if (!report.location) return "Unknown";
-      if (typeof report.location === "string") return report.location;
-      return formatLocationForTable(report.location) || report.location?.address || report.location?.barangay || "Unknown";
-    };
-
-    const safeIncidentId = (report, index) => {
-      if (report._id) return `INC-${report._id.toString().slice(-6).toUpperCase()}`;
-      return `INC-${String(index + 1).padStart(4, "0")}`;
-    };
-
-    const TYPE_MAP = {
-      fire: "FIRE", flood: "FLOOD", emergency: "OTHERS",
-      crime: "CRIME", medical: "MEDICAL", others: "OTHERS",
-    };
-
-    const rowsHtml = reportsToExport.map((r, i) => {
-      const typeStr = TYPE_MAP[(r.emergencyType || "").toLowerCase()] || (r.emergencyType || "INCIDENT").toUpperCase();
-      const incId = safeIncidentId(r, i);
-      const loc = safeLocation(r);
-      const reporter = r.userId?.fullName || "Unknown";
-      const contact = r.userId?.phoneNumber || r.phoneNumber || "N/A";
-      const agency = r.assignedAgency && r.assignedAgency !== "NONE"
-        ? r.assignedAgency
-        : (r.notifiedAgencies || []).join(", ") || "None";
-      const incidentDate = new Date(r.createdAt || 0);
-      const closedDate = r.closedAt ? new Date(r.closedAt) : null;
-      const incidentDateStr = Number.isNaN(incidentDate.getTime())
-        ? "—"
-        : `${incidentDate.toLocaleDateString()} ${incidentDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
-      const closedDateStr = closedDate && !Number.isNaN(closedDate.getTime())
-        ? `${closedDate.toLocaleDateString()} ${closedDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
-        : "—";
-      const priority = (() => {
-        const type = (r.emergencyType || "").toLowerCase();
-        if (type === "fire") return "HIGH";
-        if (type === "medical") return "HIGH";
-        if (type === "crime") return "MEDIUM";
-        if (type === "flood") return "HIGH";
-        return "LOW";
-      })();
-
-      return `
-        <tr>
-          <td>${incId}</td>
-          <td>${typeStr}</td>
-          <td>${loc}</td>
-          <td>${reporter}</td>
-          <td>${contact}</td>
-          <td>${agency}</td>
-          <td>${incidentDateStr}</td>
-          <td>${closedDateStr}</td>
-          <td style="color:#0a7a4f;font-weight:bold;">CLOSED</td>
-        </tr>
-      `;
-    }).join("");
-
-    const htmlContent = `
-      <html>
-      <head>
-        <title>Alerto Calbayog - Closed Incidents Report</title>
-        <style>
-          body {
-            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-            color: #334155;
-            padding: 30px;
-            margin: 0;
-          }
-          .header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            border-bottom: 2px solid #0a1e3f;
-            padding-bottom: 15px;
-            margin-bottom: 20px;
-          }
-          .header-left {
-            display: flex;
-            align-items: center;
-            gap: 16px;
-          }
-          .logo {
-            height: 56px;
-            width: auto;
-          }
-          .header-title h1 {
-            font-size: 24px;
-            font-weight: bold;
-            color: #0a1e3f;
-            margin: 0;
-          }
-          .header-title p {
-            font-size: 12px;
-            color: #64748b;
-            margin: 5px 0 0 0;
-          }
-          .report-info {
-            font-size: 11px;
-            color: #64748b;
-            text-align: right;
-            line-height: 1.8;
-          }
-          table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 25px;
-            font-size: 10px;
-          }
-          th {
-            background-color: #0a1e3f;
-            color: #ffffff;
-            font-size: 10px;
-            font-weight: bold;
-            text-transform: uppercase;
-            padding: 8px 10px;
-            border: 1px solid #0a1e3f;
-            text-align: left;
-          }
-          td {
-            padding: 8px 10px;
-            font-size: 10px;
-            border: 1px solid #cbd5e1;
-            color: #334155;
-            vertical-align: top;
-          }
-          tr:nth-child(even) td {
-            background-color: #f8fafc;
-          }
-          .summary {
-            font-size: 12px;
-            font-weight: bold;
-            color: #0a1e3f;
-            margin-bottom: 30px;
-          }
-          .footer {
-            margin-top: 40px;
-            border-top: 1px dashed #cbd5e1;
-            padding-top: 12px;
-            font-size: 10px;
-            color: #94a3b8;
-            text-align: center;
-          }
-          @media print {
-            body { padding: 15px; }
-          }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <div class="header-left">
-            <img src="/logo.png" alt="Alerto Calbayog Logo" class="logo" />
-            <div class="header-title">
-              <h1>ALERTO CALBAYOG</h1>
-              <p>Incident Command Center — Closed Incidents Report</p>
-            </div>
-          </div>
-          <div class="report-info">
-            <p><strong>Generated:</strong> ${new Date().toLocaleString()}</p>
-            <p><strong>Total Records:</strong> ${reportsToExport.length}</p>
-          </div>
-        </div>
-
-        <table>
-          <thead>
-            <tr>
-              <th>Incident ID</th>
-              <th>Type</th>
-              <th>Location</th>
-              <th>Reporter</th>
-              <th>Contact No.</th>
-              <th>Agency</th>
-              <th>Incident Date</th>
-              <th>Closed Date</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${rowsHtml || '<tr><td colspan="10" style="text-align:center;padding:20px;">No closed incident records found.</td></tr>'}
-          </tbody>
-        </table>
-
-        <div class="summary">
-          Report summary: Compiled ${reportsToExport.length} closed incident records.
-        </div>
-
-        <div class="footer">
-          Alerto Calbayog © ${new Date().getFullYear()} — Confidential Command Center Report. All rights reserved.
-        </div>
-
-        <script>
-          window.onload = function() {
-            window.print();
-            window.onafterprint = function() {
-              window.close();
-            };
-          };
-        </script>
-      </body>
-      </html>
-    `;
-
-    printWindow.document.write(htmlContent);
-    printWindow.document.close();
-  };
-
   const renderIncidents = (type = "active") => {
     let displayReports;
     let title;
     let description;
+    const isRejected = type === "rejected";
 
     if (type === "closed") {
       displayReports = closedReports;
@@ -2024,8 +1757,8 @@ export default function AdminDashboard() {
       description = "Monitor every report, update status, assign responders, and export history.";
     }
     return (
-      <section className="flex flex-col h-full rounded-xl border border-slate-200 bg-white shadow-md shadow-slate-200/50">
-        <div className="flex-none flex flex-col gap-3 border-b border-slate-100 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
+      <section className={`flex flex-col h-full rounded-xl border shadow-md shadow-slate-200/50 ${isRejected ? "border-red-200 bg-red-50/40" : "border-slate-200 bg-white"}`}>
+        <div className={`flex-none flex flex-col gap-3 border-b px-5 py-4 lg:flex-row lg:items-center lg:justify-between ${isRejected ? "border-red-100 bg-red-50/70" : "border-slate-100"}`}>
           <div>
             <h2 className="text-sm font-black text-slate-900">
               {title}
@@ -2035,105 +1768,11 @@ export default function AdminDashboard() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            {type === "closed" ? (
-              <>
-                <select
-                  value={closedAgencyFilter}
-                  onChange={(event) => setClosedAgencyFilter(event.target.value)}
-                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 outline-none shadow-md transition hover:border-slate-300 focus:border-red-500 focus:ring-2 focus:ring-red-600/10"
-                >
-                  <option value="all">All Agencies</option>
-                  <option value="CDRRMO">CDRRMO</option>
-                  <option value="PNP">PNP</option>
-                  <option value="BFP">BFP</option>
-                </select>
-
-                <select
-                  value={closedTypeFilter}
-                  onChange={(event) => setClosedTypeFilter(event.target.value)}
-                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 outline-none shadow-md transition hover:border-slate-300 focus:border-red-500 focus:ring-2 focus:ring-red-600/10"
-                >
-                  <option value="all">All Types</option>
-                  <option value="fire">Fire</option>
-                  <option value="flood">Flood</option>
-                  <option value="crime">Crime</option>
-                  <option value="medical">Medical</option>
-                  <option value="emergency">Others</option>
-                </select>
-
-                {/* Year Filter */}
-                <select
-                  value={closedYearFilter}
-                  onChange={(event) => setClosedYearFilter(event.target.value)}
-                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 outline-none shadow-md transition hover:border-slate-300 focus:border-red-500 focus:ring-2 focus:ring-red-600/10"
-                >
-                  <option value="all">All Years</option>
-                  {closedYearOptions.map((yr) => (
-                    <option key={yr} value={yr.toString()}>
-                      {yr}
-                    </option>
-                  ))}
-                </select>
-
-                {/* Month Filter */}
-                <select
-                  value={closedMonthFilter}
-                  onChange={(event) => setClosedMonthFilter(event.target.value)}
-                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 outline-none shadow-md transition hover:border-slate-300 focus:border-red-500 focus:ring-2 focus:ring-red-600/10"
-                >
-                  <option value="all">All Months</option>
-                  {[
-                    { value: 1, label: "January" },
-                    { value: 2, label: "February" },
-                    { value: 3, label: "March" },
-                    { value: 4, label: "April" },
-                    { value: 5, label: "May" },
-                    { value: 6, label: "June" },
-                    { value: 7, label: "July" },
-                    { value: 8, label: "August" },
-                    { value: 9, label: "September" },
-                    { value: 10, label: "October" },
-                    { value: 11, label: "November" },
-                    { value: 12, label: "December" }
-                  ].map((m) => (
-                    <option key={m.value} value={m.value.toString()}>
-                      {m.label}
-                    </option>
-                  ))}
-                </select>
-
-                {/* Day Filter */}
-                <select
-                  value={closedDayFilter}
-                  onChange={(event) => setClosedDayFilter(event.target.value)}
-                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 outline-none shadow-md transition hover:border-slate-300 focus:border-red-500 focus:ring-2 focus:ring-red-600/10"
-                >
-                  <option value="all">All Days</option>
-                  {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
-                    <option key={d} value={d.toString()}>
-                      {d}
-                    </option>
-                  ))}
-                </select>
-
-                <button
-                  type="button"
-                  onClick={() => exportClosedReportsPDF(displayReports)}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-4 py-2 text-xs font-black text-white shadow-sm transition hover:bg-red-700 active:scale-[0.98]"
-                >
-                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                    <path d="M12 3v11m0 0l4-4m-4 4l-4-4M5 21h14" />
-                  </svg>
-                  Export PDF
-                </button>
-              </>
-            ) : (
-              <select value={agencyFilter} onChange={(event) => setAgencyFilter(event.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 outline-none shadow-md transition hover:border-slate-300 focus:border-red-500 focus:ring-2 focus:ring-red-600/10">
-                <option value="all">All agencies</option>
-                <option value="CDRRMO">CDRRMO</option>
-                <option value="PNP">PNP</option>
-              </select>
-            )}
+            <select value={agencyFilter} onChange={(event) => setAgencyFilter(event.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 outline-none shadow-md transition hover:border-slate-300 focus:border-red-500 focus:ring-2 focus:ring-red-600/10">
+              <option value="all">All agencies</option>
+              <option value="CDRRMO">CDRRMO</option>
+              <option value="PNP">PNP</option>
+            </select>
           </div>
         </div>
         <div className="flex-1 min-h-0 overflow-auto">
@@ -3621,22 +3260,17 @@ export default function AdminDashboard() {
 
       {isNotificationsModalOpen && renderNotifications()}
 
+      {/* Incident Details Modal */}
       {selectedReport && (() => {
         const { report, index } = selectedReport;
         const statusInfo = getStatusInfo(report.status);
-        const agencyFallback = report.assignedAgency && report.assignedAgency !== "NONE"
-          ? report.assignedAgency
-          : (report.notifiedAgencies || []).join(", ") || "None";
-        const responderVal = report.assignedResponder
-          ? `${report.assignedResponder.fullName} (${report.assignedResponder.agency || agencyFallback})`
-          : agencyFallback;
         const detailRows = [
           ["Incident ID", getIncidentId(report, index)],
           ["Emergency Type", TYPE_LABELS[report.emergencyType] || report.emergencyType || "Incident"],
-          ["Agency Type", agencyFallback],
+          ["Agency Type", report.assignedAgency && report.assignedAgency !== "NONE" ? report.assignedAgency : (report.notifiedAgencies || []).join(", ") || "Unassigned"],
           ["Reporter", report.userId?.fullName || "Unknown"],
           ["Contact", report.userId?.phoneNumber || "No contact number"],
-          ["Responder", responderVal],
+          ["Responder", report.assignedResponder?.fullName || "Unassigned"],
           ["Location", getLocation(report)],
           ["Reported", report.createdAt ? new Date(report.createdAt).toLocaleString() : "—"],
           ["Closed", report.closedAt ? new Date(report.closedAt).toLocaleString() : "—"],
@@ -3669,16 +3303,6 @@ export default function AdminDashboard() {
                   <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Description</p>
                   <p className="mt-1 whitespace-pre-wrap rounded-lg bg-slate-50 p-3 text-sm leading-6 text-slate-700">{report.description || "No description provided."}</p>
                 </div>
-
-                {/* ── Scene Evidence Photos ── */}
-                {Array.isArray(report.resolutionEvidence) && report.resolutionEvidence.length > 0 && (
-                  <div>
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">
-                      📷 Scene Evidence &mdash; {report.resolutionEvidence.length} photo{report.resolutionEvidence.length !== 1 ? "s" : ""}
-                    </p>
-                    <AdminEvidenceGallery images={report.resolutionEvidence} />
-                  </div>
-                )}
               </div>
             </div>
           </div>
@@ -3738,8 +3362,8 @@ export default function AdminDashboard() {
                             <p className="text-[10px] text-slate-400">{report.userId?.phoneNumber || "No contact"}</p>
                           </td>
                           <td className="p-3 truncate max-w-[200px]" title={getLocation(report)}>
-                            {getLocation(report)}
                           </td>
+                          {getLocation(report)}
                           <td className="p-3 text-slate-500">
                             {report.updatedAt ? new Date(report.updatedAt).toLocaleString() : ""}
                           </td>

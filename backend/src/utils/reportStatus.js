@@ -1,4 +1,4 @@
-const VALID_REPORT_STATUSES = ["pending", "responding", "resolved", "closed", "cancelled"];
+const VALID_REPORT_STATUSES = ["pending", "responding", "resolved", "closed", "cancelled", "rejected"];
 
 const LEGACY_STATUS_MAP = {
   verified: "pending",
