@@ -52,7 +52,7 @@ export default function LoginScreen({
 
   const insets = useSafeAreaInsets();
 
-  const handleGoogleSignIn = async (): Promise<void> => {
+  const handleGoogleSignIn = (): void => {
     if (!agreed) {
       Alert.alert(
         "User Agreement Required",
@@ -61,40 +61,8 @@ export default function LoginScreen({
       return;
     }
 
-    setLoadingGoogle(true);
-    try {
-      const googleClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID?.trim();
-      
-      // Only launch OAuth browser if a valid Google Cloud Client ID is configured
-      if (googleClientId && googleClientId.includes(".apps.googleusercontent.com")) {
-        const redirectUri = "https://auth.expo.io/@jasper0821/alertocalbayog";
-        const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?response_type=token%20id_token&client_id=${encodeURIComponent(googleClientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent("openid email profile")}&nonce=${Math.random().toString(36).substring(2)}`;
-
-        const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUri);
-
-        if (result.type === "success" && result.url) {
-          const urlString = result.url.replace("#", "?");
-          const urlParams = new URLSearchParams(urlString.split("?")[1] || "");
-          const idToken = urlParams.get("id_token") || urlParams.get("access_token");
-
-          if (idToken) {
-            const res = await api.post("/auth/google-login", { idToken });
-            await saveToken(res.data.token);
-            await saveUser(res.data.user);
-            navigation.replace("Home");
-            return;
-          }
-        }
-      }
-
-      // Open in-app Google Account selector sheet
-      setShowGoogleModal(true);
-    } catch (error: any) {
-      console.log("WebBrowser Google Auth fallback:", error?.message);
-      setShowGoogleModal(true);
-    } finally {
-      setLoadingGoogle(false);
-    }
+    // Open native in-app Google Account Selector Sheet directly
+    setShowGoogleModal(true);
   };
 
   const handleModalGoogleLogin = async (selectedEmail?: string): Promise<void> => {
