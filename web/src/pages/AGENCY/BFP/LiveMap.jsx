@@ -95,18 +95,6 @@ export default function LiveMap({ reports = [] }) {
   return (
     <div className="relative w-full h-full min-h-0 bg-slate-900 overflow-hidden">
       <style>{`
-        @keyframes sonarWave {
-          0%   { transform: translate(-50%, -50%) scale(0.3); opacity: 0.9; }
-          100% { transform: translate(-50%, -50%) scale(2.2); opacity: 0; }
-        }
-        .map-sonar-wave {
-          width: 32px;
-          height: 32px;
-          border-radius: 50%;
-          border: 2px solid currentColor;
-          animation: sonarWave 2s infinite ease-out;
-          pointer-events: none;
-        }
         .leaflet-popup-content-wrapper {
           padding: 0 !important;
           border-radius: 16px !important;

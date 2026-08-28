@@ -268,7 +268,6 @@ export default function RejectedReports({ reports = [] }) {
                   <tr key={r._id || i} className="block rounded-xl border border-slate-200 bg-slate-50 p-4 shadow-sm transition-colors hover:bg-slate-100 lg:table-row lg:rounded-none lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none lg:hover:bg-slate-50">
                     <td className="block px-0 py-1.5 lg:table-cell lg:px-5 lg:py-3.5">
                       <div className="flex items-center gap-2">
-                        <span className="text-base">🔥</span>
                         <span className="text-xs font-medium text-slate-700">Fire Emergency</span>
                       </div>
                     </td>
