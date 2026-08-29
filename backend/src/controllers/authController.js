@@ -563,95 +563,64 @@ exports.resetPassword = async (req, res) => {
 
 exports.googleLogin = async (req, res) => {
   try {
-    const { idToken, googleId, email, fullName, avatar, password } = req.body;
+    const { idToken } = req.body;
+
+    if (!idToken) {
+      return res.status(401).json({
+        message: "Google Verification Failed: Missing Google ID token. Please authenticate via Google."
+      });
+    }
 
     let googleUser = null;
-    let isTokenVerified = false;
-
-    // 1. If idToken is provided, verify it directly with Google TokenInfo API for maximum security
-    if (idToken) {
-      try {
-        const verifyRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${idToken}`);
-        if (verifyRes.ok) {
-          const payload = await verifyRes.json();
-          // Ensure Google confirms the email is verified
-          if (payload.email_verified === "true" || payload.email_verified === true) {
-            googleUser = {
-              googleId: payload.sub,
-              email: normalizeEmail(payload.email),
-              fullName: payload.name || payload.email?.split("@")[0] || "Google User",
-              avatar: payload.picture || "",
-            };
-            isTokenVerified = true;
-          }
+    try {
+      const verifyRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${idToken}`);
+      if (verifyRes.ok) {
+        const payload = await verifyRes.json();
+        if (payload.email_verified === "true" || payload.email_verified === true) {
+          googleUser = {
+            sub: payload.sub,
+            email: normalizeEmail(payload.email),
+            fullName: payload.name || payload.email?.split("@")[0] || "Google User",
+            avatar: payload.picture || "",
+          };
         } else {
-          console.warn("Google tokeninfo response failed:", verifyRes.status);
-          return res.status(401).json({
-            message: "Google Verification Failed: The provided Google credentials could not be verified by Google services."
-          });
+          return res.status(401).json({ message: "Google Verification Failed: Email address is not verified by Google." });
         }
-      } catch (tokenErr) {
-        console.error("Failed to verify Google ID token with Google API:", tokenErr);
-        return res.status(401).json({
-          message: "Google Verification Failed: Unable to contact Google authentication servers."
-        });
+      } else {
+        console.warn("Google tokeninfo API error:", verifyRes.status);
+        return res.status(401).json({ message: "Google Verification Failed: Invalid or expired Google ID token." });
       }
+    } catch (tokenErr) {
+      console.error("Failed to verify Google ID token with Google API:", tokenErr);
+      return res.status(401).json({ message: "Google Verification Failed: Unable to contact Google authentication servers." });
     }
 
-    // 2. Build googleUser payload
-    if (!googleUser && googleId && email) {
-      const cleanEmail = normalizeEmail(email);
-
-      // Verify email format
-      if (!/^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9.-]+\.[a-z]{2,}$/i.test(cleanEmail)) {
-        return res.status(400).json({ message: "Please enter a valid email address (e.g. example@gmail.com)." });
-      }
-
-      googleUser = {
-        googleId,
-        email: cleanEmail,
-        fullName: fullName || cleanEmail.split("@")[0],
-        avatar: avatar || "",
-      };
+    if (!googleUser || !googleUser.sub || !googleUser.email) {
+      return res.status(401).json({ message: "Invalid Google account credentials." });
     }
 
-    if (!googleUser || !googleUser.email) {
-      return res.status(400).json({ message: "Invalid Google account credentials." });
-    }
+    const { sub, email: gEmail, fullName: gName, avatar: gAvatar } = googleUser;
 
-    const { googleId: gId, email: gEmail, fullName: gName, avatar: gAvatar } = googleUser;
-
-    // 4. Account Binding & Password Verification
-    let user = await User.findOne({ googleId: gId });
-    let isAlreadyBound = false;
-
-    if (user) {
-      isAlreadyBound = true;
-    } else {
+    // Check database for existing resident by googleId (sub) or verified email
+    let user = await User.findOne({ googleId: sub });
+    if (!user) {
       user = await findUserByEmail(gEmail);
     }
 
+    // Existing User Flow
     if (user) {
-      // Unlinked Existing Account: If account has a password and is not bound yet
-      if (!isAlreadyBound && user.password && !password) {
-        return res.status(200).json({
-          requiresPassword: true,
-          isNewUser: false,
-          email: gEmail,
-          message: "An existing account was found for this email. Please enter your password to sign in and bind your Google account.",
-        });
+      if (user.accountStatus === "suspended" || user.accountStatus === "deactivated") {
+        return res.status(403).json({ message: `Your account is currently ${user.accountStatus}. Please contact support.` });
+      }
+      if (user.role === "responder" && user.status === "pending") {
+        return res.status(403).json({ message: "Your responder account is pending admin approval." });
+      }
+      if (user.role === "responder" && user.status === "declined") {
+        return res.status(403).json({ message: "Your responder account registration request was declined." });
       }
 
-      // Verify password for unlinked existing account
-      if (!isAlreadyBound && user.password && password) {
-        const isMatch = await bcrypt.compare(password, user.password);
-        if (!isMatch) {
-          return res.status(401).json({ message: "Incorrect password. Could not verify and bind Google account." });
-        }
-      }
-
-      // Link Google ID to existing account & mark email as verified by Google
-      user.googleId = gId;
+      user.googleId = sub;
+      user.googleVerified = true;
       user.isEmailVerified = true;
       if (!user.authProvider || user.authProvider === "local") {
         user.authProvider = "google";
@@ -659,102 +628,78 @@ exports.googleLogin = async (req, res) => {
       if (gAvatar && !user.avatar) {
         user.avatar = gAvatar;
       }
-    } else {
-      // New Account Creation: Request setting a password if none provided
-      if (!password) {
-        return res.status(200).json({
-          requiresPassword: true,
-          isNewUser: true,
-          email: gEmail,
-          message: "Please set a secure password for your Google Account to complete registration.",
-        });
-      }
+      user.lastLogin = new Date();
+      user.lastSeen = new Date();
+      await user.save();
 
-      if (password.length < 6) {
-        return res.status(400).json({ message: "Password must be at least 6 characters long." });
-      }
+      await AuditLog.create({
+        category: "user_activity",
+        action: "google_login_success",
+        actorId: user._id,
+        actorName: user.fullName,
+        actorEmail: user.email,
+        actorRole: user.role,
+        details: `Successful Google sign-in for ${user.email} (sub: ${sub})`,
+        source: getSource(req),
+        userAgent: getUserAgent(req),
+        ipAddress: getIp(req),
+      });
 
-      const hashedPassword = await bcrypt.hash(password, 10);
-      user = await User.create({
-        fullName: gName,
-        username: gEmail,
+      const termsRecord = await TermsAcceptance.findOne({
+        userId: user._id,
+        termsVersion: CURRENT_TERMS_VERSION,
+      });
+
+      return res.json({
+        message: "Google sign-in successful",
+        isNewResident: false,
+        token: generateToken(user._id, user.role),
+        termsAccepted: !!termsRecord,
+        termsVersion: CURRENT_TERMS_VERSION,
+        privacyVersion: CURRENT_PRIVACY_VERSION,
+        user: {
+          id: user._id,
+          resident_id: user._id.toString(),
+          google_sub: user.googleId || sub,
+          google_email: user.email,
+          full_name: user.fullName,
+          profile_picture: user.avatar,
+          phone_number: user.phoneNumber || "",
+          barangay: user.barangay || "",
+          complete_address: user.completeAddress || "",
+          google_verified: true,
+          resident_verification_status: user.residentVerificationStatus || "pending",
+          account_status: user.accountStatus || "active",
+          role: user.role,
+          agency: user.agency,
+          status: user.status,
+        },
+      });
+    }
+
+    // New User Flow: Generate short-lived registration token containing verified Google payload
+    const googleRegistrationToken = jwt.sign(
+      {
+        purpose: "google-registration",
+        googleSub: sub,
         email: gEmail,
-        password: hashedPassword,
-        visiblePassword: password,
-        googleId: gId,
+        fullName: gName,
         avatar: gAvatar,
-        role: "resident",
-        status: "approved",
-        isEmailVerified: true,
-        authProvider: "google",
-      });
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: "15m" }
+    );
 
-      await createSystemNotification({
-        title: "New Google user registration",
-        message: `${user.fullName} registered using Google.`,
-        recipientRole: "admin",
-        category: "user_event",
-        type: "user_event",
-        metadata: { userId: user._id.toString(), role: user.role },
-      });
-    }
-
-    // Check account status if responder
-    if (user.role === "responder" && user.status === "pending") {
-      return res.status(403).json({ message: "Your responder account is pending admin approval." });
-    }
-    if (user.role === "responder" && user.status === "declined") {
-      return res.status(403).json({ message: "Your responder account registration request was declined." });
-    }
-
-    // Update login timestamps and verification status
-    user.isEmailVerified = true;
-    if (!user.authProvider || user.authProvider === "local") {
-      user.authProvider = "google";
-    }
-    user.lastLogin = new Date();
-    user.lastSeen = new Date();
-    await user.save();
-
-    await AuditLog.create({
-      category: "user_activity",
-      action: "google_login_success",
-      actorId: user._id,
-      actorName: user.fullName,
-      actorEmail: user.email,
-      actorRole: user.role,
-      details: `Successful Google sign-in for ${user.email}`,
-      source: getSource(req),
-      userAgent: getUserAgent(req),
-      ipAddress: getIp(req),
-    });
-
-    // Check terms acceptance
-    const termsRecord = await TermsAcceptance.findOne({
-      userId: user._id,
-      termsVersion: CURRENT_TERMS_VERSION,
-    });
-
-    res.json({
-      message: "Google sign-in successful",
-      token: generateToken(user._id, user.role),
-      termsAccepted: !!termsRecord,
-      termsVersion: CURRENT_TERMS_VERSION,
-      privacyVersion: CURRENT_PRIVACY_VERSION,
-      user: {
-        id: user._id,
-        fullName: user.fullName,
-        username: user.username,
-        email: user.email,
-        role: user.role,
-        agency: user.agency,
-        phoneNumber: user.phoneNumber,
-        status: user.status,
-        avatar: user.avatar,
-        googleId: user.googleId,
-        employeeId: user.employeeId,
-        rank: user.rank,
-        bio: user.bio,
+    return res.status(200).json({
+      message: "Google account authenticated. Please complete resident profile details.",
+      isNewResident: true,
+      requiresProfileCompletion: true,
+      googleRegistrationToken,
+      googleUser: {
+        google_sub: sub,
+        google_email: gEmail,
+        full_name: gName,
+        profile_picture: gAvatar,
       },
     });
   } catch (error) {
@@ -762,6 +707,127 @@ exports.googleLogin = async (req, res) => {
     res.status(500).json({ message: error.message || "Google Authentication failed" });
   }
 };
+
+exports.googleRegister = async (req, res) => {
+  try {
+    const { googleRegistrationToken, phoneNumber, barangay, completeAddress } = req.body;
+
+    if (!googleRegistrationToken) {
+      return res.status(400).json({ message: "Google authentication session expired or missing. Please sign in with Google again." });
+    }
+
+    let payload;
+    try {
+      payload = jwt.verify(googleRegistrationToken, process.env.JWT_SECRET);
+    } catch {
+      return res.status(400).json({ message: "Registration session expired. Please sign in with Google again." });
+    }
+
+    if (payload.purpose !== "google-registration" || !payload.googleSub || !payload.email) {
+      return res.status(400).json({ message: "Invalid registration token." });
+    }
+
+    const cleanPhone = (phoneNumber || "").trim();
+    if (!cleanPhone || !/^09\d{9}$/.test(cleanPhone.replace(/[\s-]/g, ""))) {
+      return res.status(400).json({ message: "Please provide a valid 11-digit mobile number starting with 09 (e.g. 09XXXXXXXXX)." });
+    }
+
+    const cleanBarangay = (barangay || "").trim();
+    if (!cleanBarangay) {
+      return res.status(400).json({ message: "Please select your Barangay." });
+    }
+
+    const cleanAddress = (completeAddress || "").trim();
+    if (!cleanAddress) {
+      return res.status(400).json({ message: "Please enter your complete address." });
+    }
+
+    // Check if googleId or email was already registered while user was on completion form
+    let existingUser = await User.findOne({ googleId: payload.googleSub });
+    if (!existingUser) {
+      existingUser = await findUserByEmail(payload.email);
+    }
+
+    if (existingUser) {
+      return res.status(400).json({ message: "An account associated with this Google account already exists." });
+    }
+
+    const formattedPhone = cleanPhone.replace(/[\s-]/g, "");
+
+    const user = await User.create({
+      fullName: payload.fullName || payload.email.split("@")[0],
+      username: payload.email,
+      email: payload.email,
+      googleId: payload.googleSub,
+      avatar: payload.avatar || "",
+      phoneNumber: formattedPhone,
+      barangay: cleanBarangay,
+      completeAddress: cleanAddress,
+      googleVerified: true,
+      residentVerificationStatus: "pending",
+      accountStatus: "active",
+      role: "resident",
+      agency: "NONE",
+      status: "approved",
+      isEmailVerified: true,
+      authProvider: "google",
+      lastLogin: new Date(),
+      lastSeen: new Date(),
+    });
+
+    await AuditLog.create({
+      category: "user_activity",
+      action: "google_register_success",
+      actorId: user._id,
+      actorName: user.fullName,
+      actorEmail: user.email,
+      actorRole: user.role,
+      details: `New resident registered via Google: ${user.fullName} (${user.email}) in Brgy. ${user.barangay}`,
+      source: getSource(req),
+      userAgent: getUserAgent(req),
+      ipAddress: getIp(req),
+    });
+
+    await createSystemNotification({
+      title: "New Google resident registration",
+      message: `${user.fullName} completed registration as a resident in Brgy. ${user.barangay}.`,
+      recipientRole: "admin",
+      category: "user_event",
+      type: "user_event",
+      metadata: { userId: user._id.toString(), role: user.role, barangay: user.barangay },
+    });
+
+    return res.status(201).json({
+      message: "Resident registration completed successfully",
+      isNewResident: false,
+      token: generateToken(user._id, user.role),
+      termsAccepted: false,
+      termsVersion: CURRENT_TERMS_VERSION,
+      privacyVersion: CURRENT_PRIVACY_VERSION,
+      user: {
+        id: user._id,
+        resident_id: user._id.toString(),
+        google_sub: user.googleId,
+        google_email: user.email,
+        full_name: user.fullName,
+        profile_picture: user.avatar,
+        phone_number: user.phoneNumber,
+        barangay: user.barangay,
+        complete_address: user.completeAddress,
+        google_verified: true,
+        resident_verification_status: "pending",
+        account_status: "active",
+        role: user.role,
+        agency: user.agency,
+        status: user.status,
+      },
+    });
+  } catch (error) {
+    console.error("googleRegister error:", error);
+    res.status(500).json({ message: error.message || "Failed to complete Google registration" });
+  }
+};
+
 
 exports.acceptTerms = async (req, res) => {
   try {

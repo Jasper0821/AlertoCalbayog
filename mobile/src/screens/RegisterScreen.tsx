@@ -144,8 +144,25 @@ export default function RegisterScreen({ navigation }: Props): React.JSX.Element
               Start securing your community and getting help fast.
             </Text>
 
+            {/* Fast Google Resident Sign Up Banner */}
+            <TouchableOpacity
+              style={styles.googleFastCard}
+              onPress={() => navigation.navigate("Login")}
+              activeOpacity={0.85}
+            >
+              <View style={{ flex: 1 }}>
+                <View style={styles.fastBadge}>
+                  <Text style={styles.fastBadgeText}>RESIDENTS FAST TRACK</Text>
+                </View>
+                <Text style={styles.googleFastTitle}>Sign Up with Google</Text>
+                <Text style={styles.googleFastSub}>Fast registration • No password required</Text>
+              </View>
+              <Text style={styles.googleFastArrow}>➔</Text>
+            </TouchableOpacity>
+
             {/* Subtle divider */}
             <View style={styles.divider} />
+
 
             {/* Full Name Field */}
             <Text style={styles.fieldLabel}>Full Name</Text>
@@ -397,4 +414,47 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     opacity: 0.5,
   },
+
+  /* ── Fast Track Banner ── */
+  googleFastCard: {
+    marginTop: 14,
+    backgroundColor: "#F0F9FF",
+    borderWidth: 1,
+    borderColor: "#BAE6FD",
+    borderRadius: 16,
+    padding: 14,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  fastBadge: {
+    backgroundColor: "#0284C7",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+    alignSelf: "flex-start",
+    marginBottom: 4,
+  },
+  fastBadgeText: {
+    fontSize: 9,
+    fontWeight: "900",
+    color: "#FFFFFF",
+    letterSpacing: 0.5,
+  },
+  googleFastTitle: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#0F172A",
+  },
+  googleFastSub: {
+    fontSize: 11,
+    color: "#64748B",
+    marginTop: 2,
+  },
+  googleFastArrow: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#0284C7",
+    marginLeft: 10,
+  },
 });
+

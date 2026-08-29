@@ -46,18 +46,47 @@ exports.createEmergencyReport = async (req, res) => {
   try {
     const { emergencyType, description, latitude, longitude } = req.body;
 
-    // Spam prevention: Limit to 5 reports per 10 minutes per user
-    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
-    const recentReportsCount = await EmergencyReport.countDocuments({
-      userId: req.user.id,
-      createdAt: { $gte: tenMinutesAgo },
-    });
+    // Account Status Guard: Check if resident account is restricted or suspended
+    const User = require("../models/User");
+    const resident = await User.findById(req.user.id);
+    if (!resident) {
+      return res.status(404).json({ message: "User account not found." });
+    }
 
-    if (recentReportsCount >= 5) {
-      return res.status(429).json({
-        message: "Spam Prevention: You have reached the limit of 5 reports within 10 minutes. Please wait before submitting another report.",
+    if (resident.accountStatus && resident.accountStatus !== "active") {
+      return res.status(403).json({
+        message: `Account Restricted: Your resident account is currently ${resident.accountStatus}. You cannot submit emergency reports at this time.`,
       });
     }
+
+    // Rate Limiting: Limit to 3 reports per 5 minutes per resident
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+    const recentReportsCount = await EmergencyReport.countDocuments({
+      userId: req.user.id,
+      createdAt: { $gte: fiveMinutesAgo },
+    });
+
+    if (recentReportsCount >= 3) {
+      return res.status(429).json({
+        message: "Spam Protection: You have reached the limit of 3 reports within 5 minutes. Please wait before submitting another report.",
+      });
+    }
+
+    // Duplicate Submission Detection: Prevent submitting duplicate report of same type within 3 minutes
+    const threeMinutesAgo = new Date(Date.now() - 3 * 60 * 1000);
+    const duplicateReport = await EmergencyReport.findOne({
+      userId: req.user.id,
+      emergencyType,
+      createdAt: { $gte: threeMinutesAgo },
+      isDeleted: { $ne: true },
+    });
+
+    if (duplicateReport) {
+      return res.status(429).json({
+        message: "Duplicate Alert: A report of this emergency type was already submitted recently. Emergency responders have been alerted.",
+      });
+    }
+
 
     // Check if this category is currently disabled in admin settings
     const activeCategories = await getSettingValue("activeCategories");
