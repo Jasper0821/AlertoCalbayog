@@ -4,6 +4,7 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 
 import SplashScreen from "../screens/SplashScreen";
 import LoginScreen from "../screens/LoginScreen";
+import PasswordLoginScreen from "../screens/PasswordLoginScreen";
 import RegisterScreen from "../screens/RegisterScreen";
 import HomeScreen from "../screens/HomeScreen";
 import EmergencyReportScreen from "../screens/EmergencyReportScreen";
@@ -17,6 +18,7 @@ import ForgotPasswordScreen from "../screens/ForgotPasswordScreen";
 export type RootStackParamList = {
   Splash: undefined;
   Login: undefined;
+  PasswordLogin: undefined;
   Register: undefined;
   ForgotPassword: undefined;
   Home: undefined;
@@ -41,6 +43,7 @@ export default function AppNavigator(): React.JSX.Element {
       >
         <Stack.Screen name="Splash" component={SplashScreen} />
         <Stack.Screen name="Login" component={LoginScreen} />
+        <Stack.Screen name="PasswordLogin" component={PasswordLoginScreen} />
         <Stack.Screen name="Register" component={RegisterScreen} />
         <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
         <Stack.Screen name="Home" component={HomeScreen} />

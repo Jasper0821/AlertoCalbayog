@@ -6,6 +6,11 @@ import { EyeIcon, EyeOffIcon } from "./SvgIcons";
 export default function CustomInput({
   className,
   secureTextEntry,
+  autoComplete,
+  textContentType,
+  importantForAutofill,
+  autoCorrect,
+  spellCheck,
   ...props
 }: TextInputProps): React.JSX.Element {
   const [isPasswordVisible, setPasswordVisible] = useState(false);
@@ -18,6 +23,11 @@ export default function CustomInput({
           placeholderTextColor={COLORS.textGray}
           selectionColor={COLORS.accent}
           secureTextEntry={isPasswordInput ? !isPasswordVisible : secureTextEntry}
+          autoComplete={autoComplete ?? (isPasswordInput ? "off" : undefined)}
+          textContentType={textContentType ?? (isPasswordInput ? "oneTimeCode" : undefined)}
+          importantForAutofill={importantForAutofill ?? (isPasswordInput ? "no" : "auto")}
+          autoCorrect={autoCorrect ?? (isPasswordInput ? false : undefined)}
+          spellCheck={spellCheck ?? (isPasswordInput ? false : undefined)}
           className={`bg-surface border border-border rounded-xl py-3.5 pl-4 text-text text-base shadow-sm focus:border-accent focus:bg-surfaceAlt ${
             isPasswordInput ? "pr-12" : "pr-4"
           } ${className || ""}`}

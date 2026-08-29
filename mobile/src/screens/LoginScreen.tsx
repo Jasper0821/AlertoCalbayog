@@ -17,8 +17,8 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as WebBrowser from "expo-web-browser";
 import CustomInput from "../components/CustomInput";
-import { GoogleIcon, CloseIcon, UserIcon } from "../components/SvgIcons";
-import api, { backendUrl } from "../api/axios";
+import { GoogleIcon, CloseIcon, UserIcon, LockIcon } from "../components/SvgIcons";
+import api from "../api/axios";
 import { saveToken, saveUser } from "../utils/Storage";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../navigation/AppNavigator";
@@ -38,12 +38,7 @@ interface Props {
 export default function LoginScreen({
   navigation,
 }: Props): React.JSX.Element {
-  const [email, setEmail] = useState<string>("");
-  const [password, setPassword] = useState<string>("");
-  const [agreed, setAgreed] = useState<boolean>(true);
   const [loadingGoogle, setLoadingGoogle] = useState<boolean>(false);
-  const [showPasswordForm, setShowPasswordForm] = useState<boolean>(false);
-  const [loggingInPassword, setLoggingInPassword] = useState<boolean>(false);
   
   // Google Account Selector & Password Verification State
   const [showGoogleModal, setShowGoogleModal] = useState<boolean>(false);
@@ -56,14 +51,6 @@ export default function LoginScreen({
   const insets = useSafeAreaInsets();
 
   const handleGoogleSignIn = async (): Promise<void> => {
-    if (!agreed) {
-      Alert.alert(
-        "User Agreement Required",
-        "Please agree to the User Agreement before continuing with Google."
-      );
-      return;
-    }
-
     setLoadingGoogle(true);
     let nativeSuccess = false;
 
@@ -168,43 +155,13 @@ export default function LoginScreen({
     }
   };
 
-  const handlePasswordLogin = async (): Promise<void> => {
-    if (!agreed) {
-      Alert.alert(
-        "User Agreement Required",
-        "Please agree to the User Agreement before logging in."
-      );
-      return;
-    }
-
-    setLoggingInPassword(true);
-    try {
-      const res = await api.post("/auth/login", { email, password });
-
-      await saveToken(res.data.token);
-      await saveUser(res.data.user);
-
-      navigation.replace("Home");
-    } catch (error: any) {
-      console.error("Login error:", error);
-      const errorMsg =
-        error.response?.data?.message ||
-        (error.message === "Network Error"
-          ? `Cannot connect to server at ${backendUrl}. Please ensure your device is connected to the network.`
-          : error.message || "Invalid login");
-      Alert.alert("Login Failed", errorMsg);
-    } finally {
-      setLoggingInPassword(false);
-    }
-  };
-
   return (
     <View className="flex-1 bg-background">
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.background} />
 
       <KeyboardAvoidingView
         className="flex-1"
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <ScrollView
           contentContainerStyle={[
@@ -244,11 +201,11 @@ export default function LoginScreen({
             <TouchableOpacity
               style={[
                 styles.googleButton,
-                !agreed && styles.buttonDisabled,
+                loadingGoogle && styles.buttonDisabled,
               ]}
               onPress={handleGoogleSignIn}
               activeOpacity={0.85}
-              disabled={!agreed || loadingGoogle}
+              disabled={loadingGoogle}
             >
               {loadingGoogle ? (
                 <ActivityIndicator color={COLORS.primary} size="small" />
@@ -260,92 +217,30 @@ export default function LoginScreen({
               )}
             </TouchableOpacity>
 
-            {/* User Agreement Checkbox */}
-            <TouchableOpacity
-              onPress={() => setAgreed(!agreed)}
-              activeOpacity={0.7}
-              style={styles.agreementRow}
-            >
-              <View
-                style={[
-                  styles.checkbox,
-                  agreed && styles.checkboxChecked,
-                ]}
-              >
-                {agreed && <Text style={styles.checkmark}>✓</Text>}
-              </View>
-
-              <Text style={styles.agreementText}>
-                By continuing, you agree to our{" "}
-                <Text
-                  style={styles.agreementLink}
-                  onPress={() => navigation.navigate("UserAgreement")}
-                >
-                  User Agreement
-                </Text>{" "}
-                and Privacy Policy.
-              </Text>
-            </TouchableOpacity>
-
-            {/* Secondary Option: Password Sign In (Collapsible) */}
+            {/* OR Divider */}
             <View style={styles.orRow}>
               <View style={styles.orLine} />
-              <TouchableOpacity onPress={() => setShowPasswordForm(!showPasswordForm)}>
-                <Text style={styles.orText}>
-                  {showPasswordForm ? "Hide Password Login" : "Or Sign In with Password"}
-                </Text>
-              </TouchableOpacity>
+              <Text style={styles.orText}>OR SIGN IN WITH PASSWORD</Text>
               <View style={styles.orLine} />
             </View>
 
-            {showPasswordForm && (
-              <View style={styles.passwordFormContainer}>
-                {/* Email Field */}
-                <Text style={styles.fieldLabel}>Email Address</Text>
-                <CustomInput
-                  placeholder="Enter your Email"
-                  value={email}
-                  onChangeText={setEmail}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                />
+            {/* Password Login Button (Navigates to dedicated screen for more space) */}
+            <TouchableOpacity
+              style={styles.passwordButton}
+              onPress={() => navigation.navigate("PasswordLogin")}
+              activeOpacity={0.85}
+            >
+              <LockIcon size={20} color={COLORS.primary} />
+              <Text style={styles.passwordButtonText}>Sign In with Password</Text>
+            </TouchableOpacity>
 
-                {/* Password Field */}
-                <Text style={styles.fieldLabel}>Password</Text>
-                <CustomInput
-                  placeholder="Enter your password"
-                  secureTextEntry
-                  value={password}
-                  onChangeText={setPassword}
-                />
-
-                {/* Forgot Password Link */}
-                <View style={{ alignItems: "flex-end", marginTop: -6, marginBottom: 16 }}>
-                  <TouchableOpacity onPress={() => navigation.navigate("ForgotPassword")}>
-                    <Text style={{ fontSize: 13, fontWeight: "700", color: COLORS.primary }}>
-                      Forgot Password?
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-
-                {/* Password Login Button */}
-                <TouchableOpacity
-                  style={[
-                    styles.loginButton,
-                    (!agreed || loggingInPassword) && styles.buttonDisabled,
-                  ]}
-                  onPress={handlePasswordLogin}
-                  activeOpacity={0.85}
-                  disabled={!agreed || loggingInPassword}
-                >
-                  {loggingInPassword ? (
-                    <ActivityIndicator color="#FFFFFF" size="small" />
-                  ) : (
-                    <Text style={styles.loginButtonText}>Sign In with Password</Text>
-                  )}
-                </TouchableOpacity>
-              </View>
-            )}
+            {/* Register Option */}
+            <View style={styles.registerRow}>
+              <Text style={styles.registerText}>Don't have an account? </Text>
+              <TouchableOpacity onPress={() => navigation.navigate("Register")}>
+                <Text style={styles.registerLink}>Create Account</Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           {/* ── Bottom tagline ── */}
@@ -358,159 +253,169 @@ export default function LoginScreen({
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* ── Sleek Google Account Selector Modal ── */}
+      {/* ── Sleek Google Account Selector & Password Verification Modal ── */}
       <Modal
         visible={showGoogleModal}
         transparent
         animationType="slide"
         onRequestClose={() => setShowGoogleModal(false)}
       >
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
           <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowGoogleModal(false)} />
 
           <View style={styles.modalContainer}>
-            {/* Modal Handle */}
-            <View style={styles.modalHandle} />
+            <ScrollView
+              bounces={false}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 16) }}
+            >
+              {/* Modal Handle */}
+              <View style={styles.modalHandle} />
 
-            {/* Header */}
-            <View style={styles.modalHeader}>
-              <View style={styles.modalGoogleBrand}>
-                <GoogleIcon size={26} />
-                <View style={{ marginLeft: 10 }}>
-                  <Text style={styles.modalTitle}>Sign in with Google</Text>
-                  <Text style={styles.modalSubtitle}>to continue to Alerto Calbayog</Text>
+              {/* Header */}
+              <View style={styles.modalHeader}>
+                <View style={styles.modalGoogleBrand}>
+                  <GoogleIcon size={26} />
+                  <View style={{ marginLeft: 10 }}>
+                    <Text style={styles.modalTitle}>Sign in with Google</Text>
+                    <Text style={styles.modalSubtitle}>to continue to Alerto Calbayog</Text>
+                  </View>
                 </View>
-              </View>
-              <TouchableOpacity
-                onPress={() => setShowGoogleModal(false)}
-                style={styles.modalCloseBtn}
-                activeOpacity={0.7}
-              >
-                <CloseIcon size={22} color={COLORS.primary} />
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.modalDivider} />
-
-            {/* Google Account Selector or Password Verification */}
-            {requiresPassword ? (
-              <View style={{ marginTop: 8 }}>
-                <Text style={styles.modalSectionLabel}>
-                  {isNewUser ? "CREATE ACCOUNT PASSWORD" : "ACCOUNT BINDING & VERIFICATION"}
-                </Text>
-                <Text style={{ fontSize: 13, color: COLORS.textMuted, marginBottom: 14, lineHeight: 19 }}>
-                  {isNewUser ? (
-                    <>
-                      Set a password for your account (<Text style={{ fontWeight: "800", color: COLORS.primary }}>{googleAccountEmail}</Text>) to complete registration and secure your login.
-                    </>
-                  ) : (
-                    <>
-                      An existing account for <Text style={{ fontWeight: "800", color: COLORS.primary }}>{googleAccountEmail}</Text> was found. Please enter your password to confirm account ownership and bind your Google account.
-                    </>
-                  )}
-                </Text>
-
-                <Text style={styles.inputLabel}>
-                  {isNewUser ? "CREATE PASSWORD" : "ACCOUNT PASSWORD"}
-                </Text>
-                <CustomInput
-                  placeholder={isNewUser ? "Create password (min 6 chars)" : "Enter your password"}
-                  secureTextEntry
-                  value={bindPassword}
-                  onChangeText={setBindPassword}
-                />
-
                 <TouchableOpacity
-                  style={[
-                    styles.modalSubmitButton,
-                    (!bindPassword || signingInWithGoogleAccount) && styles.buttonDisabled,
-                  ]}
-                  onPress={() => handleModalGoogleLogin(googleAccountEmail, bindPassword)}
-                  activeOpacity={0.85}
-                  disabled={!bindPassword || signingInWithGoogleAccount}
+                  onPress={() => setShowGoogleModal(false)}
+                  style={styles.modalCloseBtn}
+                  activeOpacity={0.7}
                 >
-                  {signingInWithGoogleAccount ? (
-                    <ActivityIndicator color="#FFFFFF" size="small" />
-                  ) : (
-                    <Text style={styles.modalSubmitButtonText}>
-                      {isNewUser ? "Create Account & Sign In" : "Verify & Bind Google Account"}
-                    </Text>
-                  )}
+                  <CloseIcon size={22} color={COLORS.primary} />
                 </TouchableOpacity>
+              </View>
 
-                <TouchableOpacity
-                  style={{ alignSelf: "center", marginTop: 12 }}
-                  onPress={() => {
-                    setRequiresPassword(false);
-                    setIsNewUser(false);
-                    setBindPassword("");
-                  }}
-                >
-                  <Text style={{ fontSize: 13, color: COLORS.textMuted, fontWeight: "700" }}>
-                    ← Choose another Google account
+              <View style={styles.modalDivider} />
+
+              {/* Google Account Selector or Password Verification */}
+              {requiresPassword ? (
+                <View style={{ marginTop: 8 }}>
+                  <Text style={styles.modalSectionLabel}>
+                    {isNewUser ? "CREATE ACCOUNT PASSWORD" : "ACCOUNT BINDING & VERIFICATION"}
                   </Text>
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <>
-                <Text style={styles.modalSectionLabel}>CHOOSE AN ACCOUNT</Text>
+                  <Text style={{ fontSize: 13, color: COLORS.textMuted, marginBottom: 14, lineHeight: 19 }}>
+                    {isNewUser ? (
+                      <>
+                        Set a password for your account (<Text style={{ fontWeight: "800", color: COLORS.primary }}>{googleAccountEmail}</Text>) to complete registration and secure your login.
+                      </>
+                    ) : (
+                      <>
+                        An existing account for <Text style={{ fontWeight: "800", color: COLORS.primary }}>{googleAccountEmail}</Text> was found. Please enter your password to confirm account ownership and bind your Google account.
+                      </>
+                    )}
+                  </Text>
 
-                <TouchableOpacity
-                  style={styles.accountCard}
-                  onPress={() => handleModalGoogleLogin(googleAccountEmail)}
-                  activeOpacity={0.8}
-                  disabled={signingInWithGoogleAccount}
-                >
-                  <View style={styles.accountAvatar}>
-                    <UserIcon size={22} color={COLORS.primary} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.accountName}>
-                      {googleAccountEmail.split("@")[0]}
-                    </Text>
-                    <Text style={styles.accountEmail}>{googleAccountEmail}</Text>
-                  </View>
-                  {signingInWithGoogleAccount ? (
-                    <ActivityIndicator size="small" color={COLORS.primary} />
-                  ) : (
-                    <Text style={styles.accountArrow}>›</Text>
-                  )}
-                </TouchableOpacity>
-
-                {/* Manual Email Input option if user wants another Google email */}
-                <View style={{ marginTop: 14 }}>
-                  <Text style={styles.inputLabel}>OR ENTER ANOTHER GOOGLE EMAIL</Text>
+                  <Text style={styles.inputLabel}>
+                    {isNewUser ? "CREATE PASSWORD" : "ACCOUNT PASSWORD"}
+                  </Text>
                   <CustomInput
-                    placeholder="example@gmail.com"
-                    value={googleAccountEmail}
-                    onChangeText={setGoogleAccountEmail}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
+                    placeholder={isNewUser ? "Create password (min 6 chars)" : "Enter your password"}
+                    secureTextEntry
+                    value={bindPassword}
+                    onChangeText={setBindPassword}
                   />
-                </View>
 
-                {/* Confirm Google Button */}
-                <TouchableOpacity
-                  style={[
-                    styles.modalSubmitButton,
-                    signingInWithGoogleAccount && styles.buttonDisabled,
-                  ]}
-                  onPress={() => handleModalGoogleLogin(googleAccountEmail)}
-                  activeOpacity={0.85}
-                  disabled={signingInWithGoogleAccount}
-                >
-                  {signingInWithGoogleAccount ? (
-                    <ActivityIndicator color="#FFFFFF" size="small" />
-                  ) : (
-                    <Text style={styles.modalSubmitButtonText}>
-                      Continue with Google Account
+                  <TouchableOpacity
+                    style={[
+                      styles.modalSubmitButton,
+                      (!bindPassword || signingInWithGoogleAccount) && styles.buttonDisabled,
+                    ]}
+                    onPress={() => handleModalGoogleLogin(googleAccountEmail, bindPassword)}
+                    activeOpacity={0.85}
+                    disabled={!bindPassword || signingInWithGoogleAccount}
+                  >
+                    {signingInWithGoogleAccount ? (
+                      <ActivityIndicator color="#FFFFFF" size="small" />
+                    ) : (
+                      <Text style={styles.modalSubmitButtonText}>
+                        {isNewUser ? "Create Account & Sign In" : "Verify & Bind Google Account"}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={{ alignSelf: "center", marginTop: 12 }}
+                    onPress={() => {
+                      setRequiresPassword(false);
+                      setIsNewUser(false);
+                      setBindPassword("");
+                    }}
+                  >
+                    <Text style={{ fontSize: 13, color: COLORS.textMuted, fontWeight: "700" }}>
+                      ← Choose another Google account
                     </Text>
-                  )}
-                </TouchableOpacity>
-              </>
-            )}
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <>
+                  <Text style={styles.modalSectionLabel}>CHOOSE AN ACCOUNT</Text>
+
+                  <TouchableOpacity
+                    style={styles.accountCard}
+                    onPress={() => handleModalGoogleLogin(googleAccountEmail)}
+                    activeOpacity={0.8}
+                    disabled={signingInWithGoogleAccount}
+                  >
+                    <View style={styles.accountAvatar}>
+                      <UserIcon size={22} color={COLORS.primary} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.accountName}>
+                        {googleAccountEmail.split("@")[0]}
+                      </Text>
+                      <Text style={styles.accountEmail}>{googleAccountEmail}</Text>
+                    </View>
+                    {signingInWithGoogleAccount ? (
+                      <ActivityIndicator size="small" color={COLORS.primary} />
+                    ) : (
+                      <Text style={styles.accountArrow}>›</Text>
+                    )}
+                  </TouchableOpacity>
+
+                  {/* Manual Email Input option if user wants another Google email */}
+                  <View style={{ marginTop: 14 }}>
+                    <Text style={styles.inputLabel}>OR ENTER ANOTHER GOOGLE EMAIL</Text>
+                    <CustomInput
+                      placeholder="example@gmail.com"
+                      value={googleAccountEmail}
+                      onChangeText={setGoogleAccountEmail}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                    />
+                  </View>
+
+                  {/* Confirm Google Button */}
+                  <TouchableOpacity
+                    style={[
+                      styles.modalSubmitButton,
+                      signingInWithGoogleAccount && styles.buttonDisabled,
+                    ]}
+                    onPress={() => handleModalGoogleLogin(googleAccountEmail)}
+                    activeOpacity={0.85}
+                    disabled={signingInWithGoogleAccount}
+                  >
+                    {signingInWithGoogleAccount ? (
+                      <ActivityIndicator color="#FFFFFF" size="small" />
+                    ) : (
+                      <Text style={styles.modalSubmitButtonText}>
+                        Continue with Google Account
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                </>
+              )}
+            </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
@@ -592,15 +497,6 @@ const styles = StyleSheet.create({
     marginTop: 14,
     marginBottom: 24,
   },
-  fieldLabel: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: COLORS.primary,
-    marginBottom: 6,
-    letterSpacing: 0.2,
-    textTransform: "uppercase",
-    opacity: 0.65,
-  },
 
   /* ── Google Button ── */
   googleButton: {
@@ -631,50 +527,11 @@ const styles = StyleSheet.create({
     elevation: 0,
   },
 
-  /* ── Agreement ── */
-  agreementRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    marginTop: 4,
-    marginBottom: 16,
-  },
-  checkbox: {
-    width: 20,
-    height: 20,
-    borderRadius: 6,
-    borderWidth: 1.5,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.surface,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 10,
-    marginTop: 1,
-  },
-  checkboxChecked: {
-    borderColor: COLORS.accent,
-    backgroundColor: COLORS.accent,
-  },
-  checkmark: {
-    fontSize: 11,
-    fontWeight: "800",
-    color: "#FFFFFF",
-  },
-  agreementText: {
-    flex: 1,
-    fontSize: 12.5,
-    lineHeight: 18,
-    color: COLORS.textMuted,
-  },
-  agreementLink: {
-    fontWeight: "800",
-    color: COLORS.accent,
-  },
-
   /* ── OR Divider ── */
   orRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginVertical: 12,
+    marginVertical: 16,
   },
   orLine: {
     flex: 1,
@@ -682,35 +539,53 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.border,
   },
   orText: {
-    fontSize: 12,
-    fontWeight: "700",
+    fontSize: 11,
+    fontWeight: "800",
     color: COLORS.primary,
     marginHorizontal: 12,
-    opacity: 0.7,
-  },
-  passwordFormContainer: {
-    marginTop: 10,
+    letterSpacing: 0.8,
+    opacity: 0.6,
   },
 
-  /* ── Login Button ── */
-  loginButton: {
-    marginTop: 12,
-    backgroundColor: COLORS.primary,
+  /* ── Password Button ── */
+  passwordButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: COLORS.surface,
     paddingVertical: 15,
     borderRadius: 16,
-    alignItems: "center",
+    borderWidth: 1.5,
+    borderColor: COLORS.primary,
     shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 3,
+    marginBottom: 16,
   },
-  loginButtonText: {
+  passwordButtonText: {
     fontSize: 15,
-    fontWeight: "900",
-    color: "#FFFFFF",
-    letterSpacing: 1,
-    textTransform: "uppercase",
+    fontWeight: "800",
+    color: COLORS.primary,
+    letterSpacing: 0.3,
+    marginLeft: 8,
+  },
+
+  /* ── Register Row ── */
+  registerRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    marginTop: 4,
+  },
+  registerText: {
+    fontSize: 13.5,
+    color: COLORS.textMuted,
+  },
+  registerLink: {
+    fontSize: 13.5,
+    fontWeight: "800",
+    color: COLORS.accent,
   },
 
   /* ── Footer ── */
@@ -747,7 +622,8 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 28,
     paddingHorizontal: 24,
     paddingTop: 12,
-    paddingBottom: 36,
+    paddingBottom: 24,
+    maxHeight: "85%",
     shadowColor: "#04112B",
     shadowOffset: { width: 0, height: -8 },
     shadowOpacity: 0.2,
