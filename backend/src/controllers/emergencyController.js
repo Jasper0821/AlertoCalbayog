@@ -178,10 +178,11 @@ exports.createEmergencyReport = async (req, res) => {
     });
 
     const populatedReport = await EmergencyReport.findById(report._id)
-      .populate("userId", "fullName email role phoneNumber")
+      .populate("userId", "fullName email role phoneNumber avatar barangay completeAddress")
       .populate("assignedResponder", "fullName email role agency phoneNumber");
 
     const io = req.app.get("io");
+    const residentInfo = populatedReport.userId;
 
     notifiedAgencies.forEach((agency) => {
       io.to(agency).emit("newEmergencyAlert", populatedReport);
@@ -189,22 +190,49 @@ exports.createEmergencyReport = async (req, res) => {
 
     io.to("admin").emit("newEmergencyAlert", populatedReport);
 
+    // Create notifications for admin AND each notified responder agency
+    const notifTitle = "New incident reported";
+    const notifMessage = `A new ${populatedReport.emergencyType || "incident"} report has been submitted by ${residentInfo?.fullName || "a resident"}.`;
+    const notifMeta = {
+      emergencyType: populatedReport.emergencyType,
+      location: populatedReport.location,
+      resident: residentInfo ? {
+        fullName: residentInfo.fullName || "",
+        email: residentInfo.email || "",
+        phoneNumber: residentInfo.phoneNumber || "",
+        avatar: residentInfo.avatar || "",
+        barangay: residentInfo.barangay || "",
+      } : null,
+    };
+
     try {
+      // Admin notification
       const adminNotification = await Notification.create({
         recipientRole: "admin",
         reportId: populatedReport._id,
-        title: "New incident reported",
-        message: `A new ${populatedReport.emergencyType || "incident"} report has been submitted by ${populatedReport.userId?.fullName || "a resident"}.`,
+        title: notifTitle,
+        message: notifMessage,
         category: "incident",
         type: "system_event",
-        metadata: {
-          emergencyType: populatedReport.emergencyType,
-          location: populatedReport.location,
-        },
+        metadata: notifMeta,
       });
       io.to("admin").emit("notification", adminNotification);
+
+      // Responder notifications — one per agency
+      for (const agency of notifiedAgencies) {
+        const responderNotif = await Notification.create({
+          recipientRole: "responder",
+          reportId: populatedReport._id,
+          title: notifTitle,
+          message: notifMessage,
+          category: "incident",
+          type: "system_event",
+          metadata: { ...notifMeta, agency },
+        });
+        io.to(agency).emit("notification", responderNotif);
+      }
     } catch (err) {
-      console.error("Failed to persist admin notification:", err.message);
+      console.error("Failed to persist notifications:", err.message);
     }
 
     res.status(201).json({

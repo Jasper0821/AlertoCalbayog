@@ -1,11 +1,15 @@
 const Notification = require("../models/Notification");
 
 const buildRecipientFilter = (user) => {
-  const filters = [{ userId: user.id }];
+  const userId = user.id || user._id;
+  const filters = [{ userId }];
   if (user.role === "admin") {
-    filters.push({ recipientRole: "admin" }, { recipientRole: "all" });
+    filters.push({ recipientRole: "admin", userId: null }, { recipientRole: "all", userId: null });
+  } else if (user.role === "responder" || user.role === "staff") {
+    filters.push({ recipientRole: user.role, userId: null }, { recipientRole: "all", userId: null });
   } else {
-    filters.push({ recipientRole: user.role }, { recipientRole: "all" });
+    // For regular residents: only show notifications addressed to their specific userId, OR general broadcasts where userId is null
+    filters.push({ recipientRole: "resident", userId: null }, { recipientRole: "all", userId: null });
   }
   return { $or: filters };
 };

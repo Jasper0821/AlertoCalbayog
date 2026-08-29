@@ -222,13 +222,20 @@ exports.requestRegistrationOtp = async (req, res) => {
 exports.verifyRegistrationOtp = async (req, res) => {
   try {
     const normalizedEmail = normalizeEmail(req.body.email);
-    const normalizedCode = normalizeOtpCode(req.body.code);
+    const rawCode = req.body.code || req.body.otpCode || req.body.verificationCode;
+    const normalizedCode = normalizeOtpCode(rawCode);
     if (!normalizedEmail || normalizedCode?.length !== 6) {
       return res.status(400).json({ message: "Enter your Gmail address and the complete 6-digit code." });
     }
     const record = await Otp.findOne({ email: normalizedEmail, purpose: "registration", used: false }).sort({ expiresAt: -1 });
-    if (!record || record.expiresAt < new Date() || record.code !== normalizedCode) {
-      return res.status(400).json({ message: "The verification code is invalid or has expired. Please request a new code." });
+    if (!record) {
+      return res.status(400).json({ message: "No active verification code found for this Gmail address. Please request a new code." });
+    }
+    if (record.expiresAt < new Date()) {
+      return res.status(400).json({ message: "The verification code has expired. Please request a new code." });
+    }
+    if (String(record.code).trim() !== normalizedCode) {
+      return res.status(400).json({ message: "Incorrect verification code. Please check the code sent to your email." });
     }
     record.used = true;
     await record.save();
@@ -319,17 +326,26 @@ exports.login = async (req, res) => {
       token: generateToken(user._id, user.role),
       user: {
         id: user._id,
+        _id: user._id,
         fullName: user.fullName,
         username: user.username,
         email: user.email,
         role: user.role,
         agency: user.agency,
-        phoneNumber: user.phoneNumber,
+        phoneNumber: user.phoneNumber || "",
         status: user.status,
-        avatar: user.avatar,
+        avatar: user.avatar || "",
         employeeId: user.employeeId,
         rank: user.rank,
         bio: user.bio,
+        barangay: user.barangay || "",
+        completeAddress: user.completeAddress || "",
+        accountStatus: user.accountStatus || "active",
+        residentVerificationStatus: user.residentVerificationStatus || "pending",
+        authProvider: user.authProvider || "local",
+        isEmailVerified: user.isEmailVerified || false,
+        googleId: user.googleId || "",
+        googleVerified: !!user.googleId,
       },
     });
   } catch (error) {
@@ -405,7 +421,8 @@ exports.forgotPassword = async (req, res) => {
 
 exports.verifyOtp = async (req, res) => {
   try {
-    const { email, code } = req.body;
+    const email = req.body.email;
+    const code = req.body.code || req.body.otpCode || req.body.verificationCode;
     if (!email || !code) {
       return res.status(400).json({ message: "Email and OTP code are required" });
     }
@@ -659,16 +676,26 @@ exports.googleLogin = async (req, res) => {
         privacyVersion: CURRENT_PRIVACY_VERSION,
         user: {
           id: user._id,
+          _id: user._id,
           resident_id: user._id.toString(),
           google_sub: user.googleId || sub,
           google_email: user.email,
+          fullName: user.fullName,
           full_name: user.fullName,
+          email: user.email,
+          username: user.email,
+          avatar: user.avatar,
           profile_picture: user.avatar,
+          phoneNumber: user.phoneNumber || "",
           phone_number: user.phoneNumber || "",
           barangay: user.barangay || "",
+          completeAddress: user.completeAddress || "",
           complete_address: user.completeAddress || "",
+          googleVerified: true,
           google_verified: true,
+          residentVerificationStatus: user.residentVerificationStatus || "pending",
           resident_verification_status: user.residentVerificationStatus || "pending",
+          accountStatus: user.accountStatus || "active",
           account_status: user.accountStatus || "active",
           role: user.role,
           agency: user.agency,
@@ -806,16 +833,26 @@ exports.googleRegister = async (req, res) => {
       privacyVersion: CURRENT_PRIVACY_VERSION,
       user: {
         id: user._id,
+        _id: user._id,
         resident_id: user._id.toString(),
         google_sub: user.googleId,
         google_email: user.email,
+        fullName: user.fullName,
         full_name: user.fullName,
+        email: user.email,
+        username: user.email,
+        avatar: user.avatar,
         profile_picture: user.avatar,
-        phone_number: user.phoneNumber,
-        barangay: user.barangay,
-        complete_address: user.completeAddress,
+        phoneNumber: user.phoneNumber || "",
+        phone_number: user.phoneNumber || "",
+        barangay: user.barangay || "",
+        completeAddress: user.completeAddress || "",
+        complete_address: user.completeAddress || "",
+        googleVerified: true,
         google_verified: true,
+        residentVerificationStatus: "pending",
         resident_verification_status: "pending",
+        accountStatus: "active",
         account_status: "active",
         role: user.role,
         agency: user.agency,
@@ -916,18 +953,26 @@ exports.verifySession = async (req, res) => {
       termsVersion: CURRENT_TERMS_VERSION,
       user: {
         id: user._id,
+        _id: user._id,
         fullName: user.fullName,
         username: user.username,
         email: user.email,
         role: user.role,
         agency: user.agency,
-        phoneNumber: user.phoneNumber,
+        phoneNumber: user.phoneNumber || "",
         status: user.status,
-        avatar: user.avatar,
-        googleId: user.googleId,
+        avatar: user.avatar || "",
+        googleId: user.googleId || "",
         employeeId: user.employeeId,
         rank: user.rank,
         bio: user.bio,
+        barangay: user.barangay || "",
+        completeAddress: user.completeAddress || "",
+        accountStatus: user.accountStatus || "active",
+        residentVerificationStatus: user.residentVerificationStatus || "pending",
+        authProvider: user.authProvider || "local",
+        isEmailVerified: user.isEmailVerified || false,
+        googleVerified: !!user.googleId,
       },
     });
   } catch (error) {

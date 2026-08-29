@@ -195,7 +195,7 @@ function LandingPage() {
             {/* CTA Buttons */}
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-6">
               <a
-                href="https://github.com/Jasper0821/AlertoCalbayog/releases/latest/download/Alertocalbayogv5.apk"
+                href="https://github.com/Jasper0821/AlertoCalbayog/releases/latest/download/Alertocalbayogv6.apk"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center justify-center gap-2.5 h-12 px-7 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-[13px] font-bold text-white transition-all duration-200 active:scale-[0.97] transform w-full sm:w-auto shadow-lg shadow-emerald-500/25 group"

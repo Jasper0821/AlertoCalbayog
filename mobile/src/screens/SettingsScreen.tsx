@@ -56,10 +56,10 @@ export default function SettingsScreen({ navigation }: Props): React.JSX.Element
     try {
       const user = await getUser();
       if (user) {
-        setFullName(user.fullName || "");
-        setEmail(user.email || "");
-        setPhoneNumber(user.phoneNumber || "");
-        setAvatar(user.avatar || "");
+        setFullName(user.fullName || user.full_name || "");
+        setEmail(user.email || user.google_email || "");
+        setPhoneNumber(user.phoneNumber || user.phone_number || "");
+        setAvatar(user.avatar || user.profile_picture || "");
       }
     } catch (err) {
       console.error("Failed to load user data:", err);
@@ -154,6 +154,11 @@ export default function SettingsScreen({ navigation }: Props): React.JSX.Element
       const updatedUser = res.data.user || res.data;
       if (updatedUser) {
         await saveUser(updatedUser);
+        // Refresh local form state to match the saved data
+        setFullName(updatedUser.fullName || updatedUser.full_name || "");
+        setEmail(updatedUser.email || "");
+        setPhoneNumber(updatedUser.phoneNumber || updatedUser.phone_number || "");
+        setAvatar(updatedUser.avatar || updatedUser.profile_picture || "");
       }
       Alert.alert("Success", "Profile details & avatar updated successfully!");
     } catch (error: any) {
@@ -264,12 +269,44 @@ export default function SettingsScreen({ navigation }: Props): React.JSX.Element
           />
 
           <Text style={styles.fieldLabel}>Phone Number</Text>
-          <CustomInput
-            placeholder="Enter phone number"
-            value={phoneNumber}
-            onChangeText={setPhoneNumber}
-            keyboardType="phone-pad"
-          />
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <View style={{ flex: 1 }}>
+              <CustomInput
+                placeholder="Enter phone number"
+                value={phoneNumber}
+                onChangeText={setPhoneNumber}
+                keyboardType="phone-pad"
+              />
+            </View>
+            {phoneNumber.trim().length > 0 && (
+              <TouchableOpacity
+                onPress={() => {
+                  Alert.alert(
+                    "Remove Phone Number",
+                    "Are you sure you want to delete your phone number?",
+                    [
+                      { text: "Cancel", style: "cancel" },
+                      { text: "Delete", style: "destructive", onPress: () => setPhoneNumber("") },
+                    ]
+                  );
+                }}
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 12,
+                  backgroundColor: "#FEF2F2",
+                  borderWidth: 1,
+                  borderColor: "#FCA5A5",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  marginBottom: 10,
+                }}
+                activeOpacity={0.7}
+              >
+                <Text style={{ color: "#DC2626", fontSize: 16, fontWeight: "900" }}>✕</Text>
+              </TouchableOpacity>
+            )}
+          </View>
 
           <Text style={styles.fieldLabel}>Email Address</Text>
           <CustomInput
