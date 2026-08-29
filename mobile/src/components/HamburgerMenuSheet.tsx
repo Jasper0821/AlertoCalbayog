@@ -22,7 +22,9 @@ import {
   UserIcon,
 } from "./SvgIcons";
 import EmergencyHotlineSheet from "./EmergencyHotlineSheet";
-import { getUser, clearStorage } from "../utils/Storage";
+import { getUser, getToken, saveUser, clearStorage } from "../utils/Storage";
+import api from "../api/axios";
+import socket from "../api/socket";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -43,11 +45,26 @@ export default function HamburgerMenuSheet({ visible, onClose }: Props): React.J
 
   useEffect(() => {
     if (visible) {
-      getUser().then((user) => {
+      getUser().then(async (user) => {
         if (user) {
-          setUserName(user.fullName || "User");
+          setUserName(user.fullName || user.full_name || user.name || "User");
           setUserRole(user.role ? user.role.toUpperCase() : "RESIDENT");
-          setIsVerified(Boolean(user.isEmailVerified || user.googleId || user.authProvider === "google"));
+          setIsVerified(Boolean(user.isEmailVerified || user.googleId || user.google_verified || user.authProvider === "google"));
+        }
+        try {
+          const token = await getToken();
+          if (token) {
+            const res = await api.get("/auth/me", { headers: { Authorization: `Bearer ${token}` } });
+            if (res.data && res.data.user) {
+              const freshUser = res.data.user;
+              await saveUser(freshUser);
+              setUserName(freshUser.fullName || freshUser.full_name || freshUser.name || "User");
+              setUserRole(freshUser.role ? freshUser.role.toUpperCase() : "RESIDENT");
+              setIsVerified(Boolean(freshUser.isEmailVerified || freshUser.googleId || freshUser.google_verified || freshUser.authProvider === "google"));
+            }
+          }
+        } catch (err) {
+          // Ignore offline errors
         }
       });
 
@@ -105,6 +122,11 @@ export default function HamburgerMenuSheet({ visible, onClose }: Props): React.J
                 const { GoogleSignin } = require("@react-native-google-signin/google-signin");
                 await GoogleSignin.signOut();
               }
+            } catch (e) {
+              // Ignore
+            }
+            try {
+              socket.disconnect();
             } catch (e) {
               // Ignore
             }
