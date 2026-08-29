@@ -13,16 +13,18 @@ import {
   ActivityIndicator,
   Modal,
   Pressable,
+  TextInput,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as WebBrowser from "expo-web-browser";
 import CustomInput from "../components/CustomInput";
-import { GoogleIcon, CloseIcon, UserIcon, LockIcon } from "../components/SvgIcons";
+import { GoogleIcon, CloseIcon, LockIcon } from "../components/SvgIcons";
 import api from "../api/axios";
 import { saveToken, saveUser } from "../utils/Storage";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../navigation/AppNavigator";
 import { COLORS } from "../styles/colors";
+import CALBAYOG_BARANGAYS from "../constants/calbayogBarangays";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -39,20 +41,26 @@ export default function LoginScreen({
   navigation,
 }: Props): React.JSX.Element {
   const [loadingGoogle, setLoadingGoogle] = useState<boolean>(false);
-  
-  // Google Account Selector & Password Verification State
-  const [showGoogleModal, setShowGoogleModal] = useState<boolean>(false);
-  const [googleAccountEmail, setGoogleAccountEmail] = useState<string>("teorica821@gmail.com");
-  const [signingInWithGoogleAccount, setSigningInWithGoogleAccount] = useState<boolean>(false);
-  const [requiresPassword, setRequiresPassword] = useState<boolean>(false);
-  const [isNewUser, setIsNewUser] = useState<boolean>(false);
-  const [bindPassword, setBindPassword] = useState<string>("");
+
+  // Profile Completion Modal State for New Google Residents
+  const [showProfileModal, setShowProfileModal] = useState<boolean>(false);
+  const [googleRegToken, setGoogleRegToken] = useState<string>("");
+  const [googleUser, setGoogleUser] = useState<any>(null);
+
+  // Profile Form Inputs
+  const [phoneNumber, setPhoneNumber] = useState<string>("");
+  const [barangay, setBarangay] = useState<string>("");
+  const [completeAddress, setCompleteAddress] = useState<string>("");
+  const [savingProfile, setSavingProfile] = useState<boolean>(false);
+
+  // Barangay Picker Modal State
+  const [showBarangayPicker, setShowBarangayPicker] = useState<boolean>(false);
 
   const insets = useSafeAreaInsets();
 
   const handleGoogleSignIn = async (): Promise<void> => {
     setLoadingGoogle(true);
-    let nativeSuccess = false;
+    let idTokenToVerify: string | null = null;
 
     try {
       const { NativeModules } = require("react-native");
@@ -67,77 +75,58 @@ export default function LoginScreen({
 
         await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
         const response = await GoogleSignin.signIn();
-        const idToken = response.idToken || response.data?.idToken;
-
-        if (idToken) {
-          const res = await api.post("/auth/google-login", { idToken });
-
-          await saveToken(res.data.token);
-          await saveUser(res.data.user);
-          nativeSuccess = true;
-
-          if (res.data.termsAccepted === false) {
-            navigation.replace("UserAgreement");
-          } else {
-            navigation.replace("Home");
-          }
-          return;
-        }
+        idTokenToVerify = response.idToken || response.data?.idToken || null;
       }
     } catch (err: any) {
-      console.log("Native Google Sign-In fallback notice:", err?.message || err);
-
-      // If user manually cancelled native prompt, do not open modal
+      console.log("Native Google Sign-In notice:", err?.message || err);
       if (err?.code === "SIGN_IN_CANCELLED" || err?.message?.includes("cancel")) {
         setLoadingGoogle(false);
         return;
       }
-    } finally {
+    }
+
+    if (!idTokenToVerify) {
+      // Fallback for development/testing environments when Google Play Services ID Token is not available
+      Alert.prompt(
+        "Google Sign-In Authentication",
+        "Enter your Google Account email address to sign in:",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Continue",
+            onPress: async (enteredEmail) => {
+              if (!enteredEmail) return;
+              handleBackendGoogleLogin(`mock_token_${enteredEmail}`);
+            },
+          },
+        ],
+        "plain-text"
+      );
       setLoadingGoogle(false);
-    }
-
-    // Fallback for Expo Go (where RNGoogleSignin native binary is not available)
-    if (!nativeSuccess) {
-      setRequiresPassword(false);
-      setIsNewUser(false);
-      setBindPassword("");
-      setShowGoogleModal(true);
-    }
-  };
-
-  const handleModalGoogleLogin = async (selectedEmail?: string, pass?: string): Promise<void> => {
-    const cleanEmail = (selectedEmail || googleAccountEmail).trim().toLowerCase();
-
-    if (!cleanEmail || !/^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@gmail\.com$/i.test(cleanEmail)) {
-      Alert.alert("Invalid Google Email", "Please enter a valid Google (@gmail.com) email address.");
       return;
     }
 
-    setSigningInWithGoogleAccount(true);
-    try {
-      const res = await api.post("/auth/google-login", {
-        googleId: `google_${cleanEmail.replace(/[^a-z0-9]/g, "")}`,
-        email: cleanEmail,
-        fullName: cleanEmail.split("@")[0].replace(/[._]/g, " "),
-        password: pass || bindPassword || undefined,
-      });
+    await handleBackendGoogleLogin(idTokenToVerify);
+  };
 
-      if (res.data?.requiresPassword) {
-        setRequiresPassword(true);
-        setIsNewUser(!!res.data.isNewUser);
-        Alert.alert(
-          res.data.isNewUser ? "Set Account Password" : "Verify Account Password",
-          res.data.message || "Please enter a password to proceed with Google account login."
-        );
+  const handleBackendGoogleLogin = async (idToken: string) => {
+    try {
+      setLoadingGoogle(true);
+      const res = await api.post("/auth/google-login", { idToken });
+
+      if (res.data?.isNewResident || res.data?.requiresProfileCompletion) {
+        // New Google Resident -> Open Profile Completion Modal
+        setGoogleRegToken(res.data.googleRegistrationToken);
+        setGoogleUser(res.data.googleUser);
+        setShowProfileModal(true);
+        setLoadingGoogle(false);
         return;
       }
 
+      // Existing Resident -> Direct Login
       await saveToken(res.data.token);
       await saveUser(res.data.user);
-      setShowGoogleModal(false);
-      setRequiresPassword(false);
-      setIsNewUser(false);
-      setBindPassword("");
+      setLoadingGoogle(false);
 
       if (res.data.termsAccepted === false) {
         navigation.replace("UserAgreement");
@@ -145,22 +134,69 @@ export default function LoginScreen({
         navigation.replace("Home");
       }
     } catch (err: any) {
-      console.error("Google Account login error:", err);
+      setLoadingGoogle(false);
+      console.error("Google authentication backend error:", err);
       Alert.alert(
-        "Google Sign-In Failed",
-        err.response?.data?.message || err.message || "Failed to sign in with Google account."
+        "Authentication Failed",
+        err.response?.data?.message || err.message || "Failed to authenticate Google account."
       );
-    } finally {
-      setSigningInWithGoogleAccount(false);
+    }
+  };
+
+  const handleFinishProfileRegistration = async (): Promise<void> => {
+    const cleanPhone = phoneNumber.trim().replace(/[\s-]/g, "");
+
+    if (!cleanPhone || !/^09\d{9}$/.test(cleanPhone)) {
+      Alert.alert("Invalid Phone Number", "Please enter a valid 11-digit mobile number starting with 09 (e.g. 09XXXXXXXXX).");
+      return;
+    }
+
+    if (!barangay) {
+      Alert.alert("Barangay Required", "Please select your Barangay in Calbayog City.");
+      return;
+    }
+
+    if (!completeAddress.trim()) {
+      Alert.alert("Address Required", "Please enter your complete house/street address.");
+      return;
+    }
+
+    setSavingProfile(true);
+
+    try {
+      const res = await api.post("/auth/google-register", {
+        googleRegistrationToken: googleRegToken,
+        phoneNumber: cleanPhone,
+        barangay,
+        completeAddress: completeAddress.trim(),
+      });
+
+      await saveToken(res.data.token);
+      await saveUser(res.data.user);
+
+      setShowProfileModal(false);
+      setSavingProfile(false);
+
+      if (res.data.termsAccepted === false) {
+        navigation.replace("UserAgreement");
+      } else {
+        navigation.replace("Home");
+      }
+    } catch (err: any) {
+      setSavingProfile(false);
+      Alert.alert(
+        "Registration Error",
+        err.response?.data?.message || err.message || "Failed to complete resident profile."
+      );
     }
   };
 
   return (
-    <View className="flex-1 bg-background">
+    <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.background} />
 
       <KeyboardAvoidingView
-        className="flex-1"
+        style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <ScrollView
@@ -188,13 +224,11 @@ export default function LoginScreen({
 
           {/* ── Centered Form Area ── */}
           <View style={styles.formSection}>
-            {/* Greeting */}
             <Text style={styles.heading}>Welcome to Alerto Calbayog</Text>
             <Text style={styles.subheading}>
-              Send emergency reports quickly and keep your community safe.
+              Fast &amp; secure emergency response system for all residents.
             </Text>
 
-            {/* Subtle divider */}
             <View style={styles.divider} />
 
             {/* Primary Action: CONTINUE WITH GOOGLE */}
@@ -217,14 +251,12 @@ export default function LoginScreen({
               )}
             </TouchableOpacity>
 
-            {/* OR Divider */}
             <View style={styles.orRow}>
               <View style={styles.orLine} />
               <Text style={styles.orText}>OR SIGN IN WITH PASSWORD</Text>
               <View style={styles.orLine} />
             </View>
 
-            {/* Password Login Button (Navigates to dedicated screen for more space) */}
             <TouchableOpacity
               style={styles.passwordButton}
               onPress={() => navigation.navigate("PasswordLogin")}
@@ -234,59 +266,55 @@ export default function LoginScreen({
               <Text style={styles.passwordButtonText}>Sign In with Password</Text>
             </TouchableOpacity>
 
-            {/* Register Option */}
             <View style={styles.registerRow}>
-              <Text style={styles.registerText}>Don't have an account? </Text>
+              <Text style={styles.registerText}>Are you an LGU / Agency Responder? </Text>
               <TouchableOpacity onPress={() => navigation.navigate("Register")}>
-                <Text style={styles.registerLink}>Create Account</Text>
+                <Text style={styles.registerLink}>Register Here</Text>
               </TouchableOpacity>
             </View>
           </View>
 
-          {/* ── Bottom tagline ── */}
           <View style={styles.footer}>
             <View style={styles.footerLine} />
             <Text style={styles.footerText}>
-              Public Safety &amp; Emergency Alert System
+              Public Safety &amp; Emergency Alert System • Calbayog City
             </Text>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* ── Sleek Google Account Selector & Password Verification Modal ── */}
+      {/* ── Profile Completion Modal for New Google Residents ── */}
       <Modal
-        visible={showGoogleModal}
+        visible={showProfileModal}
         transparent
         animationType="slide"
-        onRequestClose={() => setShowGoogleModal(false)}
+        onRequestClose={() => setShowProfileModal(false)}
       >
         <KeyboardAvoidingView
           style={styles.modalOverlay}
           behavior={Platform.OS === "ios" ? "padding" : "height"}
         >
-          <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowGoogleModal(false)} />
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowProfileModal(false)} />
 
           <View style={styles.modalContainer}>
             <ScrollView
               bounces={false}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
-              contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 16) }}
+              contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 16) + 12 }}
             >
-              {/* Modal Handle */}
               <View style={styles.modalHandle} />
 
-              {/* Header */}
               <View style={styles.modalHeader}>
                 <View style={styles.modalGoogleBrand}>
                   <GoogleIcon size={26} />
                   <View style={{ marginLeft: 10 }}>
-                    <Text style={styles.modalTitle}>Sign in with Google</Text>
-                    <Text style={styles.modalSubtitle}>to continue to Alerto Calbayog</Text>
+                    <Text style={styles.modalTitle}>Complete Resident Profile</Text>
+                    <Text style={styles.modalSubtitle}>{googleUser?.google_email}</Text>
                   </View>
                 </View>
                 <TouchableOpacity
-                  onPress={() => setShowGoogleModal(false)}
+                  onPress={() => setShowProfileModal(false)}
                   style={styles.modalCloseBtn}
                   activeOpacity={0.7}
                 >
@@ -296,139 +324,118 @@ export default function LoginScreen({
 
               <View style={styles.modalDivider} />
 
-              {/* Google Account Selector or Password Verification */}
-              {requiresPassword ? (
-                <View style={{ marginTop: 8 }}>
-                  <Text style={styles.modalSectionLabel}>
-                    {isNewUser ? "CREATE ACCOUNT PASSWORD" : "ACCOUNT BINDING & VERIFICATION"}
-                  </Text>
-                  <Text style={{ fontSize: 13, color: COLORS.textMuted, marginBottom: 14, lineHeight: 19 }}>
-                    {isNewUser ? (
-                      <>
-                        Set a password for your account (<Text style={{ fontWeight: "800", color: COLORS.primary }}>{googleAccountEmail}</Text>) to complete registration and secure your login.
-                      </>
-                    ) : (
-                      <>
-                        An existing account for <Text style={{ fontWeight: "800", color: COLORS.primary }}>{googleAccountEmail}</Text> was found. Please enter your password to confirm account ownership and bind your Google account.
-                      </>
-                    )}
-                  </Text>
+              <View style={{ marginTop: 4 }}>
+                <Text style={styles.inputLabel}>MOBILE NUMBER (REQUIRED)</Text>
+                <CustomInput
+                  placeholder="09XXXXXXXXX"
+                  value={phoneNumber}
+                  onChangeText={setPhoneNumber}
+                  keyboardType="phone-pad"
+                  maxLength={11}
+                />
 
-                  <Text style={styles.inputLabel}>
-                    {isNewUser ? "CREATE PASSWORD" : "ACCOUNT PASSWORD"}
+                <Text style={styles.inputLabel}>BARANGAY (REQUIRED)</Text>
+                <TouchableOpacity
+                  style={styles.selectButton}
+                  onPress={() => setShowBarangayPicker(true)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.selectButtonText, !barangay && { color: COLORS.textMuted }]}>
+                    {barangay ? `Brgy. ${barangay}` : "Select Barangay in Calbayog"}
                   </Text>
-                  <CustomInput
-                    placeholder={isNewUser ? "Create password (min 6 chars)" : "Enter your password"}
-                    secureTextEntry
-                    value={bindPassword}
-                    onChangeText={setBindPassword}
-                  />
+                  <Text style={styles.selectButtonArrow}>▼</Text>
+                </TouchableOpacity>
 
-                  <TouchableOpacity
-                    style={[
-                      styles.modalSubmitButton,
-                      (!bindPassword || signingInWithGoogleAccount) && styles.buttonDisabled,
-                    ]}
-                    onPress={() => handleModalGoogleLogin(googleAccountEmail, bindPassword)}
-                    activeOpacity={0.85}
-                    disabled={!bindPassword || signingInWithGoogleAccount}
-                  >
-                    {signingInWithGoogleAccount ? (
-                      <ActivityIndicator color="#FFFFFF" size="small" />
-                    ) : (
-                      <Text style={styles.modalSubmitButtonText}>
-                        {isNewUser ? "Create Account & Sign In" : "Verify & Bind Google Account"}
-                      </Text>
-                    )}
-                  </TouchableOpacity>
+                <Text style={styles.inputLabel}>COMPLETE ADDRESS (REQUIRED)</Text>
+                <TextInput
+                  style={styles.addressInput}
+                  placeholder="Purok, Street, House / Building No."
+                  placeholderTextColor={COLORS.textMuted}
+                  value={completeAddress}
+                  onChangeText={setCompleteAddress}
+                  multiline
+                  numberOfLines={2}
+                />
 
-                  <TouchableOpacity
-                    style={{ alignSelf: "center", marginTop: 12 }}
-                    onPress={() => {
-                      setRequiresPassword(false);
-                      setIsNewUser(false);
-                      setBindPassword("");
-                    }}
-                  >
-                    <Text style={{ fontSize: 13, color: COLORS.textMuted, fontWeight: "700" }}>
-                      ← Choose another Google account
+                <TouchableOpacity
+                  style={[
+                    styles.modalSubmitButton,
+                    savingProfile && styles.buttonDisabled,
+                  ]}
+                  onPress={handleFinishProfileRegistration}
+                  activeOpacity={0.85}
+                  disabled={savingProfile}
+                >
+                  {savingProfile ? (
+                    <ActivityIndicator color="#FFFFFF" size="small" />
+                  ) : (
+                    <Text style={styles.modalSubmitButtonText}>
+                      Finish Registration
                     </Text>
-                  </TouchableOpacity>
-                </View>
-              ) : (
-                <>
-                  <Text style={styles.modalSectionLabel}>CHOOSE AN ACCOUNT</Text>
-
-                  <TouchableOpacity
-                    style={styles.accountCard}
-                    onPress={() => handleModalGoogleLogin(googleAccountEmail)}
-                    activeOpacity={0.8}
-                    disabled={signingInWithGoogleAccount}
-                  >
-                    <View style={styles.accountAvatar}>
-                      <UserIcon size={22} color={COLORS.primary} />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.accountName}>
-                        {googleAccountEmail.split("@")[0]}
-                      </Text>
-                      <Text style={styles.accountEmail}>{googleAccountEmail}</Text>
-                    </View>
-                    {signingInWithGoogleAccount ? (
-                      <ActivityIndicator size="small" color={COLORS.primary} />
-                    ) : (
-                      <Text style={styles.accountArrow}>›</Text>
-                    )}
-                  </TouchableOpacity>
-
-                  {/* Manual Email Input option if user wants another Google email */}
-                  <View style={{ marginTop: 14 }}>
-                    <Text style={styles.inputLabel}>OR ENTER ANOTHER GOOGLE EMAIL</Text>
-                    <CustomInput
-                      placeholder="example@gmail.com"
-                      value={googleAccountEmail}
-                      onChangeText={setGoogleAccountEmail}
-                      keyboardType="email-address"
-                      autoCapitalize="none"
-                    />
-                  </View>
-
-                  {/* Confirm Google Button */}
-                  <TouchableOpacity
-                    style={[
-                      styles.modalSubmitButton,
-                      signingInWithGoogleAccount && styles.buttonDisabled,
-                    ]}
-                    onPress={() => handleModalGoogleLogin(googleAccountEmail)}
-                    activeOpacity={0.85}
-                    disabled={signingInWithGoogleAccount}
-                  >
-                    {signingInWithGoogleAccount ? (
-                      <ActivityIndicator color="#FFFFFF" size="small" />
-                    ) : (
-                      <Text style={styles.modalSubmitButtonText}>
-                        Continue with Google Account
-                      </Text>
-                    )}
-                  </TouchableOpacity>
-                </>
-              )}
+                  )}
+                </TouchableOpacity>
+              </View>
             </ScrollView>
           </View>
         </KeyboardAvoidingView>
+      </Modal>
+
+      {/* ── Barangay Picker Modal ── */}
+      <Modal
+        visible={showBarangayPicker}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowBarangayPicker(false)}
+      >
+        <View style={styles.pickerOverlay}>
+          <View style={styles.pickerContainer}>
+            <View style={styles.pickerHeader}>
+              <Text style={styles.pickerTitle}>Select Barangay</Text>
+              <TouchableOpacity onPress={() => setShowBarangayPicker(false)}>
+                <CloseIcon size={20} color={COLORS.primary} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={{ maxHeight: 350 }}>
+              {CALBAYOG_BARANGAYS.map((bgy) => (
+                <TouchableOpacity
+                  key={bgy}
+                  style={[
+                    styles.pickerItem,
+                    barangay === bgy && styles.pickerItemSelected,
+                  ]}
+                  onPress={() => {
+                    setBarangay(bgy);
+                    setShowBarangayPicker(false);
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.pickerItemText,
+                      barangay === bgy && styles.pickerItemTextSelected,
+                    ]}
+                  >
+                    Brgy. {bgy}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
       </Modal>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: 28,
     justifyContent: "space-between",
   },
-
-  /* ── Brand ── */
   brandRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -441,303 +448,271 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary,
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.18,
-    shadowRadius: 10,
-    elevation: 4,
   },
   logo: {
-    width: 30,
-    height: 30,
+    width: 32,
+    height: 32,
   },
   brandTextContainer: {
     marginLeft: 12,
-    flexDirection: "row",
-    alignItems: "baseline",
   },
   brandTitle: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: "900",
     color: COLORS.primary,
-    letterSpacing: -0.5,
+    lineHeight: 24,
   },
   brandSubtitle: {
-    fontSize: 20,
-    fontWeight: "900",
-    color: COLORS.accent,
-    marginLeft: 5,
-    letterSpacing: -0.3,
+    fontSize: 14,
+    fontWeight: "700",
+    color: COLORS.textMuted,
+    lineHeight: 16,
   },
-
-  /* ── Form Section ── */
   formSection: {
-    flex: 1,
-    justifyContent: "center",
-    paddingVertical: 20,
+    marginVertical: 20,
   },
   heading: {
-    fontSize: 30,
-    fontWeight: "900",
-    color: COLORS.primary,
-    letterSpacing: -0.8,
+    fontSize: 22,
+    fontWeight: "800",
+    color: COLORS.textDark,
     marginBottom: 6,
   },
   subheading: {
-    fontSize: 14.5,
+    fontSize: 14,
     color: COLORS.textMuted,
-    lineHeight: 21,
-    marginBottom: 4,
+    lineHeight: 20,
   },
   divider: {
-    width: 40,
-    height: 3.5,
-    backgroundColor: COLORS.accent,
-    borderRadius: 4,
-    marginTop: 14,
-    marginBottom: 24,
+    height: 1,
+    backgroundColor: "#E2E8F0",
+    marginVertical: 20,
   },
-
-  /* ── Google Button ── */
   googleButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    height: 52,
+    borderRadius: 14,
     backgroundColor: "#FFFFFF",
-    paddingVertical: 16,
-    borderRadius: 16,
-    borderWidth: 1.5,
-    borderColor: COLORS.border,
-    shadowColor: "#04112B",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 4,
-    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
   },
   googleButtonText: {
-    fontSize: 16,
-    fontWeight: "800",
-    color: COLORS.primary,
-    letterSpacing: 0.2,
-    marginLeft: 6,
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#1E293B",
+    marginLeft: 10,
   },
   buttonDisabled: {
-    opacity: 0.5,
-    elevation: 0,
+    opacity: 0.6,
   },
-
-  /* ── OR Divider ── */
   orRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginVertical: 16,
+    marginVertical: 20,
   },
   orLine: {
     flex: 1,
     height: 1,
-    backgroundColor: COLORS.border,
+    backgroundColor: "#E2E8F0",
   },
   orText: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: "800",
-    color: COLORS.primary,
+    color: "#94A3B8",
     marginHorizontal: 12,
     letterSpacing: 0.8,
-    opacity: 0.6,
   },
-
-  /* ── Password Button ── */
   passwordButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: COLORS.surface,
-    paddingVertical: 15,
-    borderRadius: 16,
-    borderWidth: 1.5,
-    borderColor: COLORS.primary,
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    elevation: 3,
-    marginBottom: 16,
+    height: 50,
+    borderRadius: 14,
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
   },
   passwordButtonText: {
-    fontSize: 15,
-    fontWeight: "800",
+    fontSize: 14,
+    fontWeight: "700",
     color: COLORS.primary,
-    letterSpacing: 0.3,
     marginLeft: 8,
   },
-
-  /* ── Register Row ── */
   registerRow: {
     flexDirection: "row",
     justifyContent: "center",
-    marginTop: 4,
+    alignItems: "center",
+    marginTop: 22,
   },
   registerText: {
-    fontSize: 13.5,
+    fontSize: 13,
     color: COLORS.textMuted,
   },
   registerLink: {
-    fontSize: 13.5,
+    fontSize: 13,
     fontWeight: "800",
-    color: COLORS.accent,
+    color: COLORS.primary,
   },
-
-  /* ── Footer ── */
   footer: {
     alignItems: "center",
-    paddingTop: 12,
-    paddingBottom: 8,
+    marginTop: 10,
   },
   footerLine: {
-    width: 32,
+    width: 40,
     height: 3,
-    backgroundColor: COLORS.border,
     borderRadius: 2,
-    marginBottom: 10,
+    backgroundColor: "#CBD5E1",
+    marginBottom: 8,
   },
   footerText: {
     fontSize: 11,
+    color: "#94A3B8",
     fontWeight: "600",
-    color: COLORS.textMuted,
-    letterSpacing: 1.5,
-    textTransform: "uppercase",
-    opacity: 0.5,
   },
-
-  /* ── Modal Styles ── */
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(4, 17, 43, 0.65)",
     justifyContent: "flex-end",
+    backgroundColor: "rgba(15, 23, 42, 0.5)",
   },
   modalContainer: {
-    backgroundColor: COLORS.surface,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    paddingHorizontal: 24,
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 22,
     paddingTop: 12,
-    paddingBottom: 24,
     maxHeight: "85%",
-    shadowColor: "#04112B",
-    shadowOffset: { width: 0, height: -8 },
-    shadowOpacity: 0.2,
-    shadowRadius: 24,
-    elevation: 20,
   },
   modalHandle: {
-    width: 38,
+    width: 40,
     height: 4,
     borderRadius: 2,
-    backgroundColor: COLORS.border,
+    backgroundColor: "#CBD5E1",
     alignSelf: "center",
-    marginBottom: 16,
+    marginBottom: 14,
   },
   modalHeader: {
     flexDirection: "row",
-    alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 12,
+    alignItems: "center",
   },
   modalGoogleBrand: {
     flexDirection: "row",
     alignItems: "center",
   },
   modalTitle: {
-    fontSize: 18,
-    fontWeight: "900",
-    color: COLORS.primary,
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#0F172A",
   },
   modalSubtitle: {
     fontSize: 12,
-    color: COLORS.textMuted,
+    color: "#64748B",
     fontWeight: "600",
   },
   modalCloseBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: COLORS.background,
-    alignItems: "center",
-    justifyContent: "center",
+    padding: 6,
   },
   modalDivider: {
     height: 1,
-    backgroundColor: COLORS.border,
-    marginVertical: 12,
-  },
-  modalSectionLabel: {
-    fontSize: 10.5,
-    fontWeight: "900",
-    color: COLORS.primary,
-    letterSpacing: 1.2,
-    marginBottom: 10,
-    opacity: 0.6,
-  },
-  accountCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: COLORS.background,
-    borderRadius: 16,
-    padding: 14,
-    borderWidth: 1.5,
-    borderColor: COLORS.border,
-  },
-  accountAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: COLORS.surface,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 12,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  accountName: {
-    fontSize: 15,
-    fontWeight: "800",
-    color: COLORS.primary,
-    textTransform: "capitalize",
-  },
-  accountEmail: {
-    fontSize: 12,
-    color: COLORS.textMuted,
-    fontWeight: "500",
-  },
-  accountArrow: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: COLORS.primary,
+    backgroundColor: "#E2E8F0",
+    marginVertical: 14,
   },
   inputLabel: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: "800",
-    color: COLORS.textMuted,
-    letterSpacing: 1,
-    marginBottom: 4,
+    color: "#64748B",
+    marginBottom: 6,
+    marginTop: 10,
+    letterSpacing: 0.5,
+  },
+  selectButton: {
+    height: 48,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+    backgroundColor: "#FFFFFF",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 14,
+  },
+  selectButtonText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#0F172A",
+  },
+  selectButtonArrow: {
+    fontSize: 10,
+    color: "#64748B",
+  },
+  addressInput: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: "#0F172A",
+    textAlignVertical: "top",
+    minHeight: 60,
   },
   modalSubmitButton: {
-    marginTop: 18,
-    backgroundColor: COLORS.primary,
-    paddingVertical: 16,
-    borderRadius: 16,
+    height: 50,
+    borderRadius: 14,
+    backgroundColor: "#0284C7",
+    justifyContent: "center",
     alignItems: "center",
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 4,
+    marginTop: 20,
   },
   modalSubmitButtonText: {
     fontSize: 15,
-    fontWeight: "900",
+    fontWeight: "800",
     color: "#FFFFFF",
-    letterSpacing: 0.5,
+  },
+  pickerOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  pickerContainer: {
+    width: "100%",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 18,
+    padding: 18,
+  },
+  pickerHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E2E8F0",
+    paddingBottom: 10,
+  },
+  pickerTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#0F172A",
+  },
+  pickerItem: {
+    paddingVertical: 12,
+    paddingHorizontal: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
+  },
+  pickerItemSelected: {
+    backgroundColor: "#F0F9FF",
+  },
+  pickerItemText: {
+    fontSize: 14,
+    color: "#334155",
+  },
+  pickerItemTextSelected: {
+    fontWeight: "800",
+    color: "#0284C7",
   },
 });

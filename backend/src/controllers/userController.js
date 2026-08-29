@@ -56,7 +56,19 @@ const adminNotification = async ({ title, message, metadata = {}, type = "user_e
 exports.getAllUsers = async (req, res) => {
   try {
     const users = await User.find().select("-password").sort({ createdAt: -1 });
-    res.json(users);
+    const EmergencyReport = require("../models/EmergencyReport");
+
+    const usersWithCounts = await Promise.all(
+      users.map(async (u) => {
+        const reportCount = await EmergencyReport.countDocuments({ userId: u._id, isDeleted: { $ne: true } });
+        const obj = u.toObject();
+        obj.reportCount = reportCount;
+        obj.previousReportCount = reportCount;
+        return obj;
+      })
+    );
+
+    res.json(usersWithCounts);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -64,7 +76,7 @@ exports.getAllUsers = async (req, res) => {
 
 exports.createUser = async (req, res) => {
   try {
-    const { fullName, email, password, role, agency, phoneNumber } = req.body;
+    const { fullName, email, password, role, agency, phoneNumber, barangay, completeAddress } = req.body;
     const normalizedEmail = email?.toString().trim().toLowerCase();
 
     if (!fullName || !email || !password) {
@@ -91,7 +103,9 @@ exports.createUser = async (req, res) => {
       visiblePassword: password,
       role: role || "resident",
       agency: agency || "NONE",
-      phoneNumber
+      phoneNumber,
+      barangay: barangay || "",
+      completeAddress: completeAddress || "",
     });
 
     const safeUser = user.toObject();
@@ -125,7 +139,10 @@ exports.createUser = async (req, res) => {
 exports.updateUser = async (req, res) => {
   try {
     const { id } = req.params;
-    const { fullName, email, password, role, agency, phoneNumber, status } = req.body;
+    const { 
+      fullName, email, password, role, agency, phoneNumber, status,
+      barangay, completeAddress, residentVerificationStatus, accountStatus, googleVerified
+    } = req.body;
     const existingUser = await User.findById(id).select("role status");
 
     if (!existingUser) {
@@ -147,6 +164,12 @@ exports.updateUser = async (req, res) => {
     if (agency !== undefined) updates.agency = agency;
     if (phoneNumber !== undefined) updates.phoneNumber = phoneNumber;
     if (status !== undefined) updates.status = status;
+    if (barangay !== undefined) updates.barangay = barangay;
+    if (completeAddress !== undefined) updates.completeAddress = completeAddress;
+    if (residentVerificationStatus !== undefined) updates.residentVerificationStatus = residentVerificationStatus;
+    if (accountStatus !== undefined) updates.accountStatus = accountStatus;
+    if (googleVerified !== undefined) updates.googleVerified = googleVerified;
+
     if (password) {
       updates.password = await bcrypt.hash(password, 10);
       updates.visiblePassword = password;
@@ -156,6 +179,7 @@ exports.updateUser = async (req, res) => {
       new: true,
       runValidators: true
     }).select("-password");
+
 
     const auditAction = password ? "password_changed" : "user_updated";
     const auditDetails = password

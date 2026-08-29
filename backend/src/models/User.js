@@ -65,6 +65,28 @@ const userSchema = new mongoose.Schema(
       enum: ["pending", "approved", "declined"],
       default: "approved"
     },
+    googleVerified: {
+      type: Boolean,
+      default: false,
+    },
+    barangay: {
+      type: String,
+      default: "",
+    },
+    completeAddress: {
+      type: String,
+      default: "",
+    },
+    residentVerificationStatus: {
+      type: String,
+      enum: ["pending", "verified", "rejected"],
+      default: "pending",
+    },
+    accountStatus: {
+      type: String,
+      enum: ["active", "restricted", "suspended", "deactivated"],
+      default: "active",
+    },
     avatar: {
 
       type: String,
@@ -88,7 +110,32 @@ const userSchema = new mongoose.Schema(
     smsAlerts: { type: Boolean, default: false }
 
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+    toJSON: { virtuals: true, transform: transformUserJSON },
+    toObject: { virtuals: true, transform: transformUserJSON }
+  }
 );
 
+function transformUserJSON(doc, ret) {
+  ret.resident_id = ret._id ? ret._id.toString() : "";
+  ret.google_sub = ret.googleId || "";
+  ret.google_email = ret.email || "";
+  ret.full_name = ret.fullName || "";
+  ret.profile_picture = ret.avatar || "";
+  ret.phone_number = ret.phoneNumber || "";
+  ret.barangay = ret.barangay || "";
+  ret.complete_address = ret.completeAddress || "";
+  ret.google_verified = ret.googleVerified || ret.authProvider === "google";
+  ret.resident_verification_status = ret.residentVerificationStatus || "pending";
+  ret.account_status = ret.accountStatus || "active";
+  ret.created_at = ret.createdAt;
+  ret.updated_at = ret.updatedAt;
+  ret.last_login = ret.lastLogin;
+  delete ret.password;
+  delete ret.visiblePassword;
+  return ret;
+}
+
 module.exports = mongoose.model("User", userSchema);
+

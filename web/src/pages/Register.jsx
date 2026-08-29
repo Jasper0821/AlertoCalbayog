@@ -123,16 +123,41 @@ function Register() {
  </div>
  </div>
 
- {/* Right Panel: Registration Form */}
- <div className="max-h-full flex-1 overflow-hidden bg-white p-4 sm:p-5">
- <div className="mb-3 text-left">
- <h1 className="text-base font-bold text-[#0a1e3f]">
- Personal Information
- </h1>
- <p className="mt-0.5 text-[12px] text-slate-500">
- Provide your official legal details for background verification.
- </p>
- </div>
+  {/* Right Panel: Registration Form */}
+  <div className="max-h-full flex-1 overflow-y-auto bg-white p-4 sm:p-5">
+  
+  {/* Fast Resident Google Sign-Up Banner */}
+  <div className="mb-4 rounded-xl border border-blue-100 bg-gradient-to-r from-blue-50 to-indigo-50/50 p-3.5 text-left shadow-sm">
+    <div className="flex items-center justify-between">
+      <div>
+        <span className="inline-block rounded-md bg-blue-600 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-white">
+          Residents Fast Track
+        </span>
+        <h3 className="mt-1 text-[13px] font-extrabold text-slate-900">
+          Sign up with Google (No Password Required)
+        </h3>
+        <p className="text-[11px] text-slate-500 font-medium">
+          Instant resident verification with Google OAuth.
+        </p>
+      </div>
+      <Link
+        to="/login"
+        className="shrink-0 rounded-lg bg-blue-600 hover:bg-blue-700 px-3.5 py-2 text-[11px] font-bold text-white shadow transition-all active:scale-95"
+      >
+        Sign Up with Google
+      </Link>
+    </div>
+  </div>
+
+  <div className="mb-3 text-left border-t border-slate-100 pt-3">
+  <h1 className="text-base font-bold text-[#0a1e3f]">
+  Responder Registration
+  </h1>
+  <p className="mt-0.5 text-[12px] text-slate-500">
+  LGU &amp; Agency Responders: Provide your details for official verification.
+  </p>
+  </div>
+
 
  <form className="space-y-2" onSubmit={handleSubmit}>
  
