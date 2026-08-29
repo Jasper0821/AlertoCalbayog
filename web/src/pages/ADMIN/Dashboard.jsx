@@ -326,6 +326,7 @@ export default function AdminDashboard() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [savingReportId, setSavingReportId] = useState("");
   const [selectedReport, setSelectedReport] = useState(null);
+  const [previewImage, setPreviewImage] = useState(null);
   const [isNotificationsModalOpen, setIsNotificationsModalOpen] = useState(false);
   // Audit Trail state
   const [auditLogs, setAuditLogs] = useState([]);
@@ -999,22 +1000,6 @@ export default function AdminDashboard() {
     }))
   ).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)), [reports]);
 
-  const updateReportStatus = async (reportId, status) => {
-    setSavingReportId(reportId);
-    setError("");
-    try {
-      const response = await api.put(`/reports/${reportId}/status`, { status });
-      const updatedReport = response.data?.report;
-      if (updatedReport?._id) {
-        setReports((prev) => prev.map((report) => report._id === updatedReport._id ? updatedReport : report));
-      }
-    } catch (err) {
-      setError(err.response?.data?.message || "Unable to update incident status");
-    } finally {
-      setSavingReportId("");
-    }
-  };
-
   const assignResponder = async (reportId, responderId) => {
     if (!responderId) return;
     setSavingReportId(reportId);
@@ -1202,27 +1187,34 @@ export default function AdminDashboard() {
     }
   };
 
+  const updateReportStatus = async (reportId, newStatus) => {
+    setSavingReportId(reportId);
+    setError("");
+    try {
+      let response;
+      try {
+        response = await api.put(`/emergency/${reportId}`, { status: newStatus });
+      } catch {
+        response = await api.put(`/reports/${reportId}/status`, { status: newStatus });
+      }
+      const updatedReport = response.data?.report || response.data;
+      if (updatedReport?._id) {
+        setReports((prev) => prev.map((r) => (r._id === updatedReport._id ? updatedReport : r)));
+      }
+      await fetchReports();
+    } catch (err) {
+      setError(err.response?.data?.message || "Unable to update report status");
+    } finally {
+      setSavingReportId("");
+    }
+  };
+
   const closeReport = async (reportId) => {
     const shouldClose = window.confirm(
       "Close this incident?\n\nThis will mark the incident as officially closed. The reporter will be notified."
     );
     if (!shouldClose) return;
-    setSavingReportId(reportId);
-    setError("");
-    try {
-      const response = await api.put(`/reports/${reportId}/status`, { status: "closed" });
-      const updatedReport = response.data?.report;
-      if (updatedReport?._id) {
-        setReports((prev) => prev.map((report) => report._id === updatedReport._id ? updatedReport : report));
-        // Keep the administrator on the current page. Closed records are
-        // persisted by the API and will be refreshed from the database below.
-        await fetchReports();
-      }
-    } catch (err) {
-      setError(err.response?.data?.message || "Unable to close report");
-    } finally {
-      setSavingReportId("");
-    }
+    await updateReportStatus(reportId, "closed");
   };
 
   const saveUser = async (event) => {
@@ -1635,11 +1627,12 @@ export default function AdminDashboard() {
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
-          {items.length === 0 ? (
+          {(!items || items.length === 0) ? (
             <tr>
               <td colSpan="7" className="px-4 py-10 text-center text-sm font-semibold text-slate-400">No incidents found.</td>
             </tr>
           ) : items.map((report, index) => {
+            if (!report) return null;
             const status = (report.status || "pending").toLowerCase();
             const statusInfo = getStatusInfo(status);
             const availableResponders = responders.filter((responder) =>
@@ -3370,6 +3363,17 @@ export default function AdminDashboard() {
           ["Reported", report.createdAt ? new Date(report.createdAt).toLocaleString() : "—"],
           ["Closed", report.closedAt ? new Date(report.closedAt).toLocaleString() : "—"],
         ];
+        const allEvidenceImages = Array.from(
+          new Set([
+            ...(Array.isArray(report.resolutionEvidence) ? report.resolutionEvidence : []),
+            ...(Array.isArray(report.evidenceImages) ? report.evidenceImages : []),
+            ...(Array.isArray(report.proofImages) ? report.proofImages : []),
+            ...(Array.isArray(report.media) ? report.media : []),
+            ...(Array.isArray(report.images) ? report.images : []),
+            ...(typeof report.imageUrl === "string" && report.imageUrl ? [report.imageUrl] : []),
+            ...(typeof report.image === "string" && report.image ? [report.image] : []),
+          ].filter(Boolean))
+        );
         return (
           <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/60 p-4" onMouseDown={() => setSelectedReport(null)}>
             <div className="w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl" onMouseDown={(event) => event.stopPropagation()}>
@@ -3398,11 +3402,53 @@ export default function AdminDashboard() {
                   <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Description</p>
                   <p className="mt-1 whitespace-pre-wrap rounded-lg bg-slate-50 p-3 text-sm leading-6 text-slate-700">{report.description || "No description provided."}</p>
                 </div>
+
+                {allEvidenceImages.length > 0 && (
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
+                      📷 Scene & Proof of Evidence ({allEvidenceImages.length})
+                    </p>
+                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                      {allEvidenceImages.map((src, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => setPreviewImage(src)}
+                          className="group relative aspect-square overflow-hidden rounded-xl border border-slate-200 bg-slate-100 transition-all hover:ring-2 hover:ring-emerald-500 shadow-sm"
+                        >
+                          <img src={src} alt={`Evidence ${i + 1}`} className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-105" />
+                          <span className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 transition-opacity group-hover:opacity-100">
+                            <svg className="h-5 w-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
         );
       })()}
+
+      {/* Proof of Evidence Image Preview Lightbox */}
+      {previewImage && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-md p-4" onClick={() => setPreviewImage(null)}>
+          <div className="relative max-h-[90vh] max-w-4xl" onClick={(event) => event.stopPropagation()}>
+            <button
+              type="button"
+              onClick={() => setPreviewImage(null)}
+              className="absolute -top-10 right-0 text-white/80 hover:text-white font-bold text-sm flex items-center gap-1.5 bg-black/50 px-3 py-1 rounded-full border border-white/20"
+            >
+              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+              Close Preview
+            </button>
+            <img src={previewImage} alt="Full-size proof of evidence" className="max-h-[85vh] max-w-full rounded-2xl shadow-2xl object-contain" />
+          </div>
+        </div>
+      )}
 
       {isTrashModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
