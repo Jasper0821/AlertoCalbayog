@@ -215,7 +215,7 @@ exports.requestRegistrationOtp = async (req, res) => {
     return res.status(200).json({ message: "Verification code sent to your Gmail address." });
   } catch (error) {
     console.error("requestRegistrationOtp error:", error);
-    return res.status(500).json({ message: error.message || "Unable to verify this Gmail address." });
+    return res.status(500).json({ message: error.message || "Failed to send verification code. Please try again." });
   }
 };
 
