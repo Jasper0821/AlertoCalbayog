@@ -321,6 +321,11 @@ export default function AdminDashboard() {
   const [userForm, setUserForm] = useState(emptyUserForm);
   const [editingUserId, setEditingUserId] = useState(null);
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
+  const [selectedUserInfo, setSelectedUserInfo] = useState(null);
+  const [agencyCategories, setAgencyCategories] = useState(["BFP", "CDRRMO", "PNP"]);
+  const [isAgencyModalOpen, setIsAgencyModalOpen] = useState(false);
+  const [newAgencyName, setNewAgencyName] = useState("");
+  const [isSavingAgency, setIsSavingAgency] = useState(false);
   const [error, setError] = useState("");
   const [isSavingUser, setIsSavingUser] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -341,9 +346,9 @@ export default function AdminDashboard() {
   // Closed incidents filters
   const [closedAgencyFilter, setClosedAgencyFilter] = useState("all");
   const [closedTypeFilter, setClosedTypeFilter] = useState("all");
-  const [closedYearFilter, setClosedYearFilter] = useState("all");
-  const [closedMonthFilter, setClosedMonthFilter] = useState("all");
-  const [closedDayFilter, setClosedDayFilter] = useState("all");
+  const [closedDateFilter, setClosedDateFilter] = useState("");
+  // Rejected reports filters
+  const [rejectedDateFilter, setRejectedDateFilter] = useState("");
 
   const storedUser = (() => {
     try {
@@ -472,6 +477,7 @@ export default function AdminDashboard() {
         }
         if (response.data.notificationsConfig) setNotificationsConfig(response.data.notificationsConfig);
         if (response.data.activeCategories) setActiveCategories(response.data.activeCategories);
+        if (Array.isArray(response.data.customAgencies)) setAgencyCategories(response.data.customAgencies);
       }
     } catch (err) {
       console.error("Failed to load settings:", err);
@@ -892,6 +898,14 @@ export default function AdminDashboard() {
     return Array.from(years).sort((a, b) => b - a);
   }, [reports]);
 
+  const rejectedYearOptions = useMemo(() => {
+    const years = new Set(reports
+      .filter(r => (r.status || "").toLowerCase() === "rejected")
+      .map(r => new Date(r.createdAt).getFullYear())
+    );
+    return Array.from(years).sort((a, b) => b - a);
+  }, [reports]);
+
   const filteredReports = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     return reports.filter((report, index) => {
@@ -929,22 +943,21 @@ export default function AdminDashboard() {
       if (closedAgencyFilter !== "all" && !(report.notifiedAgencies || []).includes(closedAgencyFilter)) return false;
       if (closedTypeFilter !== "all" && (report.emergencyType || "").toLowerCase() !== closedTypeFilter) return false;
       
-      // Apply date filters if specified
-      if (closedYearFilter !== "all" || closedMonthFilter !== "all" || closedDayFilter !== "all") {
+      // Apply single date filter
+      if (closedDateFilter) {
         const reportDate = new Date(report.createdAt);
-        const reportYear = reportDate.getFullYear().toString();
-        const reportMonth = (reportDate.getMonth() + 1).toString();
-        const reportDay = reportDate.getDate().toString();
-        
-        if (closedYearFilter !== "all" && reportYear !== closedYearFilter) return false;
-        if (closedMonthFilter !== "all" && reportMonth !== closedMonthFilter) return false;
-        if (closedDayFilter !== "all" && reportDay !== closedDayFilter) return false;
+        const selectedDate = new Date(closedDateFilter);
+        const selectedDateStart = new Date(selectedDate);
+        const selectedDateEnd = new Date(selectedDate);
+        selectedDateStart.setHours(0, 0, 0, 0);
+        selectedDateEnd.setHours(23, 59, 59, 999);
+        if (reportDate < selectedDateStart || reportDate > selectedDateEnd) return false;
       }
       
       if (q && !haystack.includes(q)) return false;
       return true;
     });
-  }, [closedAgencyFilter, closedTypeFilter, closedYearFilter, closedMonthFilter, closedDayFilter, reports, searchQuery]);
+  }, [closedAgencyFilter, closedTypeFilter, closedDateFilter, reports, searchQuery]);
 
   const rejectedReports = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -961,10 +974,22 @@ export default function AdminDashboard() {
 
       if (status !== "rejected") return false;
       if (agencyFilter !== "all" && !(report.notifiedAgencies || []).includes(agencyFilter)) return false;
+      
+      // Apply single date filter
+      if (rejectedDateFilter) {
+        const reportDate = new Date(report.createdAt);
+        const selectedDate = new Date(rejectedDateFilter);
+        const selectedDateStart = new Date(selectedDate);
+        const selectedDateEnd = new Date(selectedDate);
+        selectedDateStart.setHours(0, 0, 0, 0);
+        selectedDateEnd.setHours(23, 59, 59, 999);
+        if (reportDate < selectedDateStart || reportDate > selectedDateEnd) return false;
+      }
+      
       if (q && !haystack.includes(q)) return false;
       return true;
     });
-  }, [agencyFilter, reports, searchQuery]);
+  }, [agencyFilter, rejectedDateFilter, reports, searchQuery]);
 
   const stats = useMemo(() => {
     const open = reports.filter((report) => !["resolved", "responded", "closed"].includes((report.status || "").toLowerCase())).length;
@@ -1263,7 +1288,9 @@ export default function AdminDashboard() {
       const date = r.createdAt ? new Date(r.createdAt) : new Date();
       const dateStr = `${date.toLocaleDateString()} ${date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
       const reporter = r.userId?.fullName || "Unknown";
-      const agency = r.assignedAgency || (r.notifiedAgencies || []).join(", ") || "N/A";
+      const agency = (r.assignedAgency && r.assignedAgency !== "NONE") 
+        ? r.assignedAgency 
+        : (r.notifiedAgencies || []).join(", ") || "Unassigned";
       
       return `
         <tr>
@@ -1423,6 +1450,185 @@ export default function AdminDashboard() {
     printWindow.document.close();
   };
 
+  const exportRejectedReportsPDF = (reports) => {
+    if (!reports || reports.length === 0) {
+      alert("No rejected incidents to export.");
+      return;
+    }
+
+    const printWindow = window.open("", "_blank");
+    
+    // Build incident rows
+    const rowsHtml = reports.map((r, i) => {
+      const type = (r.emergencyType || "others").toUpperCase();
+      const status = (r.status || "pending").toUpperCase();
+      const incId = getIncidentId(r, i);
+      const loc = getLocation(r) || "Unknown";
+      const date = r.createdAt ? new Date(r.createdAt) : new Date();
+      const dateStr = `${date.toLocaleDateString()} ${date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+      const reporter = r.userId?.fullName || "Unknown";
+      const agency = (r.assignedAgency && r.assignedAgency !== "NONE") 
+        ? r.assignedAgency 
+        : (r.notifiedAgencies || []).join(", ") || "Unassigned";
+      
+      return `
+        <tr>
+          <td>${incId}</td>
+          <td>${type}</td>
+          <td>${loc}</td>
+          <td>${agency}</td>
+          <td>${reporter}</td>
+          <td>${dateStr}</td>
+          <td>${status}</td>
+        </tr>
+      `;
+    }).join("");
+
+    const htmlContent = `
+      <html>
+      <head>
+        <title>Alerto Calbayog - Rejected Reports</title>
+        <style>
+          body {
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            color: #334155;
+            padding: 30px;
+            margin: 0;
+          }
+          .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 2px solid #0a1e3f;
+            padding-bottom: 15px;
+            margin-bottom: 30px;
+          }
+          .logo-section {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+          }
+          .logo {
+            height: 50px;
+            width: auto;
+          }
+          .header-title h1 {
+            font-size: 24px;
+            font-weight: bold;
+            color: #0a1e3f;
+            margin: 0;
+          }
+          .header-title p {
+            font-size: 12px;
+            color: #64748b;
+            margin: 5px 0 0 0;
+          }
+          .report-info {
+            font-size: 11px;
+            color: #64748b;
+            text-align: right;
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 30px;
+          }
+          th {
+            background-color: #f1f5f9;
+            color: #475569;
+            font-size: 11px;
+            font-weight: bold;
+            text-transform: uppercase;
+            padding: 10px 12px;
+            border: 1px solid #cbd5e1;
+            text-align: left;
+          }
+          td {
+            padding: 10px 12px;
+            font-size: 11px;
+            border: 1px solid #cbd5e1;
+            color: #334155;
+          }
+          tr:nth-child(even) {
+            background-color: #f8fafc;
+          }
+          .summary {
+            font-size: 12px;
+            font-weight: bold;
+            color: #0a1e3f;
+            margin-bottom: 40px;
+          }
+          .footer {
+            margin-top: 50px;
+            border-top: 1px dashed #cbd5e1;
+            padding-top: 15px;
+            font-size: 10px;
+            color: #94a3b8;
+            text-align: center;
+          }
+          @media print {
+            body {
+              padding: 0;
+            }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div class="logo-section">
+            <img src="/logo.png" alt="Alerto Calbayog" class="logo" />
+            <div class="header-title">
+              <h1>ALERTO CALBAYOG</h1>
+              <p>Rejected Reports</p>
+            </div>
+          </div>
+          <div class="report-info">
+            <p><strong>Generated:</strong> ${new Date().toLocaleString()}</p>
+            <p><strong>Total Rejected Reports:</strong> ${reports.length}</p>
+          </div>
+        </div>
+        
+        <table>
+          <thead>
+            <tr>
+              <th>Incident ID</th>
+              <th>Type</th>
+              <th>Location</th>
+              <th>Agency</th>
+              <th>Reporter</th>
+              <th>Date & Time</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml || '<tr><td colspan="7" style="text-align:center">No incident records found.</td></tr>'}
+          </tbody>
+        </table>
+
+        <div class="summary">
+          Report summary: Compiled ${reports.length} rejected incident records.
+        </div>
+
+        <div class="footer">
+          Alerto Calbayog © ${new Date().getFullYear()} — Confidential Admin Report. All rights reserved.
+        </div>
+
+        <script>
+          window.onload = function() {
+            window.print();
+            window.onafterprint = function() {
+              window.close();
+            };
+          }
+        </script>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+  };
+
   const saveUser = async (event) => {
     event.preventDefault();
     setIsSavingUser(true);
@@ -1481,6 +1687,31 @@ export default function AdminDashboard() {
     setUserForm({ ...emptyUserForm, role });
     setIsUserModalOpen(true);
     setError("");
+  };
+
+  const addAgencyCategory = async (event) => {
+    event.preventDefault();
+    const agencyName = newAgencyName.trim();
+    if (!agencyName) return;
+
+    if (agencyCategories.some((agency) => agency.toLowerCase() === agencyName.toLowerCase())) {
+      setError("This agency category already exists.");
+      return;
+    }
+
+    const updatedAgencies = [...agencyCategories, agencyName];
+    setIsSavingAgency(true);
+    setError("");
+    try {
+      await api.post("/settings", { key: "customAgencies", value: updatedAgencies });
+      setAgencyCategories(updatedAgencies);
+      setNewAgencyName("");
+      setIsAgencyModalOpen(false);
+    } catch (err) {
+      setError(err.response?.data?.message || "Unable to add agency category");
+    } finally {
+      setIsSavingAgency(false);
+    }
   };
 
   const resetUserForm = () => {
@@ -1697,21 +1928,6 @@ export default function AdminDashboard() {
               </div>
             </AnalyticsCard>
 
-            <AnalyticsCard title="Incidents by Barangay / Location" subtitle="Top areas from geocoded report locations">
-              <div className="overflow-y-auto pr-1" style={{ height: 200 }}>
-                <div style={{ height: Math.max(180, analyticsData.barangays.length * 36) }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={analyticsData.barangays} layout="vertical" margin={{ top: 4, right: 18, left: 28, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" horizontal={false} />
-                      <XAxis type="number" allowDecimals={false} axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 11, fontWeight: 700 }} />
-                      <YAxis type="category" dataKey="name" width={92} axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 10, fontWeight: 700 }} />
-                      <Tooltip content={<ChartTooltip />} />
-                      <Bar dataKey="value" fill={THEME.primary} radius={[0, 8, 8, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-            </AnalyticsCard>
           </div>
         </div>
       )}
@@ -1993,64 +2209,45 @@ export default function AdminDashboard() {
                   <option value="emergency">Others</option>
                 </select>
 
-                {/* Year Filter */}
-                <select
-                  value={closedYearFilter}
-                  onChange={(event) => setClosedYearFilter(event.target.value)}
+                <input
+                  type="date"
+                  value={closedDateFilter}
+                  onChange={(event) => setClosedDateFilter(event.target.value)}
                   className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 outline-none shadow-md transition hover:border-slate-300 focus:border-red-500 focus:ring-2 focus:ring-red-600/10"
-                >
-                  <option value="all">All Years</option>
-                  {closedYearOptions.map((yr) => (
-                    <option key={yr} value={yr.toString()}>
-                      {yr}
-                    </option>
-                  ))}
-                </select>
-
-                {/* Month Filter */}
-                <select
-                  value={closedMonthFilter}
-                  onChange={(event) => setClosedMonthFilter(event.target.value)}
-                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 outline-none shadow-md transition hover:border-slate-300 focus:border-red-500 focus:ring-2 focus:ring-red-600/10"
-                >
-                  <option value="all">All Months</option>
-                  {[
-                    { value: 1, label: "January" },
-                    { value: 2, label: "February" },
-                    { value: 3, label: "March" },
-                    { value: 4, label: "April" },
-                    { value: 5, label: "May" },
-                    { value: 6, label: "June" },
-                    { value: 7, label: "July" },
-                    { value: 8, label: "August" },
-                    { value: 9, label: "September" },
-                    { value: 10, label: "October" },
-                    { value: 11, label: "November" },
-                    { value: 12, label: "December" }
-                  ].map((m) => (
-                    <option key={m.value} value={m.value.toString()}>
-                      {m.label}
-                    </option>
-                  ))}
-                </select>
-
-                {/* Day Filter */}
-                <select
-                  value={closedDayFilter}
-                  onChange={(event) => setClosedDayFilter(event.target.value)}
-                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 outline-none shadow-md transition hover:border-slate-300 focus:border-red-500 focus:ring-2 focus:ring-red-600/10"
-                >
-                  <option value="all">All Days</option>
-                  {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
-                    <option key={d} value={d.toString()}>
-                      {d}
-                    </option>
-                  ))}
-                </select>
+                  title="Filter closed cases by selected date"
+                />
 
                 <button
                   type="button"
                   onClick={() => exportClosedReportsPDF(displayReports)}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-4 py-2 text-xs font-black text-white shadow-sm transition hover:bg-red-700 active:scale-[0.98]"
+                >
+                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <path d="M12 3v11m0 0l4-4m-4 4l-4-4M5 21h14" />
+                  </svg>
+                  Export PDF
+                </button>
+              </>
+            ) : isRejected ? (
+              <>
+                <select value={agencyFilter} onChange={(event) => setAgencyFilter(event.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 outline-none shadow-md transition hover:border-slate-300 focus:border-red-500 focus:ring-2 focus:ring-red-600/10">
+                  <option value="all">All agencies</option>
+                  <option value="CDRRMO">CDRRMO</option>
+                  <option value="PNP">PNP</option>
+                  <option value="BFP">BFP</option>
+                </select>
+
+                <input
+                  type="date"
+                  value={rejectedDateFilter}
+                  onChange={(event) => setRejectedDateFilter(event.target.value)}
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 outline-none shadow-md transition hover:border-slate-300 focus:border-red-500 focus:ring-2 focus:ring-red-600/10"
+                  title="Filter rejected reports by selected date"
+                />
+
+                <button
+                  type="button"
+                  onClick={() => exportRejectedReportsPDF(displayReports)}
                   className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-4 py-2 text-xs font-black text-white shadow-sm transition hover:bg-red-700 active:scale-[0.98]"
                 >
                   <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -2077,17 +2274,23 @@ export default function AdminDashboard() {
   };
 
   const renderUsers = (category = "all") => {
-    const directoryUsers = category === "all"
+    const isAgencyDirectory = category === "all" && userCategoryFilter === "agency";
+    const isUserDirectory = category === "all" && userCategoryFilter === "resident";
+    const directoryUsers = isAgencyDirectory
+      ? []
+      : category === "all"
       ? filteredUsers
       : users.filter((user) => (user.role || "resident").toLowerCase() === category);
-    const directoryTitle = category === "resident" ? "Resident Directory"
+    const directoryTitle = isAgencyDirectory ? "Agency Management"
+      : isUserDirectory || category === "resident" ? "User Directory"
       : category === "responder" ? "Responder Directory"
         : "User Management";
-    const directoryDescription = category === "resident"
-      ? "Manage resident accounts that submit emergency reports and receive updates."
+    const directoryDescription = isAgencyDirectory ? "Add and manage agencies available when creating responder accounts."
+      : isUserDirectory || category === "resident"
+      ? "Manage user accounts that submit emergency reports and receive updates."
       : category === "responder"
         ? "Manage responder accounts assigned to emergency agencies."
-        : "Manage residents, responders, and administrators.";
+        : "Manage users, responders, and administrators.";
 
     return (
       <div className="flex flex-col gap-4 h-full">
@@ -2105,12 +2308,20 @@ export default function AdminDashboard() {
                 className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 outline-none transition hover:border-slate-300 focus:border-red-500 focus:ring-2 focus:ring-red-600/10"
               >
                 <option value="all">All categories</option>
-                <option value="resident">Residents</option>
+                <option value="resident">Users</option>
                 <option value="responder">Responders</option>
-                <option value="admin">Admins</option>
               </select>
             )}
-            {category === "all" && (
+            {isAgencyDirectory && (
+              <button
+                type="button"
+                onClick={() => { setError(""); setNewAgencyName(""); setIsAgencyModalOpen(true); }}
+                className="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-black text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 active:scale-[0.98]"
+              >
+                Add Agency
+              </button>
+            )}
+            {category === "all" && !isAgencyDirectory && (
               <button type="button" onClick={openAddUserModal} className="inline-flex items-center justify-center rounded-lg bg-red-600 px-4 py-2 text-xs font-black text-white shadow-sm transition hover:bg-red-700 active:scale-[0.98]">
                 Add User
               </button>
@@ -2118,14 +2329,36 @@ export default function AdminDashboard() {
           </div>
         </div>
 
+        {isAgencyDirectory ? (
+          <section className="flex-1 min-h-0 flex flex-col rounded-xl border border-slate-200 bg-white shadow-md shadow-slate-200/50">
+            <div className="overflow-auto flex-1 min-h-0">
+              <table className="w-full table-auto text-left">
+                <thead>
+                  <tr className="border-b border-slate-100 bg-slate-50 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                    <th className="px-4 py-3">Agency</th>
+                    <th className="px-4 py-3">Responder Accounts</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {agencyCategories.map((agency) => (
+                    <tr key={agency} className="text-sm text-slate-700">
+                      <td className="px-4 py-3 font-bold text-slate-900">{agency}</td>
+                      <td className="px-4 py-3">{users.filter((user) => user.role === "responder" && user.agency === agency).length}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        ) : (
         <section className="flex-1 min-h-0 flex flex-col rounded-xl border border-slate-200 bg-white shadow-md shadow-slate-200/50">
           <div className="overflow-auto flex-1 min-h-0">
             <table className="w-full table-auto text-left">
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50 text-[10px] font-black uppercase tracking-widest text-slate-400">
                   <th className="px-4 py-3">Name</th>
-                  <th className="px-4 py-3">Category</th>
-                  <th className="px-4 py-3">Agency</th>
+                  {!isUserDirectory && <th className="px-4 py-3">Category</th>}
+                  {!isUserDirectory && <th className="px-4 py-3">Agency</th>}
                   <th className="px-4 py-3">Password</th>
                   <th className="px-4 py-3">Contact</th>
                   <th className="px-4 py-3">Registered</th>
@@ -2139,8 +2372,8 @@ export default function AdminDashboard() {
                       <p className="font-bold text-slate-900">{user.fullName}</p>
                       <p className="text-xs text-slate-400">{user.email}</p>
                     </td>
-                    <td className="px-4 py-3 capitalize">
-                      {user.role || "resident"}
+                    {!isUserDirectory && <td className="px-4 py-3 capitalize">
+                      {user.role === "resident" ? "User" : user.role || "User"}
                       {user.role === "responder" && (
                         <span className={`ml-2 inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-medium border ${user.status === "approved"
                             ? "bg-emerald-50 text-emerald-700 border-emerald-100"
@@ -2151,8 +2384,8 @@ export default function AdminDashboard() {
                           {user.status || "pending"}
                         </span>
                       )}
-                    </td>
-                    <td className="px-4 py-3">{user.agency || "NONE"}</td>
+                    </td>}
+                    {!isUserDirectory && <td className="px-4 py-3">{user.agency || "NONE"}</td>}
                     <td className="px-4 py-3 break-all text-xs font-medium text-slate-700">{user.visiblePassword || "—"}</td>
                     <td className="px-4 py-3">{user.phoneNumber || "N/A"}</td>
                     <td className="px-4 py-3 text-xs text-slate-500">
@@ -2163,6 +2396,7 @@ export default function AdminDashboard() {
                     {category === "all" && (
                       <td className="px-4 py-3">
                         <div className="flex flex-wrap gap-2">
+                          <button onClick={() => setSelectedUserInfo(user)} className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-black text-blue-700 transition hover:border-blue-300 hover:bg-blue-100 active:scale-[0.98]">View Info</button>
                           <button onClick={() => editUser(user)} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-black text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 active:scale-[0.98]">Edit</button>
                           <button onClick={() => deleteUser(user._id)} className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-black text-red-700 transition hover:border-red-300 hover:bg-red-100 active:scale-[0.98]">Remove</button>
                         </div>
@@ -2172,13 +2406,14 @@ export default function AdminDashboard() {
                 ))}
                 {directoryUsers.length === 0 && (
                   <tr>
-                    <td colSpan={category === "all" ? 7 : 6} className="px-4 py-8 text-center text-sm text-slate-400">No {category === "all" ? "users in this category" : `${category}s`} found.</td>
+                    <td colSpan={isUserDirectory ? 5 : category === "all" ? 7 : 6} className="px-4 py-8 text-center text-sm text-slate-400">No {isUserDirectory || category === "all" ? "users in this category" : `${category}s`} found.</td>
                   </tr>
                 )}
               </tbody>
             </table>
           </div>
         </section>
+        )}
 
         {isUserModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 px-4 py-6">
@@ -2211,7 +2446,7 @@ export default function AdminDashboard() {
                     }}
                     className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-600/10"
                   >
-                    <option value="resident">Resident</option>
+                    <option value="resident">User</option>
                     <option value="responder">Responder</option>
                     <option value="admin">Admin</option>
                   </select>
@@ -2224,9 +2459,9 @@ export default function AdminDashboard() {
                     <option value="NONE" disabled>
                       Select agency
                     </option>
-                    <option value="BFP">BFP</option>
-                    <option value="CDRRMO">CDRRMO</option>
-                    <option value="PNP">PNP</option>
+                    {agencyCategories.map((agency) => (
+                      <option key={agency} value={agency}>{agency}</option>
+                    ))}
                   </select>
                 </div>
                 <input value={userForm.phoneNumber} onChange={(event) => setUserForm({ ...userForm, phoneNumber: event.target.value })} placeholder="Phone number" className="rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-600/10" />
@@ -2242,6 +2477,74 @@ export default function AdminDashboard() {
                   </button>
                 </div>
                 {error && <p className="text-sm font-bold text-red-600">{error}</p>}
+              </form>
+            </div>
+          </div>
+        )}
+        {selectedUserInfo && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/50 px-4 py-6" onMouseDown={() => setSelectedUserInfo(null)}>
+            <div className="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl" onMouseDown={(event) => event.stopPropagation()}>
+              <div className="flex items-start justify-between bg-slate-900 px-6 py-5 text-white">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-300">User information</p>
+                  <h2 className="mt-1 text-lg font-black">{selectedUserInfo.fullName || "Unknown user"}</h2>
+                </div>
+                <button type="button" onClick={() => setSelectedUserInfo(null)} className="rounded-lg p-1 text-slate-300 transition hover:bg-white/10 hover:text-white" aria-label="Close user information">
+                  <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" d="m6 6 12 12M18 6 6 18" /></svg>
+                </button>
+              </div>
+              <dl className="grid gap-x-6 gap-y-4 p-6 sm:grid-cols-2">
+                {[
+                  ["Email", selectedUserInfo.email || "Not provided"],
+                  ["Contact number", selectedUserInfo.phoneNumber || "Not provided"],
+                  ["Category", selectedUserInfo.role === "resident" ? "User" : selectedUserInfo.role || "User"],
+                  ["Status", selectedUserInfo.status || "Active"],
+                  ["Agency", selectedUserInfo.agency && selectedUserInfo.agency !== "NONE" ? selectedUserInfo.agency : "Not assigned"],
+                  ["Registered", selectedUserInfo.createdAt ? new Date(selectedUserInfo.createdAt).toLocaleString("en-PH") : "Not available"],
+                  ...(selectedUserInfo.employeeId ? [["Employee ID", selectedUserInfo.employeeId]] : []),
+                  ...(selectedUserInfo.rank ? [["Rank", selectedUserInfo.rank]] : []),
+                ].map(([label, value]) => (
+                  <div key={label}>
+                    <dt className="text-[10px] font-black uppercase tracking-widest text-slate-400">{label}</dt>
+                    <dd className="mt-1 break-words text-sm font-bold text-slate-800">{value}</dd>
+                  </div>
+                ))}
+              </dl>
+              <div className="border-t border-slate-100 bg-slate-50 px-6 py-4 text-right">
+                <button type="button" onClick={() => setSelectedUserInfo(null)} className="rounded-lg bg-slate-900 px-4 py-2 text-xs font-black text-white transition hover:bg-slate-700">Close</button>
+              </div>
+            </div>
+          </div>
+        )}
+        {isAgencyModalOpen && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/50 px-4 py-6" onMouseDown={() => setIsAgencyModalOpen(false)}>
+            <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl" onMouseDown={(event) => event.stopPropagation()}>
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-lg font-black text-slate-950">Add Agency Category</h2>
+                  <p className="mt-1 text-sm text-slate-500">Create an agency option for responder accounts.</p>
+                </div>
+                <button type="button" onClick={() => setIsAgencyModalOpen(false)} className="rounded-lg p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700" aria-label="Close add agency dialog">
+                  <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" d="m6 6 12 12M18 6 6 18" /></svg>
+                </button>
+              </div>
+              <form onSubmit={addAgencyCategory} className="mt-5">
+                <label className="block text-xs font-black uppercase tracking-widest text-slate-500" htmlFor="new-agency-name">Agency name</label>
+                <input
+                  id="new-agency-name"
+                  autoFocus
+                  value={newAgencyName}
+                  onChange={(event) => setNewAgencyName(event.target.value)}
+                  placeholder="e.g. City Health Office"
+                  className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-600/10"
+                />
+                {error && <p className="mt-2 text-sm font-bold text-red-600">{error}</p>}
+                <div className="mt-5 flex justify-end gap-2">
+                  <button type="button" onClick={() => setIsAgencyModalOpen(false)} className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-black text-slate-600 transition hover:bg-slate-50">Cancel</button>
+                  <button disabled={isSavingAgency || !newAgencyName.trim()} className="rounded-lg bg-red-600 px-4 py-2 text-xs font-black text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-slate-300">
+                    {isSavingAgency ? "Adding..." : "Add Agency"}
+                  </button>
+                </div>
               </form>
             </div>
           </div>
@@ -2410,16 +2713,46 @@ export default function AdminDashboard() {
           ipAddress: log.ipAddress || "—",
           type: AUDIT_ACTION_LABELS[log.action] || log.action || "activity",
         }));
-      const headers = ["User", "Action", "Timestamp", "IP Address", "Type"];
-      const csv = [headers, ...rows.map((row) => [row.user, row.action, row.timestamp, row.ipAddress, row.type])]
-        .map((row) => row.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(","))
-        .join("\n");
-      const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = "audit-logs.csv";
-      link.click();
-      URL.revokeObjectURL(url);
+      if (!rows.length) {
+        alert("No audit logs to export.");
+        return;
+      }
+
+      const escapeHtml = (value) => String(value ?? "—")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+      const auditTitle = auditTab === "status" ? "Incident Status Log" : auditTab === "password_security" ? "Password Security Log" : "User Activity Log";
+      const rowsHtml = rows.map((row) => `
+        <tr>
+          <td>${escapeHtml(row.user)}</td>
+          <td>${escapeHtml(row.action)}</td>
+          <td>${escapeHtml(row.timestamp ? new Date(row.timestamp).toLocaleString() : "—")}</td>
+          <td>${escapeHtml(row.ipAddress)}</td>
+          <td>${escapeHtml(row.type)}</td>
+        </tr>
+      `).join("");
+      const printWindow = window.open("", "_blank");
+      if (!printWindow) return;
+      printWindow.document.write(`
+        <html><head><title>Alerto Calbayog - ${auditTitle}</title>
+        <style>
+          body { font-family: Arial, sans-serif; color: #334155; padding: 30px; margin: 0; }
+          .header { display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #7f1d1d; padding-bottom: 15px; margin-bottom: 28px; }
+          .brand { display: flex; align-items: center; gap: 12px; } .logo { width: 48px; height: 48px; object-fit: contain; }
+          h1 { margin: 0; font-size: 22px; color: #7f1d1d; } .subtitle, .report-info { margin: 4px 0 0; color: #64748b; font-size: 12px; }
+          .report-info { text-align: right; } table { width: 100%; border-collapse: collapse; } th { background: #fef2f2; color: #7f1d1d; font-size: 11px; text-transform: uppercase; padding: 10px; border: 1px solid #fca5a5; text-align: left; } td { padding: 10px; font-size: 11px; border: 1px solid #cbd5e1; vertical-align: top; } tr:nth-child(even) { background: #f8fafc; }
+          .footer { margin-top: 42px; border-top: 1px dashed #cbd5e1; padding-top: 14px; color: #94a3b8; font-size: 10px; text-align: center; } @media print { body { padding: 0; } }
+        </style></head><body>
+          <div class="header"><div class="brand"><img src="/logo.png" class="logo" /><div><h1>ALERTO CALBAYOG</h1><p class="subtitle">${auditTitle}</p></div></div><div class="report-info"><strong>Generated:</strong> ${new Date().toLocaleString()}<br/><strong>Total Records:</strong> ${rows.length}</div></div>
+          <table><thead><tr><th>User</th><th>Action</th><th>Timestamp</th><th>IP Address</th><th>Type</th></tr></thead><tbody>${rowsHtml}</tbody></table>
+          <div class="footer">Alerto Calbayog © ${new Date().getFullYear()} — Confidential Admin Report. All rights reserved.</div>
+          <script>window.onload = function() { window.print(); window.onafterprint = function() { window.close(); }; };</script>
+        </body></html>
+      `);
+      printWindow.document.close();
     };
 
     return (
@@ -2461,8 +2794,34 @@ export default function AdminDashboard() {
               className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-xs outline-none shadow-sm focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10"
             />
           </div>
-          <button onClick={exportAuditLogs} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-black text-slate-800 shadow-sm transition hover:bg-slate-50">
-            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 3v11m0 0 4-4m-4 4-4-4M5 21h14" /></svg> Export
+
+          <input
+            type="date"
+            value={auditDateFrom}
+            onChange={(e) => {
+              setAuditDateFrom(e.target.value);
+              setAuditPage(1);
+              fetchAuditLogs({ tab: auditTab, search: auditSearch, dateFrom: e.target.value, dateTo: "", page: 1 });
+            }}
+            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 outline-none shadow-md transition hover:border-slate-300 focus:border-red-500 focus:ring-2 focus:ring-red-600/10"
+            title="Filter audit logs by date"
+          />
+
+          <button
+            type="button"
+            onClick={() => {
+              setAuditDateFrom("");
+              setAuditDateTo("");
+              setAuditPage(1);
+              fetchAuditLogs({ tab: auditTab, search: auditSearch, dateFrom: "", dateTo: "", page: 1 });
+            }}
+            className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-slate-100 px-3 py-2 text-xs font-black text-slate-700 shadow-sm transition hover:bg-slate-200 active:scale-[0.98]"
+          >
+            Clear
+          </button>
+
+          <button onClick={exportAuditLogs} className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-xs font-black text-white shadow-sm transition hover:bg-red-700">
+            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 3v11m0 0 4-4m-4 4-4-4M5 21h14" /></svg> Export PDF
           </button>
         </div>
 
@@ -2987,8 +3346,8 @@ export default function AdminDashboard() {
 
                   <label className="flex items-center justify-between cursor-pointer">
                     <div>
-                      <p className="text-xs font-medium text-slate-700">Resident Warning Push</p>
-                      <p className="text-[10px] text-slate-400">Send community push warnings to residents near active hazards.</p>
+                      <p className="text-xs font-medium text-slate-700">User Warning Push</p>
+                      <p className="text-[10px] text-slate-400">Send community push warnings to users near active hazards.</p>
                     </div>
                     <input
                       type="checkbox"
@@ -3120,7 +3479,7 @@ export default function AdminDashboard() {
                         <div className={`flex h-7 w-7 items-center justify-center rounded-lg ${cfg.color} text-white text-xs font-medium`}>
                           {item.count}
                         </div>
-                        <span className="text-xs font-medium capitalize text-slate-700">{item.role === "responder" ? "Responders" : item.role === "resident" ? "Residents" : "Admins"}</span>
+                        <span className="text-xs font-medium capitalize text-slate-700">{item.role === "responder" ? "Responders" : item.role === "resident" ? "Users" : "Admins"}</span>
                       </div>
                       <p className="mt-2 text-[10px] text-slate-500 leading-normal">{cfg.desc}</p>
                     </div>
@@ -3187,14 +3546,6 @@ export default function AdminDashboard() {
                     className="inline-flex items-center justify-center rounded-lg bg-red-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-red-700 active:scale-[0.98]"
                   >
                     Trigger Database Backup
-                  </button>
-                  <button
-                    type="button"
-                    onClick={openExportDialog}
-                    className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-emerald-500 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-600 active:scale-[0.98]"
-                  >
-                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" x2="12" y1="15" y2="3" /></svg>
-                    Export Data
                   </button>
                   <button
                     type="button"
@@ -3631,6 +3982,12 @@ export default function AdminDashboard() {
                         </button>
                       ))}
                     </div>
+                  </div>
+                )}
+                {allEvidenceImages.length === 0 && (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-amber-700">Scene & Proof of Evidence</p>
+                    <p className="mt-1 text-sm font-semibold text-amber-800">No evidence was submitted. This may be a false report.</p>
                   </div>
                 )}
               </div>

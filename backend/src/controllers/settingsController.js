@@ -5,7 +5,8 @@ const DEFAULT_SETTINGS = {
   locationConfig: { refreshRate: 10, lat: "12.0674", lng: "124.5946", provider: "osm", zoom: 13 },
   securityConfig: { complexPassword: true, sessionTimeout: 60 },
   notificationsConfig: { soundAlerts: true, desktopNotif: true, smsAlerts: false, residentPush: true, radius: "5" },
-  activeCategories: { fire: true, flood: true, crime: true, medical: true, others: true }
+  activeCategories: { fire: true, flood: true, crime: true, medical: true, others: true },
+  customAgencies: ["BFP", "CDRRMO", "PNP"]
 };
 
 /**
@@ -36,6 +37,7 @@ exports.getSettings = async (req, res) => {
       securityConfig: settingsMap.securityConfig || DEFAULT_SETTINGS.securityConfig,
       notificationsConfig: settingsMap.notificationsConfig || DEFAULT_SETTINGS.notificationsConfig,
       activeCategories: settingsMap.activeCategories || DEFAULT_SETTINGS.activeCategories,
+      customAgencies: settingsMap.customAgencies || DEFAULT_SETTINGS.customAgencies,
     };
 
     res.json(merged);
