@@ -41,6 +41,7 @@ function Login() {
   const getAgencyRoute = (user) => {
     if (user.role === "admin") return "/admindashboard";
     if (user.agency === "PNP") return "/crimedashboard";
+    if (user.agency === "BFP") return "/firedashboard";
     return "/dashboard";
   };
 

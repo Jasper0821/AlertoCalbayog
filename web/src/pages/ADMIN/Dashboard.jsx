@@ -1768,11 +1768,106 @@ export default function AdminDashboard() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <select value={agencyFilter} onChange={(event) => setAgencyFilter(event.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 outline-none shadow-md transition hover:border-slate-300 focus:border-red-500 focus:ring-2 focus:ring-red-600/10">
-              <option value="all">All agencies</option>
-              <option value="CDRRMO">CDRRMO</option>
-              <option value="PNP">PNP</option>
-            </select>
+            {type === "closed" ? (
+              <>
+                <select
+                  value={closedAgencyFilter}
+                  onChange={(event) => setClosedAgencyFilter(event.target.value)}
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 outline-none shadow-md transition hover:border-slate-300 focus:border-red-500 focus:ring-2 focus:ring-red-600/10"
+                >
+                  <option value="all">All Agencies</option>
+                  <option value="CDRRMO">CDRRMO</option>
+                  <option value="PNP">PNP</option>
+                  <option value="BFP">BFP</option>
+                </select>
+
+                <select
+                  value={closedTypeFilter}
+                  onChange={(event) => setClosedTypeFilter(event.target.value)}
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 outline-none shadow-md transition hover:border-slate-300 focus:border-red-500 focus:ring-2 focus:ring-red-600/10"
+                >
+                  <option value="all">All Types</option>
+                  <option value="fire">Fire</option>
+                  <option value="flood">Flood</option>
+                  <option value="crime">Crime</option>
+                  <option value="medical">Medical</option>
+                  <option value="emergency">Others</option>
+                </select>
+
+                {/* Year Filter */}
+                <select
+                  value={closedYearFilter}
+                  onChange={(event) => setClosedYearFilter(event.target.value)}
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 outline-none shadow-md transition hover:border-slate-300 focus:border-red-500 focus:ring-2 focus:ring-red-600/10"
+                >
+                  <option value="all">All Years</option>
+                  {closedYearOptions.map((yr) => (
+                    <option key={yr} value={yr.toString()}>
+                      {yr}
+                    </option>
+                  ))}
+                </select>
+
+                {/* Month Filter */}
+                <select
+                  value={closedMonthFilter}
+                  onChange={(event) => setClosedMonthFilter(event.target.value)}
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 outline-none shadow-md transition hover:border-slate-300 focus:border-red-500 focus:ring-2 focus:ring-red-600/10"
+                >
+                  <option value="all">All Months</option>
+                  {[
+                    { value: 1, label: "January" },
+                    { value: 2, label: "February" },
+                    { value: 3, label: "March" },
+                    { value: 4, label: "April" },
+                    { value: 5, label: "May" },
+                    { value: 6, label: "June" },
+                    { value: 7, label: "July" },
+                    { value: 8, label: "August" },
+                    { value: 9, label: "September" },
+                    { value: 10, label: "October" },
+                    { value: 11, label: "November" },
+                    { value: 12, label: "December" }
+                  ].map((m) => (
+                    <option key={m.value} value={m.value.toString()}>
+                      {m.label}
+                    </option>
+                  ))}
+                </select>
+
+                {/* Day Filter */}
+                <select
+                  value={closedDayFilter}
+                  onChange={(event) => setClosedDayFilter(event.target.value)}
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 outline-none shadow-md transition hover:border-slate-300 focus:border-red-500 focus:ring-2 focus:ring-red-600/10"
+                >
+                  <option value="all">All Days</option>
+                  {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
+                    <option key={d} value={d.toString()}>
+                      {d}
+                    </option>
+                  ))}
+                </select>
+
+                <button
+                  type="button"
+                  onClick={() => exportClosedReportsPDF(displayReports)}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-4 py-2 text-xs font-black text-white shadow-sm transition hover:bg-red-700 active:scale-[0.98]"
+                >
+                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <path d="M12 3v11m0 0l4-4m-4 4l-4-4M5 21h14" />
+                  </svg>
+                  Export PDF
+                </button>
+              </>
+            ) : (
+              <select value={agencyFilter} onChange={(event) => setAgencyFilter(event.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 outline-none shadow-md transition hover:border-slate-300 focus:border-red-500 focus:ring-2 focus:ring-red-600/10">
+                <option value="all">All agencies</option>
+                <option value="CDRRMO">CDRRMO</option>
+                <option value="PNP">PNP</option>
+                <option value="BFP">BFP</option>
+              </select>
+            )}
           </div>
         </div>
         <div className="flex-1 min-h-0 overflow-auto">

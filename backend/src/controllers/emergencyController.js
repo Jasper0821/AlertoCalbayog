@@ -46,6 +46,19 @@ exports.createEmergencyReport = async (req, res) => {
   try {
     const { emergencyType, description, latitude, longitude } = req.body;
 
+    // Spam prevention: Limit to 5 reports per 10 minutes per user
+    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+    const recentReportsCount = await EmergencyReport.countDocuments({
+      userId: req.user.id,
+      createdAt: { $gte: tenMinutesAgo },
+    });
+
+    if (recentReportsCount >= 5) {
+      return res.status(429).json({
+        message: "Spam Prevention: You have reached the limit of 5 reports within 10 minutes. Please wait before submitting another report.",
+      });
+    }
+
     // Check if this category is currently disabled in admin settings
     const activeCategories = await getSettingValue("activeCategories");
     if (activeCategories) {

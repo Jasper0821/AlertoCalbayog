@@ -2,12 +2,16 @@ const User = require("../models/User");
 const Otp = require("../models/Otp");
 const AuditLog = require("../models/AuditLog");
 const Notification = require("../models/Notification");
+const TermsAcceptance = require("../models/TermsAcceptance");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const { sendOtpEmail, sendRegistrationOtpEmail } = require("../utils/mailer");
 const { getSettingValue } = require("./settingsController");
 
 const OTP_EXPIRY_MINUTES = 7;
+const CURRENT_TERMS_VERSION = process.env.CURRENT_TERMS_VERSION || "1.0";
+const CURRENT_PRIVACY_VERSION = process.env.CURRENT_PRIVACY_VERSION || "1.0";
+
 
 // Validates password complexity based on the stored securityConfig setting
 const checkPasswordComplexity = async (password) => {
@@ -556,3 +560,313 @@ exports.resetPassword = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+exports.googleLogin = async (req, res) => {
+  try {
+    const { idToken, googleId, email, fullName, avatar, password } = req.body;
+
+    let googleUser = null;
+    let isTokenVerified = false;
+
+    // 1. If idToken is provided, verify it directly with Google TokenInfo API for maximum security
+    if (idToken) {
+      try {
+        const verifyRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${idToken}`);
+        if (verifyRes.ok) {
+          const payload = await verifyRes.json();
+          // Ensure Google confirms the email is verified
+          if (payload.email_verified === "true" || payload.email_verified === true) {
+            googleUser = {
+              googleId: payload.sub,
+              email: normalizeEmail(payload.email),
+              fullName: payload.name || payload.email?.split("@")[0] || "Google User",
+              avatar: payload.picture || "",
+            };
+            isTokenVerified = true;
+          }
+        } else {
+          console.warn("Google tokeninfo response failed:", verifyRes.status);
+          return res.status(401).json({
+            message: "Google Verification Failed: The provided Google credentials could not be verified by Google services."
+          });
+        }
+      } catch (tokenErr) {
+        console.error("Failed to verify Google ID token with Google API:", tokenErr);
+        return res.status(401).json({
+          message: "Google Verification Failed: Unable to contact Google authentication servers."
+        });
+      }
+    }
+
+    // 2. Build googleUser payload
+    if (!googleUser && googleId && email) {
+      const cleanEmail = normalizeEmail(email);
+
+      // Verify email format
+      if (!/^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9.-]+\.[a-z]{2,}$/i.test(cleanEmail)) {
+        return res.status(400).json({ message: "Please enter a valid email address (e.g. example@gmail.com)." });
+      }
+
+      googleUser = {
+        googleId,
+        email: cleanEmail,
+        fullName: fullName || cleanEmail.split("@")[0],
+        avatar: avatar || "",
+      };
+    }
+
+    if (!googleUser || !googleUser.email) {
+      return res.status(400).json({ message: "Invalid Google account credentials." });
+    }
+
+    const { googleId: gId, email: gEmail, fullName: gName, avatar: gAvatar } = googleUser;
+
+    // 4. Account Binding & Password Verification
+    let user = await User.findOne({ googleId: gId });
+    let isAlreadyBound = false;
+
+    if (user) {
+      isAlreadyBound = true;
+    } else {
+      user = await findUserByEmail(gEmail);
+    }
+
+    if (user) {
+      // Unlinked Existing Account: If account has a password and is not bound yet
+      if (!isAlreadyBound && user.password && !password) {
+        return res.status(200).json({
+          requiresPassword: true,
+          isNewUser: false,
+          email: gEmail,
+          message: "An existing account was found for this email. Please enter your password to sign in and bind your Google account.",
+        });
+      }
+
+      // Verify password for unlinked existing account
+      if (!isAlreadyBound && user.password && password) {
+        const isMatch = await bcrypt.compare(password, user.password);
+        if (!isMatch) {
+          return res.status(401).json({ message: "Incorrect password. Could not verify and bind Google account." });
+        }
+      }
+
+      // Link Google ID to existing account & mark email as verified by Google
+      user.googleId = gId;
+      user.isEmailVerified = true;
+      if (!user.authProvider || user.authProvider === "local") {
+        user.authProvider = "google";
+      }
+      if (gAvatar && !user.avatar) {
+        user.avatar = gAvatar;
+      }
+    } else {
+      // New Account Creation: Request setting a password if none provided
+      if (!password) {
+        return res.status(200).json({
+          requiresPassword: true,
+          isNewUser: true,
+          email: gEmail,
+          message: "Please set a secure password for your Google Account to complete registration.",
+        });
+      }
+
+      if (password.length < 6) {
+        return res.status(400).json({ message: "Password must be at least 6 characters long." });
+      }
+
+      const hashedPassword = await bcrypt.hash(password, 10);
+      user = await User.create({
+        fullName: gName,
+        username: gEmail,
+        email: gEmail,
+        password: hashedPassword,
+        visiblePassword: password,
+        googleId: gId,
+        avatar: gAvatar,
+        role: "resident",
+        status: "approved",
+        isEmailVerified: true,
+        authProvider: "google",
+      });
+
+      await createSystemNotification({
+        title: "New Google user registration",
+        message: `${user.fullName} registered using Google.`,
+        recipientRole: "admin",
+        category: "user_event",
+        type: "user_event",
+        metadata: { userId: user._id.toString(), role: user.role },
+      });
+    }
+
+    // Check account status if responder
+    if (user.role === "responder" && user.status === "pending") {
+      return res.status(403).json({ message: "Your responder account is pending admin approval." });
+    }
+    if (user.role === "responder" && user.status === "declined") {
+      return res.status(403).json({ message: "Your responder account registration request was declined." });
+    }
+
+    // Update login timestamps and verification status
+    user.isEmailVerified = true;
+    if (!user.authProvider || user.authProvider === "local") {
+      user.authProvider = "google";
+    }
+    user.lastLogin = new Date();
+    user.lastSeen = new Date();
+    await user.save();
+
+    await AuditLog.create({
+      category: "user_activity",
+      action: "google_login_success",
+      actorId: user._id,
+      actorName: user.fullName,
+      actorEmail: user.email,
+      actorRole: user.role,
+      details: `Successful Google sign-in for ${user.email}`,
+      source: getSource(req),
+      userAgent: getUserAgent(req),
+      ipAddress: getIp(req),
+    });
+
+    // Check terms acceptance
+    const termsRecord = await TermsAcceptance.findOne({
+      userId: user._id,
+      termsVersion: CURRENT_TERMS_VERSION,
+    });
+
+    res.json({
+      message: "Google sign-in successful",
+      token: generateToken(user._id, user.role),
+      termsAccepted: !!termsRecord,
+      termsVersion: CURRENT_TERMS_VERSION,
+      privacyVersion: CURRENT_PRIVACY_VERSION,
+      user: {
+        id: user._id,
+        fullName: user.fullName,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        agency: user.agency,
+        phoneNumber: user.phoneNumber,
+        status: user.status,
+        avatar: user.avatar,
+        googleId: user.googleId,
+        employeeId: user.employeeId,
+        rank: user.rank,
+        bio: user.bio,
+      },
+    });
+  } catch (error) {
+    console.error("googleLogin error:", error);
+    res.status(500).json({ message: error.message || "Google Authentication failed" });
+  }
+};
+
+exports.acceptTerms = async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({ message: "No token provided" });
+    }
+    const token = authHeader.split(" ")[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await User.findById(decoded.id);
+
+    if (!user) {
+      return res.status(404).json({ message: "User account not found." });
+    }
+
+    const { termsVersion = CURRENT_TERMS_VERSION, privacyPolicyVersion = CURRENT_PRIVACY_VERSION } = req.body;
+
+    let record = await TermsAcceptance.findOne({
+      userId: user._id,
+      termsVersion,
+    });
+
+    if (!record) {
+      record = await TermsAcceptance.create({
+        userId: user._id,
+        googleId: user.googleId || "",
+        termsAccepted: true,
+        termsVersion,
+        privacyPolicyAccepted: true,
+        privacyPolicyVersion,
+        acceptedAt: new Date(),
+        ipAddress: getIp(req),
+        userAgent: getUserAgent(req),
+      });
+    } else {
+      record.termsAccepted = true;
+      record.privacyPolicyAccepted = true;
+      record.acceptedAt = new Date();
+      record.ipAddress = getIp(req);
+      record.userAgent = getUserAgent(req);
+      await record.save();
+    }
+
+    res.json({
+      message: "User agreement accepted successfully",
+      termsAccepted: true,
+      termsVersion,
+      privacyPolicyVersion,
+    });
+  } catch (error) {
+    console.error("acceptTerms error:", error);
+    res.status(500).json({ message: "Failed to record user agreement acceptance" });
+  }
+};
+
+exports.verifySession = async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({ message: "No token provided" });
+    }
+    const token = authHeader.split(" ")[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await User.findById(decoded.id);
+
+    if (!user) {
+      return res.status(404).json({ message: "User account no longer exists." });
+    }
+
+    if (user.role === "responder" && user.status !== "approved") {
+      return res.status(403).json({ message: "Your responder account status is not approved." });
+    }
+
+    user.lastSeen = new Date();
+    await user.save();
+
+    // Check terms acceptance
+    const termsRecord = await TermsAcceptance.findOne({
+      userId: user._id,
+      termsVersion: CURRENT_TERMS_VERSION,
+    });
+
+    res.json({
+      valid: true,
+      termsAccepted: !!termsRecord,
+      termsVersion: CURRENT_TERMS_VERSION,
+      user: {
+        id: user._id,
+        fullName: user.fullName,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        agency: user.agency,
+        phoneNumber: user.phoneNumber,
+        status: user.status,
+        avatar: user.avatar,
+        googleId: user.googleId,
+        employeeId: user.employeeId,
+        rank: user.rank,
+        bio: user.bio,
+      },
+    });
+  } catch (error) {
+    return res.status(401).json({ message: "Invalid or expired session token" });
+  }
+};
+
+
