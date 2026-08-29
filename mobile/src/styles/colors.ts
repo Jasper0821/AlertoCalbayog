@@ -23,6 +23,7 @@ export const COLORS = {
 
   // Typography
   text: "#0A1E3F",
+  textDark: "#0A1E3F",
   textMuted: "#5F6368",
   white: "#FFFFFF",
   textGray: "#5F6368"
