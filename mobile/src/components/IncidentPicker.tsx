@@ -129,8 +129,8 @@ export default function IncidentPicker({
     onClose();
   }, [onClose]);
 
-  const handleSelect = async (type: IncidentType) => {
-    // Block submission if location is not available
+  const handleSelect = (type: IncidentType) => {
+    // Block selection if location is not available
     if (!locationEnabled) {
       Alert.alert(
         "⚠️ Location Required",
@@ -143,83 +143,12 @@ export default function IncidentPicker({
       return;
     }
 
-    if (loading) return;
-    abortRef.current = false;
-    setLoading(type.key);
+    onClose();
 
-    try {
-      // Get current location
-      let location;
-      try {
-        location = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Balanced,
-        });
-      } catch (locError) {
-        location = await Location.getLastKnownPositionAsync({});
-        if (!location) {
-          Alert.alert(
-            "Location Unavailable",
-            "Unable to determine your current location. Please make sure your GPS is turned on and try again.",
-            [
-              { text: "Open Settings", onPress: () => Linking.openSettings() },
-              { text: "Cancel", style: "cancel" },
-            ]
-          );
-          setLoading(null);
-          return;
-        }
-      }
-
-      if (abortRef.current) return;
-
-      const token = await getToken();
-
-      if (abortRef.current) return;
-
-      // Submit report — all types go to CDRRMO
-      const res = await api.post(
-        "/emergency",
-        {
-          emergencyType: type.key,
-          description: `${type.label} incident reported via AlertoCalbayog`,
-          latitude: location.coords.latitude,
-          longitude: location.coords.longitude,
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      if (abortRef.current) return;
-
-      Alert.alert(
-        "Report Sent ✓",
-        `Your ${type.label.toLowerCase()} report has been sent to CDRRMO. Agencies have been notified.`
-      );
-
-      onClose();
-
-      // Navigate to live tracking
-      navigation.navigate("LiveTracking", {
-        reportId: res.data.report._id,
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
-        emergencyType: type.key,
-      });
-    } catch (error: any) {
-      // Don't show error if the submission was cancelled
-      if (abortRef.current) return;
-      Alert.alert(
-        "Error",
-        error.response?.data?.message || error.message || "Failed to send report"
-      );
-    } finally {
-      if (!abortRef.current) {
-        setLoading(null);
-      }
-    }
+    // Navigate to EmergencyReportScreen to capture camera proof photos
+    navigation.navigate("EmergencyReport", {
+      emergencyType: type.key,
+    });
   };
 
   const isDisabled = loading !== null || !locationEnabled || checkingLocation;

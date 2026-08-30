@@ -74,6 +74,7 @@ export default function IncidentDetailModal({ report, onClose }) {
     { label: "Date & Time", value: dateStr },
   ];
 
+  const proofPhotos = Array.isArray(report.proofPhotos) ? report.proofPhotos : [];
   const evidence = Array.isArray(report.resolutionEvidence) ? report.resolutionEvidence : [];
 
   return (
@@ -123,11 +124,21 @@ export default function IncidentDetailModal({ report, onClose }) {
             </div>
           )}
 
-          {/* Scene Evidence */}
+          {/* Resident Proof Photos */}
+          {proofPhotos.length > 0 && (
+            <div>
+              <span className="text-[10px] font-bold font-mono text-purple-600 uppercase tracking-wide block mb-1">
+                📸 Resident Proof Photos ({proofPhotos.length})
+              </span>
+              <EvidenceGallery images={proofPhotos} />
+            </div>
+          )}
+
+          {/* Resolution Evidence */}
           {evidence.length > 0 && (
             <div>
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide block mb-1">
-                📷 Scene Evidence ({evidence.length})
+                📷 Resolution Evidence ({evidence.length})
               </span>
               <EvidenceGallery images={evidence} />
             </div>

@@ -61,11 +61,15 @@ const emitReportChange = async (req, report, notificationMessage, notificationTy
         userId: userIdStr,
         recipientRole: "resident",
         reportId,
-        title: "Incident Update",
+        title: report.status === "resolved" ? "Responder Completed Scene" : "Incident Update",
         message: notificationMessage,
         category: "incident",
         type: notificationType,
-        metadata: { status: report.status }
+        metadata: {
+          status: report.status,
+          resolutionEvidence: report.resolutionEvidence || [],
+          proofPhotos: report.proofPhotos || []
+        }
       });
 
       io.to(userIdStr).emit("notification", saved);
