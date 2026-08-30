@@ -47,6 +47,7 @@ exports.getMyNotifications = async (req, res) => {
 
     const total = await Notification.countDocuments(filter);
     const notifications = await Notification.find(filter)
+      .populate("reportId", "resolutionEvidence proofPhotos status emergencyType")
       .sort({ createdAt: -1 })
       .skip((page - 1) * Number(limit))
       .limit(Number(limit));

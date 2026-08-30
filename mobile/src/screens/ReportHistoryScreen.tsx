@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { View, Text, ScrollView, TouchableOpacity, Alert, RefreshControl, DeviceEventEmitter, StyleSheet, LayoutAnimation, UIManager, Platform } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, Alert, RefreshControl, DeviceEventEmitter, StyleSheet, LayoutAnimation, UIManager, Platform, Image, Modal } from "react-native";
 
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -17,6 +17,8 @@ interface Report {
   status: string;
   assignedAgency?: string;
   createdAt?: string;
+  proofPhotos?: string[];
+  resolutionEvidence?: string[];
   assignedResponder?: {
     fullName: string;
     phoneNumber?: string;
@@ -34,6 +36,7 @@ export default function ReportHistoryScreen(): React.JSX.Element {
   const [reports, setReports] = useState<Report[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
   const navigation = useNavigation<any>();
 
   useEffect(() => {
@@ -111,13 +114,14 @@ export default function ReportHistoryScreen(): React.JSX.Element {
 
   const getStatusConfig = (status: string) => {
     switch (status?.toLowerCase()) {
+      case 'closed': return { border: 'border-green', text: 'text-green', bg: 'bg-green/10', label: 'Closed' };
       case 'resolved':
-      case 'responded': return { border: 'border-green', text: 'text-green', bg: 'bg-green/10' };
+      case 'responded': return { border: 'border-blue', text: 'text-blue', bg: 'bg-blue/10', label: 'Scene Done' };
       case 'responding':
-      case 'active': return { border: 'border-blue', text: 'text-blue', bg: 'bg-blue/10' };
-      case 'rejected': return { border: 'border-red', text: 'text-red', bg: 'bg-red/10' };
-      case 'pending': return { border: 'border-primary', text: 'text-primary', bg: 'bg-primary/10' };
-      default: return { border: 'border-textGray', text: 'text-textGray', bg: 'bg-textGray/10' };
+      case 'active': return { border: 'border-yellow', text: 'text-yellow', bg: 'bg-yellow/10', label: 'Responding' };
+      case 'rejected': return { border: 'border-red', text: 'text-red', bg: 'bg-red/10', label: 'Rejected' };
+      case 'pending': return { border: 'border-primary', text: 'text-primary', bg: 'bg-primary/10', label: 'Pending' };
+      default: return { border: 'border-textGray', text: 'text-textGray', bg: 'bg-textGray/10', label: status || 'Pending' };
     }
   };
 
@@ -205,9 +209,11 @@ export default function ReportHistoryScreen(): React.JSX.Element {
         ) : (
           <>
             {(expanded ? reports : reports.slice(0, INITIAL_DISPLAY_COUNT)).map((report) => {
-              const { border, text, bg } = getStatusConfig(report.status);
+              const { border, text, bg, label: statusLabel } = getStatusConfig(report.status);
               const incident = getIncidentConfig(report.emergencyType);
-              const isLiveTrackable = ["pending", "responding", "active"].includes(report.status?.toLowerCase());
+              const isLiveTrackable = ["pending", "responding", "active", "resolved", "responded"].includes(report.status?.toLowerCase());
+              const proofPhotos = Array.isArray(report.proofPhotos) ? report.proofPhotos : [];
+              const resolutionEvidence = Array.isArray(report.resolutionEvidence) ? report.resolutionEvidence : [];
               
               return (
                 <TouchableOpacity
@@ -241,13 +247,13 @@ export default function ReportHistoryScreen(): React.JSX.Element {
                         {/* Status Badge */}
                         <View className={`px-2.5 py-1 rounded-xl border ${border} ${bg}`}>
                           <Text className={`text-[10px] font-black uppercase tracking-wider ${text}`}>
-                            {report.status || 'Pending'}
+                            {statusLabel}
                           </Text>
                         </View>
                       </View>
 
                       {/* Content Section: location and agency details */}
-                      <View className="bg-background/40 p-4 rounded-2xl border border-border/40 mb-4 gap-3">
+                      <View className="bg-background/40 p-4 rounded-2xl border border-border/40 mb-3 gap-3">
                         {/* Location Row */}
                         <View className="flex-row items-start">
                           <Text className="text-sm mr-2.5">📍</Text>
@@ -284,6 +290,48 @@ export default function ReportHistoryScreen(): React.JSX.Element {
                           </View>
                         )}
                       </View>
+
+                      {/* Responder Resolution Evidence Photos */}
+                      {resolutionEvidence.length > 0 && (
+                        <View className="mb-3 p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/30">
+                          <Text className="text-emerald-400 font-black text-[10px] uppercase tracking-wider mb-1.5">
+                            📷 Responder Resolution Evidence ({resolutionEvidence.length})
+                          </Text>
+                          <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-row">
+                            {resolutionEvidence.map((src, idx) => (
+                              <TouchableOpacity
+                                key={idx}
+                                onPress={() => setLightboxImage(src)}
+                                activeOpacity={0.8}
+                                className="mr-2 w-14 h-14 rounded-xl overflow-hidden border border-emerald-500/40 bg-slate-800"
+                              >
+                                <Image source={{ uri: src }} className="w-full h-full" resizeMode="cover" />
+                              </TouchableOpacity>
+                            ))}
+                          </ScrollView>
+                        </View>
+                      )}
+
+                      {/* Resident Submitted Proof Photos */}
+                      {proofPhotos.length > 0 && (
+                        <View className="mb-3 p-3 rounded-2xl bg-darkBlue/20 border border-border/50">
+                          <Text className="text-textGray font-black text-[10px] uppercase tracking-wider mb-1.5">
+                            📸 Submitted Proof ({proofPhotos.length})
+                          </Text>
+                          <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-row">
+                            {proofPhotos.map((src, idx) => (
+                              <TouchableOpacity
+                                key={idx}
+                                onPress={() => setLightboxImage(src)}
+                                activeOpacity={0.8}
+                                className="mr-2 w-12 h-12 rounded-xl overflow-hidden border border-border bg-slate-800"
+                              >
+                                <Image source={{ uri: src }} className="w-full h-full" resizeMode="cover" />
+                              </TouchableOpacity>
+                            ))}
+                          </ScrollView>
+                        </View>
+                      )}
 
                       {/* Actions Row */}
                       <View className="flex-row items-center justify-between mt-1">
@@ -355,6 +403,34 @@ export default function ReportHistoryScreen(): React.JSX.Element {
           </>
         )}
       </ScrollView>
+
+      {/* ── LIGHTBOX MODAL FOR FULL SCREEN IMAGE VIEWING ── */}
+      <Modal
+        visible={!!lightboxImage}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setLightboxImage(null)}
+      >
+        <TouchableOpacity
+          activeOpacity={1}
+          onPress={() => setLightboxImage(null)}
+          className="flex-1 bg-black/90 justify-center items-center p-4 relative"
+        >
+          <TouchableOpacity
+            onPress={() => setLightboxImage(null)}
+            className="absolute top-12 right-6 z-50 w-10 h-10 rounded-full bg-slate-800/80 items-center justify-center border border-white/20"
+          >
+            <Text className="text-white font-black text-base">✕</Text>
+          </TouchableOpacity>
+          {lightboxImage && (
+            <Image
+              source={{ uri: lightboxImage }}
+              className="w-full h-[75%] rounded-2xl"
+              resizeMode="contain"
+            />
+          )}
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }

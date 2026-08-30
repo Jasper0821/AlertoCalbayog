@@ -45,6 +45,17 @@ const buildReadableLocationName = ({ barangay, purok, street }) => {
 exports.createEmergencyReport = async (req, res) => {
   try {
     const { emergencyType, description, latitude, longitude } = req.body;
+    const proofPhotos = Array.isArray(req.body.proofPhotos)
+      ? req.body.proofPhotos
+      : Array.isArray(req.body.photos)
+      ? req.body.photos
+      : [];
+
+    if (proofPhotos.length < 2 || proofPhotos.length > 5) {
+      return res.status(400).json({
+        message: "Proof Photo Validation Error: Emergency reports require a minimum of 2 pictures and a maximum of 5 pictures as proof."
+      });
+    }
 
     // Account Status Guard: Check if resident account is restricted or suspended
     const User = require("../models/User");
@@ -167,6 +178,7 @@ exports.createEmergencyReport = async (req, res) => {
       emergencyType,
       notifiedAgencies,
       description,
+      proofPhotos,
       location: {
         latitude,
         longitude,
@@ -196,6 +208,7 @@ exports.createEmergencyReport = async (req, res) => {
     const notifMeta = {
       emergencyType: populatedReport.emergencyType,
       location: populatedReport.location,
+      proofPhotos: populatedReport.proofPhotos || [],
       resident: residentInfo ? {
         fullName: residentInfo.fullName || "",
         email: residentInfo.email || "",

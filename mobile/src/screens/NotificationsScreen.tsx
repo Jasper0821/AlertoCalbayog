@@ -13,6 +13,8 @@ import {
   LayoutAnimation,
   UIManager,
   Platform,
+  Image,
+  Modal,
 } from "react-native";
 
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -30,11 +32,16 @@ interface NotificationItem {
   _id: string;
   title: string;
   message: string;
-  reportId: string;
+  reportId?: any;
   status: string;
   type: string;
   read: boolean;
   createdAt: string;
+  metadata?: {
+    status?: string;
+    resolutionEvidence?: string[];
+    proofPhotos?: string[];
+  };
 }
 
 const INITIAL_DISPLAY_COUNT = 5;
@@ -65,9 +72,9 @@ function getStatusAccent(status: string): { color: string; bg: string; icon: str
       return { color: "#3B82F6", bg: "rgba(59, 130, 246, 0.08)", icon: "🚨", label: "Responding" };
     case "resolved":
     case "responded":
-      return { color: "#10B981", bg: "rgba(16, 185, 129, 0.08)", icon: "✅", label: "Resolved" };
+      return { color: "#3B82F6", bg: "rgba(59, 130, 246, 0.08)", icon: "✅", label: "Scene Handled" };
     case "closed":
-      return { color: "#5F6368", bg: "rgba(95, 99, 104, 0.08)", icon: "📁", label: "Closed" };
+      return { color: "#10B981", bg: "rgba(16, 185, 129, 0.08)", icon: "📁", label: "Closed" };
     default:
       return { color: "#0A1E3F", bg: "rgba(10, 30, 63, 0.05)", icon: "📋", label: "Updated" };
   }
@@ -81,6 +88,7 @@ export default function NotificationsScreen(): React.JSX.Element {
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(false);
   const [deletingAll, setDeletingAll] = useState(false);
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
 
   const fetchNotifications = async () => {
     try {
@@ -312,6 +320,13 @@ export default function NotificationsScreen(): React.JSX.Element {
             const accent = getStatusAccent(notif.status);
             const isUnread = !notif.read;
 
+            const resolutionEvidence: string[] =
+              Array.isArray(notif.metadata?.resolutionEvidence) && notif.metadata.resolutionEvidence.length > 0
+                ? notif.metadata.resolutionEvidence
+                : Array.isArray(notif.reportId?.resolutionEvidence)
+                ? notif.reportId.resolutionEvidence
+                : [];
+
             return (
               <TouchableOpacity
                 key={notif._id}
@@ -360,6 +375,27 @@ export default function NotificationsScreen(): React.JSX.Element {
                     {notif.message}
                   </Text>
 
+                  {/* Responder Resolution Evidence Photos */}
+                  {resolutionEvidence.length > 0 && (
+                    <View style={styles.evidenceContainer}>
+                      <Text style={styles.evidenceTitle}>
+                        📷 Responder Evidence ({resolutionEvidence.length})
+                      </Text>
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.evidenceScroll}>
+                        {resolutionEvidence.map((src, idx) => (
+                          <TouchableOpacity
+                            key={idx}
+                            onPress={() => setLightboxImage(src)}
+                            activeOpacity={0.8}
+                            style={styles.evidenceThumb}
+                          >
+                            <Image source={{ uri: src }} style={styles.evidenceImage} resizeMode="cover" />
+                          </TouchableOpacity>
+                        ))}
+                      </ScrollView>
+                    </View>
+                  )}
+
                   {/* Bottom: type badge */}
                   <View style={styles.cardFooter}>
                     <View style={styles.typeBadge}>
@@ -404,6 +440,34 @@ export default function NotificationsScreen(): React.JSX.Element {
           )}
         </ScrollView>
       )}
+
+      {/* ── LIGHTBOX MODAL FOR FULL SCREEN IMAGE VIEWING ── */}
+      <Modal
+        visible={!!lightboxImage}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setLightboxImage(null)}
+      >
+        <TouchableOpacity
+          activeOpacity={1}
+          onPress={() => setLightboxImage(null)}
+          style={styles.lightboxOverlay}
+        >
+          <TouchableOpacity
+            onPress={() => setLightboxImage(null)}
+            style={styles.lightboxCloseBtn}
+          >
+            <Text style={styles.lightboxCloseText}>✕</Text>
+          </TouchableOpacity>
+          {lightboxImage && (
+            <Image
+              source={{ uri: lightboxImage }}
+              style={styles.lightboxImg}
+              resizeMode="contain"
+            />
+          )}
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
@@ -679,5 +743,73 @@ const styles = StyleSheet.create({
   seeMoreArrow: {
     fontSize: 10,
     color: COLORS.accent,
+  },
+
+  /* ── Evidence Gallery ── */
+  evidenceContainer: {
+    marginTop: 10,
+    padding: 10,
+    borderRadius: 12,
+    backgroundColor: "rgba(59, 130, 246, 0.06)",
+    borderWidth: 1,
+    borderColor: "rgba(59, 130, 246, 0.2)",
+  },
+  evidenceTitle: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: COLORS.accent,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: 6,
+  },
+  evidenceScroll: {
+    flexDirection: "row",
+  },
+  evidenceThumb: {
+    width: 54,
+    height: 54,
+    borderRadius: 10,
+    overflow: "hidden",
+    marginRight: 8,
+    borderWidth: 1,
+    borderColor: "rgba(59, 130, 246, 0.3)",
+    backgroundColor: "#1E293B",
+  },
+  evidenceImage: {
+    width: "100%",
+    height: "100%",
+  },
+
+  /* ── Lightbox Modal ── */
+  lightboxOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.92)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 16,
+  },
+  lightboxCloseBtn: {
+    position: "absolute",
+    top: 48,
+    right: 24,
+    zIndex: 50,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(30, 41, 59, 0.8)",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.2)",
+  },
+  lightboxCloseText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "900",
+  },
+  lightboxImg: {
+    width: "100%",
+    height: "75%",
+    borderRadius: 16,
   },
 });

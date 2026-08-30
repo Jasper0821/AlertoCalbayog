@@ -1006,6 +1006,34 @@ function AdminDashboard() {
                     "{activeAlert.description || "No description provided by the complainant."}"
                   </p>
                 </div>
+
+                {/* Resident Proof Photos block */}
+                {Array.isArray(activeAlert.proofPhotos) && activeAlert.proofPhotos.length > 0 && (
+                  <div className="mt-3 rounded-xl bg-white border border-purple-200 p-3 shadow-xs">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[10px] font-black uppercase tracking-widest text-purple-700">
+                        📸 Resident Proof Photos ({activeAlert.proofPhotos.length})
+                      </span>
+                      <span className="text-[9px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-200 px-2 py-0.5 rounded-full">
+                        Verified Camera Proof
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-5 gap-2">
+                      {activeAlert.proofPhotos.map((imgUri, idx) => (
+                        <a
+                          key={idx}
+                          href={imgUri}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="relative aspect-square overflow-hidden rounded-lg border border-slate-200 group hover:ring-2 hover:ring-purple-400 transition-all block"
+                          title={`View Photo ${idx + 1}`}
+                        >
+                          <img src={imgUri} alt={`Proof ${idx + 1}`} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Dispatch panel */}

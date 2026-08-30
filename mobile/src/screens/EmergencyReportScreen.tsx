@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { View, Text, TouchableOpacity, Alert, ActivityIndicator, Linking, AppState } from "react-native";
+import { View, Text, TouchableOpacity, Alert, ActivityIndicator, Linking, AppState, Image, ScrollView } from "react-native";
 import * as Location from "expo-location";
+import * as ImagePicker from "expo-image-picker";
 import Header from "../components/Header";
 import CustomInput from "../components/CustomInput";
 import { COLORS } from "../styles/colors";
@@ -21,6 +22,7 @@ interface Props {
 export default function EmergencyReportScreen({ route, navigation }: Props): React.JSX.Element {
   const { emergencyType } = route.params;
   const [description, setDescription] = useState<string>("");
+  const [proofPhotos, setProofPhotos] = useState<string[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [locationEnabled, setLocationEnabled] = useState<boolean>(false);
   const [checkingLocation, setCheckingLocation] = useState<boolean>(true);
@@ -68,6 +70,41 @@ export default function EmergencyReportScreen({ route, navigation }: Props): Rea
     return () => subscription.remove();
   }, [checkLocationStatus]);
 
+  const handleTakePhoto = async () => {
+    if (proofPhotos.length >= 5) {
+      Alert.alert("Maximum Limit Reached", "You can upload a maximum of 5 proof photos per emergency report.");
+      return;
+    }
+
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert(
+        "Camera Permission Required",
+        "Camera permission is required to capture photos of the emergency scene as proof for responders."
+      );
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      allowsEditing: false,
+      quality: 0.5,
+      base64: true,
+    });
+
+    if (!result.canceled && result.assets && result.assets.length > 0) {
+      const asset = result.assets[0];
+      const imageUri = asset.base64
+        ? `data:image/jpeg;base64,${asset.base64}`
+        : asset.uri;
+
+      setProofPhotos((prev) => [...prev, imageUri]);
+    }
+  };
+
+  const handleRemovePhoto = (index: number) => {
+    setProofPhotos((prev) => prev.filter((_, i) => i !== index));
+  };
+
   const getEmergencyStyles = () => {
     switch(emergencyType) {
       case 'fire': return { bg: 'bg-red/10', border: 'border-red', text: 'text-red', btn: 'bg-red' };
@@ -82,7 +119,7 @@ export default function EmergencyReportScreen({ route, navigation }: Props): Rea
 
   const { bg, border, text, btn } = getEmergencyStyles();
 
-  const isSubmitDisabled = loading || !locationEnabled || checkingLocation;
+  const isSubmitDisabled = loading || !locationEnabled || checkingLocation || proofPhotos.length < 2 || proofPhotos.length > 5;
 
   const handleSubmit = async () => {
     if (!locationEnabled) {
@@ -93,6 +130,14 @@ export default function EmergencyReportScreen({ route, navigation }: Props): Rea
           { text: "Open Settings", onPress: () => Linking.openSettings() },
           { text: "Cancel", style: "cancel" }
         ]
+      );
+      return;
+    }
+
+    if (proofPhotos.length < 2) {
+      Alert.alert(
+        "📷 Proof Required",
+        "Please take at least 2 photos of the scene using your camera before submitting your emergency report."
       );
       return;
     }
@@ -125,7 +170,8 @@ export default function EmergencyReportScreen({ route, navigation }: Props): Rea
         "/emergency",
         {
           emergencyType,
-          description,
+          description: description.trim() || `${emergencyType.toUpperCase()} incident reported with ${proofPhotos.length} proof photos`,
+          proofPhotos,
           latitude: location.coords.latitude,
           longitude: location.coords.longitude
         },
@@ -136,7 +182,7 @@ export default function EmergencyReportScreen({ route, navigation }: Props): Rea
         }
       );
 
-      Alert.alert("Success", "Emergency report sent successfully");
+      Alert.alert("Success ✓", "Emergency report with proof photos submitted successfully.");
 
       navigation.navigate("LiveTracking", {
         reportId: res.data.report._id,
@@ -159,23 +205,74 @@ export default function EmergencyReportScreen({ route, navigation }: Props): Rea
     <View className="flex-1 bg-darkBlue">
       <Header title="Report Emergency" showBack />
 
-      <View className="flex-1 p-5">
-        <View className="bg-surface rounded-3xl p-6 border border-border shadow-2xl shadow-slate-900/10">
+      <ScrollView className="flex-1 p-5" showsVerticalScrollIndicator={false}>
+        <View className="bg-surface rounded-3xl p-6 border border-border shadow-2xl shadow-slate-900/10 mb-8">
           <Text className="text-textGray mb-4 font-black text-[10px] uppercase tracking-widest">Emergency Type</Text>
-          <View className={`py-2 px-4 rounded-xl border self-start mb-8 ${bg} ${border}`}>
+          <View className={`py-2 px-4 rounded-xl border self-start mb-6 ${bg} ${border}`}>
              <Text className={`text-base font-black tracking-widest ${text}`}>
                {emergencyType.toUpperCase()}
              </Text>
           </View>
 
-          <Text className="text-textGray mb-2 font-black text-[10px] uppercase tracking-widest">Additional Details</Text>
+          {/* ── CAMERA PROOF PHOTOS SECTION ── */}
+          <View className="mb-6 p-4 rounded-2xl bg-darkBlue/40 border border-border">
+            <View className="flex-row items-center justify-between mb-2">
+              <Text className="text-white font-black text-[11px] uppercase tracking-widest">
+                📷 Scene Proof Photos <Text className="text-red font-bold">*</Text>
+              </Text>
+              <View className="px-2 py-0.5 rounded-full bg-accent/20 border border-accent/40">
+                <Text className="text-accent text-[10px] font-bold">
+                  {proofPhotos.length} / 5 photos
+                </Text>
+              </View>
+            </View>
+
+            <Text className="text-textGray text-[11px] mb-3 leading-tight">
+              Please take <Text className="text-white font-bold">2 to 5 clear photos</Text> of the emergency scene using your camera as proof for responders.
+            </Text>
+
+            {/* Photo Preview Grid */}
+            <View className="flex-row flex-wrap gap-2 mb-3">
+              {proofPhotos.map((photo, index) => (
+                <View key={index} className="relative w-[72px] h-[72px] rounded-xl overflow-hidden border border-border bg-slate-800">
+                  <Image source={{ uri: photo }} className="w-full h-full" resizeMode="cover" />
+                  <TouchableOpacity
+                    onPress={() => handleRemovePhoto(index)}
+                    className="absolute top-1 right-1 w-5 h-5 rounded-full bg-red/90 items-center justify-center"
+                    activeOpacity={0.8}
+                  >
+                    <Text className="text-white text-[10px] font-black">✕</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+
+              {proofPhotos.length < 5 && (
+                <TouchableOpacity
+                  onPress={handleTakePhoto}
+                  className="w-[72px] h-[72px] rounded-xl border-2 border-dashed border-accent/60 bg-accent/10 items-center justify-center"
+                  activeOpacity={0.7}
+                >
+                  <Text className="text-accent text-xl mb-0.5">📷</Text>
+                  <Text className="text-accent font-bold text-[9px]">Take Photo</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {proofPhotos.length < 2 && (
+              <Text className="text-red/90 text-[10px] font-semibold">
+                ⚠️ Take at least {2 - proofPhotos.length} more photo{2 - proofPhotos.length > 1 ? "s" : ""} to enable submission.
+              </Text>
+            )}
+          </View>
+
+          <Text className="text-textGray mb-2 font-black text-[10px] uppercase tracking-widest">Additional Details (Optional)</Text>
           <CustomInput
             placeholder="Describe the situation briefly..."
             value={description}
             onChangeText={setDescription}
             multiline={true}
             numberOfLines={4}
-            className="h-[120px]"
+            className="h-[100px]"
             style={{ textAlignVertical: 'top' }}
           />
 
@@ -210,11 +307,13 @@ export default function EmergencyReportScreen({ route, navigation }: Props): Rea
                  <Text className="text-white font-black text-base uppercase tracking-widest ml-2">Checking Location...</Text>
                </View>
             ) : (
-               <Text className="text-white font-black text-base uppercase tracking-widest">Submit Report</Text>
+               <Text className="text-white font-black text-base uppercase tracking-widest">
+                 {proofPhotos.length < 2 ? "Take 2+ Photos to Submit" : "Submit Report"}
+               </Text>
             )}
           </TouchableOpacity>
         </View>
-      </View>
+      </ScrollView>
     </View>
   );
 }
