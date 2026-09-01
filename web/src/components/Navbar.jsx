@@ -82,7 +82,7 @@ export function Navbar() {
           <Link to="/contact" onClick={() => setIsOpen(false)} className="text-[15px] font-medium text-slate-400 hover:text-white py-2 transition-all duration-150 active:scale-95 transform">Contact</Link>
           <div className="h-px bg-slate-800 my-2"></div>
           <a
-            href="https://github.com/Jasper0821/AlertoCalbayog/releases/latest/download/AlertocalbayogApp1.apk"
+            href="https://github.com/Jasper0821/AlertoCalbayog/releases/latest/download/AlertocalbayogApp2.apk"
             target="_blank"
             rel="noopener noreferrer"
             onClick={() => setIsOpen(false)}
