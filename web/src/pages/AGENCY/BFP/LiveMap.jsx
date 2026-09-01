@@ -57,10 +57,11 @@ export default function LiveMap({ reports = [] }) {
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [mapCenter, setMapCenter] = useState(null);
 
-  // Filter out resolved/closed/responded/rejected reports so they disappear once case is resolved or closed
+  // Only show pending reports — marker is removed from live map once the
+  // status is changed in the queue (responding/active/resolved/closed/etc.)
   const activeReports = (Array.isArray(reports) ? reports : []).filter(r => {
     const status = (r.status || "").toLowerCase();
-    return !["resolved", "closed", "responded", "cancelled", "rejected"].includes(status);
+    return status === "pending";
   });
 
   // Deterministic coordinate distribution for active reports

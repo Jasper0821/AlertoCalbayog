@@ -320,6 +320,24 @@ exports.deleteMyReport = async (req, res) => {
   }
 };
 
+exports.deleteAllClosedReports = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ message: "Access denied. Only administrators can delete closed incidents." });
+    }
+
+    // Permanently delete all reports whose status is "closed"
+    const result = await EmergencyReport.deleteMany({ status: "closed" });
+
+    res.json({
+      message: `${result.deletedCount} closed incident${result.deletedCount === 1 ? "" : "s"} deleted permanently.`,
+      deletedCount: result.deletedCount,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 exports.getReportsByAgency = async (req, res) => {
   try {
     const { agency } = req.params;
