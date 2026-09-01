@@ -10,14 +10,12 @@ import {
   StyleSheet,
   StatusBar,
   ActivityIndicator,
+  TextInput,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import CustomInput from "../components/CustomInput";
-import { ArrowLeftIcon, LockIcon } from "../components/SvgIcons";
 import api, { backendUrl } from "../api/axios";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../navigation/AppNavigator";
-import { COLORS } from "../styles/colors";
 
 type ForgotPasswordNavigationProp = NativeStackNavigationProp<
   RootStackParamList,
@@ -30,88 +28,68 @@ interface Props {
 
 export default function ForgotPasswordScreen({ navigation }: Props): React.JSX.Element {
   const insets = useSafeAreaInsets();
-  const [step, setStep] = useState<"request" | "verify" | "reset">("request");
+  const [step, setStep] = useState<"verify" | "reset">("verify");
 
-  const [email, setEmail] = useState<string>("");
-  const [otpCode, setOtpCode] = useState<string>("");
+  const [mobileNumber, setMobileNumber] = useState<string>("");
+  const [emergencyContactNumber, setEmergencyContactNumber] = useState<string>("");
   const [resetToken, setResetToken] = useState<string>("");
   const [newPassword, setNewPassword] = useState<string>("");
   const [confirmPassword, setConfirmPassword] = useState<string>("");
 
   const [loading, setLoading] = useState<boolean>(false);
 
-  // Step 1: Send OTP to Email
-  const handleRequestOtp = async () => {
-    const cleanEmail = email.trim().toLowerCase();
-    if (!cleanEmail) {
-      Alert.alert("Validation Error", "Please enter your registered email address.");
+  // Step 1: Verify identity
+  const handleVerifyIdentity = async () => {
+    const cleanMobile = mobileNumber.trim().replace(/[\s-]/g, "");
+    const cleanEmergency = emergencyContactNumber.trim().replace(/[\s-]/g, "");
+
+    if (!cleanMobile) {
+      Alert.alert("Input Required", "Please enter your registered mobile number.");
+      return;
+    }
+
+    if (!cleanEmergency) {
+      Alert.alert("Input Required", "Please enter your emergency contact number.");
       return;
     }
 
     setLoading(true);
     try {
-      await api.post("/auth/forgot-password", { email: cleanEmail });
-      Alert.alert("OTP Sent", `A 6-digit verification code has been sent to ${cleanEmail}.`);
-      setStep("verify");
+      const res = await api.post("/auth/forgot-password", {
+        mobileNumber: cleanMobile,
+        emergencyContactNumber: cleanEmergency,
+      });
+
+      setResetToken(res.data.resetToken);
+      Alert.alert("Identity Verified", "Account identity verified. You may now set your new password.");
+      setStep("reset");
     } catch (error: any) {
-      console.error("Request OTP error:", error);
+      console.error("Forgot password error:", error);
       const msg =
         error.response?.data?.message ||
         (error.message === "Network Error"
           ? `Cannot connect to server at ${backendUrl}.`
-          : "Failed to send reset code.");
-      Alert.alert("Error", msg);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Step 2: Verify OTP
-  const handleVerifyOtp = async () => {
-    const cleanOtp = otpCode.trim();
-    if (!cleanOtp || cleanOtp.length !== 6) {
-      Alert.alert("Validation Error", "Please enter the 6-digit OTP code.");
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const res = await api.post("/auth/verify-otp", {
-        email: email.trim().toLowerCase(),
-        otpCode: cleanOtp,
-      });
-
-      const token = res.data?.resetToken;
-      if (!token) {
-        throw new Error("Invalid response from server.");
-      }
-
-      setResetToken(token);
-      Alert.alert("OTP Verified", "Code verified! Now set your new password.");
-      setStep("reset");
-    } catch (error: any) {
-      console.error("Verify OTP error:", error);
-      const msg = error.response?.data?.message || "Invalid or expired OTP code.";
+          : "Identity verification failed. Information does not match account records.");
       Alert.alert("Verification Failed", msg);
     } finally {
       setLoading(false);
     }
   };
 
-  // Step 3: Reset Password
+  // Step 2: Reset Password
   const handleResetPassword = async () => {
     if (!newPassword || !confirmPassword) {
-      Alert.alert("Validation Error", "Please fill in all password fields.");
+      Alert.alert("Input Required", "Please enter and confirm your new password.");
       return;
     }
 
     if (newPassword.length < 6) {
-      Alert.alert("Validation Error", "New password must be at least 6 characters long.");
+      Alert.alert("Password Too Short", "Password must be at least 6 characters long.");
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      Alert.alert("Validation Error", "Passwords do not match.");
+      Alert.alert("Password Mismatch", "Passwords do not match.");
       return;
     }
 
@@ -120,14 +98,15 @@ export default function ForgotPasswordScreen({ navigation }: Props): React.JSX.E
       await api.post("/auth/reset-password", {
         resetToken,
         newPassword,
+        confirmPassword,
       });
 
       Alert.alert(
         "Password Reset Successful",
-        "Your password has been reset. Please sign in with your new password.",
+        "Your password has been reset successfully. Please sign in with your new password.",
         [
           {
-            text: "Sign In",
+            text: "Sign In Now",
             onPress: () => navigation.navigate("Login"),
           },
         ]
@@ -142,166 +121,121 @@ export default function ForgotPasswordScreen({ navigation }: Props): React.JSX.E
   };
 
   return (
-    <View className="flex-1 bg-background">
-      <StatusBar barStyle="dark-content" backgroundColor={COLORS.background} />
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="#040C1A" />
 
       <KeyboardAvoidingView
-        className="flex-1"
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <ScrollView
           contentContainerStyle={[
             styles.scrollContent,
-            { paddingTop: Math.max(insets.top, 16) + 8, paddingBottom: Math.max(insets.bottom, 16) + 16 },
+            { paddingTop: Math.max(insets.top, 16) + 16, paddingBottom: Math.max(insets.bottom, 16) + 16 },
           ]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Back Button */}
-          <View style={styles.topRow}>
-            <TouchableOpacity
-              onPress={() => {
-                if (step === "verify") setStep("request");
-                else if (step === "reset") setStep("verify");
-                else navigation.goBack();
-              }}
-              activeOpacity={0.75}
-              style={styles.backButton}
-            >
-              <ArrowLeftIcon size={18} color={COLORS.primary} />
-            </TouchableOpacity>
+          {/* Form Header */}
+          <View style={styles.header}>
+            <Text style={styles.title}>Password Recovery</Text>
+            <Text style={styles.subtitle}>
+              {step === "verify"
+                ? "Verify your account identity using your mobile number and emergency contact number."
+                : "Create your new account password below."}
+            </Text>
           </View>
 
-          {/* Form Area */}
-          <View style={styles.formSection}>
-            <View style={styles.iconWrap}>
-              <LockIcon size={32} color={COLORS.primary} />
-            </View>
-
-            <Text style={styles.heading}>Password Recovery</Text>
-
-            {step === "request" && (
+          <View style={styles.card}>
+            {step === "verify" ? (
               <>
-                <Text style={styles.subheading}>
-                  Enter your registered email address and we'll send you a 6-digit OTP code to reset your password.
-                </Text>
-                <View style={styles.divider} />
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>REGISTERED MOBILE NUMBER</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="09XXXXXXXXX"
+                    placeholderTextColor="#64748B"
+                    keyboardType="phone-pad"
+                    maxLength={11}
+                    value={mobileNumber}
+                    onChangeText={setMobileNumber}
+                  />
+                </View>
 
-                <Text style={styles.fieldLabel}>Registered Email</Text>
-                <CustomInput
-                  placeholder="Enter your email"
-                  value={email}
-                  onChangeText={setEmail}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                />
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>EMERGENCY CONTACT NUMBER</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="09XXXXXXXXX"
+                    placeholderTextColor="#64748B"
+                    keyboardType="phone-pad"
+                    maxLength={11}
+                    value={emergencyContactNumber}
+                    onChangeText={setEmergencyContactNumber}
+                  />
+                </View>
 
                 <TouchableOpacity
-                  style={styles.primaryButton}
-                  onPress={handleRequestOtp}
+                  style={[styles.primaryBtn, loading && styles.btnDisabled]}
+                  onPress={handleVerifyIdentity}
                   disabled={loading}
-                  activeOpacity={0.85}
+                  activeOpacity={0.8}
                 >
                   {loading ? (
                     <ActivityIndicator color="#FFFFFF" size="small" />
                   ) : (
-                    <Text style={styles.primaryButtonText}>Send OTP Code</Text>
+                    <Text style={styles.btnText}>VERIFY IDENTITY</Text>
                   )}
                 </TouchableOpacity>
               </>
-            )}
-
-            {step === "verify" && (
+            ) : (
               <>
-                <Text style={styles.subheading}>
-                  Enter the 6-digit verification code sent to <Text style={{ fontWeight: "800", color: COLORS.primary }}>{email}</Text>.
-                </Text>
-                <View style={styles.divider} />
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>NEW PASSWORD</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="••••••••"
+                    placeholderTextColor="#64748B"
+                    secureTextEntry
+                    value={newPassword}
+                    onChangeText={setNewPassword}
+                  />
+                </View>
 
-                <Text style={styles.fieldLabel}>6-Digit OTP Code</Text>
-                <CustomInput
-                  placeholder="Enter 6-digit code"
-                  value={otpCode}
-                  onChangeText={setOtpCode}
-                  keyboardType="number-pad"
-                  maxLength={6}
-                />
-
-                <TouchableOpacity
-                  style={styles.primaryButton}
-                  onPress={handleVerifyOtp}
-                  disabled={loading}
-                  activeOpacity={0.85}
-                >
-                  {loading ? (
-                    <ActivityIndicator color="#FFFFFF" size="small" />
-                  ) : (
-                    <Text style={styles.primaryButtonText}>Verify Code</Text>
-                  )}
-                </TouchableOpacity>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>CONFIRM NEW PASSWORD</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="••••••••"
+                    placeholderTextColor="#64748B"
+                    secureTextEntry
+                    value={confirmPassword}
+                    onChangeText={setConfirmPassword}
+                  />
+                </View>
 
                 <TouchableOpacity
-                  style={styles.resendBtn}
-                  onPress={handleRequestOtp}
-                  disabled={loading}
-                >
-                  <Text style={styles.resendText}>Didn't receive code? Resend OTP</Text>
-                </TouchableOpacity>
-              </>
-            )}
-
-            {step === "reset" && (
-              <>
-                <Text style={styles.subheading}>
-                  Create your new account password below.
-                </Text>
-                <View style={styles.divider} />
-
-                <Text style={styles.fieldLabel}>New Password</Text>
-                <CustomInput
-                  placeholder="Enter new password"
-                  secureTextEntry
-                  value={newPassword}
-                  onChangeText={setNewPassword}
-                />
-
-                <Text style={styles.fieldLabel}>Confirm New Password</Text>
-                <CustomInput
-                  placeholder="Re-enter new password"
-                  secureTextEntry
-                  value={confirmPassword}
-                  onChangeText={setConfirmPassword}
-                />
-
-                <TouchableOpacity
-                  style={styles.primaryButton}
+                  style={[styles.primaryBtn, loading && styles.btnDisabled]}
                   onPress={handleResetPassword}
                   disabled={loading}
-                  activeOpacity={0.85}
+                  activeOpacity={0.8}
                 >
                   {loading ? (
                     <ActivityIndicator color="#FFFFFF" size="small" />
                   ) : (
-                    <Text style={styles.primaryButtonText}>Reset Password</Text>
+                    <Text style={styles.btnText}>SET NEW PASSWORD</Text>
                   )}
                 </TouchableOpacity>
               </>
             )}
 
-            {/* Return to login link */}
-            <View style={styles.loginRow}>
-              <TouchableOpacity onPress={() => navigation.navigate("Login")}>
-                <Text style={styles.loginLink}>Back to Sign In</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* Footer */}
-          <View style={styles.footer}>
-            <View style={styles.footerLine} />
-            <Text style={styles.footerText}>
-              Public Safety &amp; Emergency Alert System
-            </Text>
+            <TouchableOpacity
+              style={styles.backBtn}
+              onPress={() => navigation.navigate("Login")}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.backText}>← Back to Sign In</Text>
+            </TouchableOpacity>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -310,125 +244,84 @@ export default function ForgotPasswordScreen({ navigation }: Props): React.JSX.E
 }
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "#040C1A",
+  },
   scrollContent: {
     flexGrow: 1,
-    paddingHorizontal: 28,
-    justifyContent: "space-between",
-  },
-  topRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: COLORS.surface,
-    borderWidth: 1,
-    borderColor: COLORS.border,
     justifyContent: "center",
+    paddingHorizontal: 20,
+  },
+  header: {
     alignItems: "center",
+    marginBottom: 20,
   },
-  formSection: {
-    flex: 1,
-    justifyContent: "center",
-    paddingVertical: 12,
-  },
-  iconWrap: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: COLORS.surface,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  heading: {
-    fontSize: 28,
+  title: {
+    color: "#FFFFFF",
+    fontSize: 24,
     fontWeight: "900",
-    color: COLORS.primary,
-    letterSpacing: -0.5,
-    marginBottom: 6,
   },
-  subheading: {
-    fontSize: 14,
-    color: COLORS.textMuted,
-    lineHeight: 20,
+  subtitle: {
+    color: "#38BDF8",
+    fontSize: 12,
+    fontWeight: "600",
+    textAlign: "center",
+    marginTop: 6,
+    lineHeight: 18,
+  },
+  card: {
+    backgroundColor: "#0B192C",
+    borderRadius: 20,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.08)",
+  },
+  inputGroup: {
+    marginBottom: 14,
+  },
+  label: {
+    color: "#64748B",
+    fontSize: 9.5,
+    fontWeight: "900",
+    letterSpacing: 0.8,
     marginBottom: 4,
   },
-  divider: {
-    width: 40,
-    height: 3.5,
-    backgroundColor: COLORS.accent,
-    borderRadius: 4,
-    marginTop: 14,
-    marginBottom: 24,
+  input: {
+    backgroundColor: "#040C1A",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#1E293B",
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "600",
+    height: 46,
+    paddingHorizontal: 14,
   },
-  fieldLabel: {
+  primaryBtn: {
+    backgroundColor: "#DC2626",
+    borderRadius: 12,
+    height: 48,
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 6,
+  },
+  btnText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "900",
+    letterSpacing: 1,
+  },
+  btnDisabled: {
+    opacity: 0.6,
+  },
+  backBtn: {
+    alignItems: "center",
+    marginTop: 16,
+  },
+  backText: {
+    color: "#38BDF8",
     fontSize: 12,
     fontWeight: "700",
-    color: COLORS.primary,
-    marginBottom: 6,
-    letterSpacing: 0.2,
-    textTransform: "uppercase",
-    opacity: 0.65,
-  },
-  primaryButton: {
-    marginTop: 20,
-    backgroundColor: COLORS.primary,
-    paddingVertical: 16,
-    borderRadius: 16,
-    alignItems: "center",
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.25,
-    shadowRadius: 16,
-    elevation: 6,
-  },
-  primaryButtonText: {
-    fontSize: 15,
-    fontWeight: "900",
-    color: "#FFFFFF",
-    letterSpacing: 1.2,
-    textTransform: "uppercase",
-  },
-  resendBtn: {
-    marginTop: 16,
-    alignItems: "center",
-  },
-  resendText: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: COLORS.primary,
-  },
-  loginRow: {
-    flexDirection: "row",
-    justifyContent: "center",
-    marginTop: 24,
-  },
-  loginLink: {
-    fontSize: 14,
-    fontWeight: "800",
-    color: COLORS.primary,
-    textDecorationLine: "underline",
-  },
-  footer: {
-    alignItems: "center",
-    marginTop: 24,
-  },
-  footerLine: {
-    width: 60,
-    height: 2,
-    backgroundColor: COLORS.border,
-    marginBottom: 8,
-  },
-  footerText: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: COLORS.textMuted,
-    letterSpacing: 0.5,
   },
 });

@@ -106,7 +106,7 @@ function CdrrmoDashboard() {
   });
 
   useEffect(() => {
-    localStorage.setItem("cdrrmoActiveNav", activeNav);
+    try { localStorage.setItem("cdrrmoActiveNav", activeNav); } catch (_) {}
   }, [activeNav]);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSidebarHovered, setIsSidebarHovered] = useState(false);

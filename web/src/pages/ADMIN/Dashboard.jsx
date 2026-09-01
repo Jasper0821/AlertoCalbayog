@@ -43,6 +43,32 @@ import { formatLocationForTable } from "../../utils/incidentFormatters.js";
 import { clearDashboardNavigationState } from "../../utils/dashboardSession.js";
 import AdminQueuingSystem from "./AdminQueuingSystem.jsx";
 
+const safeSetItem = (key, value) => {
+  try {
+    localStorage.setItem(key, value);
+  } catch (_) {
+    try {
+      ["adminNotifications", "adminUsers", "adminReports", "adminAuditTab"].forEach((k) => {
+        if (k !== key) {
+          localStorage.removeItem(k);
+        }
+      });
+      let dataToSet = value;
+      if (typeof value === "string" && value.startsWith("[")) {
+        try {
+          const parsed = JSON.parse(value);
+          if (Array.isArray(parsed) && parsed.length > 5) {
+            dataToSet = JSON.stringify(parsed.slice(0, 5));
+          }
+        } catch (e) {}
+      }
+      localStorage.setItem(key, dataToSet);
+    } catch (e) {
+      // Silently catch to prevent crashing React component render tree
+    }
+  }
+};
+
 const STATUS_STYLES = {
   pending: { dot: "bg-amber-400", text: "text-amber-700", bg: "bg-amber-50", border: "border-amber-200", label: "Pending" },
   verified: { dot: "bg-teal-500", text: "text-teal-700", bg: "bg-teal-50", border: "border-teal-200", label: "Verified" },
@@ -367,7 +393,7 @@ export default function AdminDashboard() {
     let sid = localStorage.getItem("adminSessionId");
     if (!sid) {
       sid = `admin-session-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-      localStorage.setItem("adminSessionId", sid);
+      safeSetItem("adminSessionId", sid);
     }
     return sid;
   });
@@ -412,7 +438,7 @@ export default function AdminDashboard() {
     const response = await api.get("/users");
     const data = Array.isArray(response.data) ? response.data : [];
     setUsers(data);
-    localStorage.setItem("adminUsers", JSON.stringify(data));
+    safeSetItem("adminUsers", JSON.stringify(data));
   };
 
   const fetchNotifications = async () => {
@@ -433,7 +459,7 @@ export default function AdminDashboard() {
         metadata: item.metadata || {},
       }));
       setNotifications(next);
-      localStorage.setItem("adminNotifications", JSON.stringify(next));
+      safeSetItem("adminNotifications", JSON.stringify(next));
     } catch (err) {
       // preserve cached notifications if API load fails
     }
@@ -797,19 +823,19 @@ export default function AdminDashboard() {
   }, []);
 
   useEffect(() => {
-    localStorage.setItem("adminActiveNav", activeNav);
+    safeSetItem("adminActiveNav", activeNav);
   }, [activeNav]);
 
   useEffect(() => {
-    localStorage.setItem("adminAuditTab", auditTab);
+    safeSetItem("adminAuditTab", auditTab);
   }, [auditTab]);
 
   useEffect(() => {
-    localStorage.setItem("adminUsers", JSON.stringify(users));
+    safeSetItem("adminUsers", JSON.stringify(users));
   }, [users]);
 
   useEffect(() => {
-    localStorage.setItem("adminNotifications", JSON.stringify(notifications));
+    safeSetItem("adminNotifications", JSON.stringify(notifications));
   }, [notifications]);
 
   useEffect(() => {
@@ -844,7 +870,7 @@ export default function AdminDashboard() {
             },
             ...prev,
           ].slice(0, 20);
-          localStorage.setItem("adminNotifications", JSON.stringify(next));
+          safeSetItem("adminNotifications", JSON.stringify(next));
           return next;
         });
       });
@@ -995,6 +1021,27 @@ export default function AdminDashboard() {
       return true;
     });
   }, [reports, closedAgencyFilter, closedTypeFilter, closedYearFilter, closedMonthFilter, closedDayFilter, searchQuery]);
+
+  const rejectedReports = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return reports.filter((report, index) => {
+      const status = (report.status || "pending").toLowerCase();
+      if (status !== "rejected") return false;
+
+      if (q) {
+        const incidentId = getIncidentId(report, index).toLowerCase();
+        const haystack = [
+          incidentId,
+          report.emergencyType,
+          report.userId?.fullName,
+          report.assignedResponder?.fullName,
+          getLocation(report),
+        ].join(" ").toLowerCase();
+        if (!haystack.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [reports, searchQuery]);
 
   const stats = useMemo(() => {
     const open = reports.filter((report) => !["resolved", "responded", "closed"].includes((report.status || "").toLowerCase())).length;
@@ -1503,7 +1550,7 @@ export default function AdminDashboard() {
           <div className="grid gap-3 xl:grid-cols-[1.3fr_0.7fr]">
             <AnalyticsCard title="Monthly Incident Trend" subtitle="Reports created during the latest six-month window">
               <div style={{ height: 200 }}>
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} initialDimension={{ width: 100, height: 100 }}>
                   <LineChart data={analyticsData.trend} margin={{ top: 8, right: 18, left: -18, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                     <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 11, fontWeight: 700 }} />
@@ -1517,7 +1564,7 @@ export default function AdminDashboard() {
 
             <AnalyticsCard title="Incidents by Status" subtitle="Current operational state of all reports">
               <div style={{ height: 200 }}>
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} initialDimension={{ width: 100, height: 100 }}>
                   <PieChart>
                     <Pie
                       data={analyticsData.statuses}
@@ -1543,7 +1590,7 @@ export default function AdminDashboard() {
           <div className="grid gap-3 xl:grid-cols-2">
             <AnalyticsCard title="Incidents by Category" subtitle="Emergency type volume across all agencies">
               <div style={{ height: 200 }}>
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} initialDimension={{ width: 100, height: 100 }}>
                   <BarChart data={analyticsData.categories} margin={{ top: 8, right: 16, left: -18, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
                     <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 11, fontWeight: 700 }} />
@@ -1562,7 +1609,7 @@ export default function AdminDashboard() {
             <AnalyticsCard title="Incidents by Barangay / Location" subtitle="Top areas from geocoded report locations">
               <div className="overflow-y-auto pr-1" style={{ height: 200 }}>
                 <div style={{ height: Math.max(180, analyticsData.barangays.length * 36) }}>
-                  <ResponsiveContainer width="100%" height="100%">
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} initialDimension={{ width: 100, height: 100 }}>
                     <BarChart data={analyticsData.barangays} layout="vertical" margin={{ top: 4, right: 18, left: 28, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" horizontal={false} />
                       <XAxis type="number" allowDecimals={false} axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 11, fontWeight: 700 }} />
@@ -1609,7 +1656,7 @@ export default function AdminDashboard() {
             <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm min-h-0 flex flex-col">
               <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1">Incident Analysis</p>
               <div className="flex-1 min-h-0">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} initialDimension={{ width: 100, height: 100 }}>
                   <PieChart>
                     <Pie data={analyticsData.statuses} dataKey="value" nameKey="name" innerRadius={24} outerRadius={40} paddingAngle={3}>
                       {analyticsData.statuses.map((entry, index) => (
@@ -1627,7 +1674,7 @@ export default function AdminDashboard() {
             <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm min-h-0 flex flex-col">
               <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1">By Category</p>
               <div className="flex-1 min-h-0">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} initialDimension={{ width: 100, height: 100 }}>
                   <BarChart data={analyticsData.categories} margin={{ top: 4, right: 4, left: -28, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
                     <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 8, fontWeight: 700 }} />
@@ -1647,7 +1694,7 @@ export default function AdminDashboard() {
             <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm min-h-0 flex flex-col">
               <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1">Incident Trend</p>
               <div className="flex-1 min-h-0">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} initialDimension={{ width: 100, height: 100 }}>
                   <LineChart data={analyticsData.trend} margin={{ top: 4, right: 8, left: -26, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                     <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 9, fontWeight: 700 }} />

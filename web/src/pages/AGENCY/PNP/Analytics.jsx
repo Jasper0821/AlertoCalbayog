@@ -196,7 +196,7 @@ export default function Analytics({ reports = [] }) {
           </div>
 
           <div className="min-h-[220px] flex-1 pt-4">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} initialDimension={{ width: 100, height: 100 }}>
               <LineChart data={monthlyTrend} margin={{ top: 12, right: 12, left: -20, bottom: 0 }}>
                 <CartesianGrid vertical={false} stroke="#e2e8f0" strokeDasharray="3 3" />
                 <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: "#94a3b8", fontSize: 10, fontWeight: 700 }} />
@@ -296,7 +296,7 @@ export default function Analytics({ reports = [] }) {
           <div className="flex-1 min-h-[280px] max-h-[500px] w-full overflow-y-auto overflow-x-hidden pr-2">
             {barangayData.length > 0 ? (
               <div style={{ height: Math.max(280, barangayData.length * 35) }}>
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} initialDimension={{ width: 100, height: 100 }}>
                   <BarChart data={barangayData} layout="vertical" margin={{ top: 8, right: 18, left: 28, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" horizontal={false} />
                     <XAxis type="number" allowDecimals={false} axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 12, fontWeight: 700 }} />

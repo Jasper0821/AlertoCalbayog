@@ -10,6 +10,7 @@ import {
   StyleSheet,
   Dimensions,
   Alert,
+  Image,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { COLORS } from "../styles/colors";
@@ -39,6 +40,7 @@ export default function HamburgerMenuSheet({ visible, onClose }: Props): React.J
   const [userName, setUserName] = useState<string>("User");
   const [userRole, setUserRole] = useState<string>("Resident");
   const [isVerified, setIsVerified] = useState<boolean>(false);
+  const [userAvatar, setUserAvatar] = useState<string>("");
 
   const slideAnim = React.useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const fadeAnim = React.useRef(new Animated.Value(0)).current;
@@ -50,6 +52,7 @@ export default function HamburgerMenuSheet({ visible, onClose }: Props): React.J
           setUserName(user.fullName || user.full_name || user.name || "User");
           setUserRole(user.role ? user.role.toUpperCase() : "RESIDENT");
           setIsVerified(Boolean(user.isEmailVerified || user.googleId || user.google_verified || user.authProvider === "google"));
+          setUserAvatar(user.avatar || user.profilePicture || user.profile_picture || "");
         }
         try {
           const token = await getToken();
@@ -61,6 +64,7 @@ export default function HamburgerMenuSheet({ visible, onClose }: Props): React.J
               setUserName(freshUser.fullName || freshUser.full_name || freshUser.name || "User");
               setUserRole(freshUser.role ? freshUser.role.toUpperCase() : "RESIDENT");
               setIsVerified(Boolean(freshUser.isEmailVerified || freshUser.googleId || freshUser.google_verified || freshUser.authProvider === "google"));
+              setUserAvatar(freshUser.avatar || freshUser.profilePicture || freshUser.profile_picture || "");
             }
           }
         } catch (err) {
@@ -184,7 +188,11 @@ export default function HamburgerMenuSheet({ visible, onClose }: Props): React.J
           {/* User Profile Card */}
           <View style={styles.profileCard}>
             <View style={styles.avatarWrap}>
-              <UserIcon size={24} color={COLORS.primary} />
+              {userAvatar ? (
+                <Image source={{ uri: userAvatar }} style={styles.avatarImg} />
+              ) : (
+                <Text style={styles.avatarInitial}>{userName?.charAt(0)?.toUpperCase() || "U"}</Text>
+              )}
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.profileName}>{userName}</Text>
@@ -357,6 +365,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginRight: 12,
+    overflow: "hidden",
+  },
+  avatarImg: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 22,
+  },
+  avatarInitial: {
+    fontSize: 18,
+    fontWeight: "900",
+    color: COLORS.primary,
   },
   profileName: {
     fontSize: 16,
