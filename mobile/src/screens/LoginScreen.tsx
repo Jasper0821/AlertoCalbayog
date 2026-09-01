@@ -12,6 +12,7 @@ import {
   StatusBar,
   ActivityIndicator,
   Modal,
+  TextInput,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AuthInputCard from "../components/AuthInputCard";
@@ -20,7 +21,6 @@ import api, { backendUrl } from "../api/axios";
 import { saveToken, saveUser } from "../utils/Storage";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../navigation/AppNavigator";
-import CustomInput from "../components/CustomInput";
 import CALBAYOG_BARANGAYS from "../constants/calbayogBarangays";
 
 type LoginScreenNavigationProp = NativeStackNavigationProp<
@@ -42,12 +42,18 @@ export default function LoginScreen({
   const [loading, setLoading] = useState<boolean>(false);
   const [loadingGoogle, setLoadingGoogle] = useState<boolean>(false);
 
-  // Google Account Selector & Profile completion modal state
+  // Google & Facebook Account Selector & Profile completion modal state
   const [showGoogleAccountModal, setShowGoogleAccountModal] = useState<boolean>(false);
   const [selectedGoogleEmail, setSelectedGoogleEmail] = useState<string>("teorica821@gmail.com");
+  const [showFacebookAccountModal, setShowFacebookAccountModal] = useState<boolean>(false);
+  const [selectedFacebookEmail, setSelectedFacebookEmail] = useState<string>("jasper.teorica@facebook.com");
+  const [loadingFacebook, setLoadingFacebook] = useState<boolean>(false);
   const [showProfileModal, setShowProfileModal] = useState<boolean>(false);
   const [googleRegToken, setGoogleRegToken] = useState<string>("");
   const [googleUser, setGoogleUser] = useState<any>(null);
+  const [facebookRegToken, setFacebookRegToken] = useState<string>("");
+  const [facebookUser, setFacebookUser] = useState<any>(null);
+  const [authMode, setAuthMode] = useState<"google" | "facebook">("google");
   const [phoneNumber, setPhoneNumber] = useState<string>("");
   const [barangay, setBarangay] = useState<string>("");
   const [completeAddress, setCompleteAddress] = useState<string>("");
@@ -153,6 +159,7 @@ export default function LoginScreen({
       if (res.data?.isNewResident || res.data?.requiresProfileCompletion) {
         setGoogleRegToken(res.data.googleRegistrationToken);
         setGoogleUser(res.data.googleUser);
+        setAuthMode("google");
         setShowProfileModal(true);
         setLoadingGoogle(false);
         return;
@@ -173,6 +180,59 @@ export default function LoginScreen({
       Alert.alert(
         "Authentication Failed",
         err.response?.data?.message || err.message || "Failed to authenticate Google account."
+      );
+    }
+  };
+
+  const handleFacebookSignIn = (): void => {
+    setShowFacebookAccountModal(true);
+  };
+
+  const handleSelectFacebookAccount = async (emailToUse?: string): Promise<void> => {
+    const targetEmail = (emailToUse || selectedFacebookEmail).trim().toLowerCase();
+
+    if (!targetEmail || !/^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9.-]+\.[a-z]{2,}$/i.test(targetEmail)) {
+      Alert.alert("Invalid Email", "Please enter a valid Facebook email address.");
+      return;
+    }
+
+    setShowFacebookAccountModal(false);
+    await handleBackendFacebookLogin({
+      email: targetEmail,
+      name: targetEmail.split("@")[0].replace(/[._]/g, " "),
+      facebookId: `fb_${targetEmail.replace(/[^a-z0-9]/g, "")}`,
+    });
+  };
+
+  const handleBackendFacebookLogin = async (payload: { email: string; name: string; facebookId: string }) => {
+    try {
+      setLoadingFacebook(true);
+      const res = await api.post("/auth/facebook-login", payload);
+
+      if (res.data?.isNewResident || res.data?.requiresProfileCompletion) {
+        setFacebookRegToken(res.data.facebookRegistrationToken);
+        setFacebookUser(res.data.facebookUser);
+        setAuthMode("facebook");
+        setShowProfileModal(true);
+        setLoadingFacebook(false);
+        return;
+      }
+
+      await saveToken(res.data.token);
+      await saveUser(res.data.user);
+      setLoadingFacebook(false);
+
+      if (res.data.termsAccepted === false) {
+        navigation.replace("UserAgreement");
+      } else {
+        navigation.replace("Home");
+      }
+    } catch (err: any) {
+      setLoadingFacebook(false);
+      console.error("Facebook auth error:", err);
+      Alert.alert(
+        "Authentication Failed",
+        err.response?.data?.message || err.message || "Failed to authenticate Facebook account."
       );
     }
   };
@@ -198,12 +258,22 @@ export default function LoginScreen({
     setSavingProfile(true);
 
     try {
-      const res = await api.post("/auth/google-register", {
-        googleRegistrationToken: googleRegToken,
-        phoneNumber: cleanPhone,
-        barangay,
-        completeAddress: completeAddress.trim(),
-      });
+      let res;
+      if (authMode === "facebook") {
+        res = await api.post("/auth/facebook-register", {
+          facebookRegistrationToken: facebookRegToken,
+          phoneNumber: cleanPhone,
+          barangay,
+          completeAddress: completeAddress.trim(),
+        });
+      } else {
+        res = await api.post("/auth/google-register", {
+          googleRegistrationToken: googleRegToken,
+          phoneNumber: cleanPhone,
+          barangay,
+          completeAddress: completeAddress.trim(),
+        });
+      }
 
       await saveToken(res.data.token);
       await saveUser(res.data.user);
@@ -338,11 +408,18 @@ export default function LoginScreen({
 
             <TouchableOpacity
               style={styles.socialBtn}
-              onPress={() => Alert.alert("Facebook Login", "Connecting with Facebook...")}
+              onPress={handleFacebookSignIn}
               activeOpacity={0.85}
+              disabled={loadingFacebook}
             >
-              <FacebookIcon size={20} />
-              <Text style={styles.socialBtnText}>Log In with Facebook</Text>
+              {loadingFacebook ? (
+                <ActivityIndicator color="#38BDF8" size="small" />
+              ) : (
+                <>
+                  <FacebookIcon size={20} />
+                  <Text style={styles.socialBtnText}>Log In with Facebook</Text>
+                </>
+              )}
             </TouchableOpacity>
 
             {/* Register Navigation Link */}
@@ -408,17 +485,19 @@ export default function LoginScreen({
               <Text style={styles.accountArrow}>›</Text>
             </TouchableOpacity>
 
-
-
             <View style={{ marginTop: 10 }}>
               <Text style={styles.inputLabel}>OR ENTER ANOTHER GOOGLE EMAIL</Text>
-              <CustomInput
-                placeholder="example@gmail.com"
-                value={selectedGoogleEmail}
-                onChangeText={setSelectedGoogleEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
+              <View style={styles.inputCard}>
+                <TextInput
+                  style={styles.inputCardText}
+                  placeholder="example@gmail.com"
+                  placeholderTextColor="#64748B"
+                  value={selectedGoogleEmail}
+                  onChangeText={setSelectedGoogleEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                />
+              </View>
 
               <TouchableOpacity
                 style={styles.modalSubmitButton}
@@ -434,7 +513,87 @@ export default function LoginScreen({
         </View>
       </Modal>
 
-      {/* Profile Modal for New Google Residents */}
+      {/* Facebook Account Selector Modal */}
+      <Modal
+        visible={showFacebookAccountModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowFacebookAccountModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity
+            style={StyleSheet.absoluteFill}
+            activeOpacity={1}
+            onPress={() => setShowFacebookAccountModal(false)}
+          />
+
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHandle} />
+
+            <View style={styles.modalHeader}>
+              <View style={styles.modalGoogleBrand}>
+                <FacebookIcon size={26} />
+                <View style={{ marginLeft: 10 }}>
+                  <Text style={styles.modalTitle}>Sign in with Facebook</Text>
+                  <Text style={styles.modalSubtitle}>to continue to Alerto Calbayog</Text>
+                </View>
+              </View>
+              <TouchableOpacity
+                onPress={() => setShowFacebookAccountModal(false)}
+                style={styles.modalCloseBtn}
+              >
+                <CloseIcon size={22} color="#38BDF8" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalDivider} />
+
+            <Text style={styles.inputLabel}>CHOOSE FACEBOOK ACCOUNT</Text>
+
+            <TouchableOpacity
+              style={styles.accountCard}
+              onPress={() => handleSelectFacebookAccount("jasper.teorica@facebook.com")}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.accountAvatar, { backgroundColor: "#1877F2" }]}>
+                <Text style={styles.avatarLetter}>F</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.accountName}>Jasper Teorica</Text>
+                <Text style={styles.accountEmail}>jasper.teorica@facebook.com</Text>
+              </View>
+              <Text style={styles.accountArrow}>›</Text>
+            </TouchableOpacity>
+
+            <View style={{ marginTop: 10 }}>
+              <Text style={styles.inputLabel}>OR ENTER YOUR FACEBOOK EMAIL</Text>
+              <View style={styles.inputCard}>
+                <TextInput
+                  style={styles.inputCardText}
+                  placeholder="your.email@facebook.com"
+                  placeholderTextColor="#64748B"
+                  value={selectedFacebookEmail}
+                  onChangeText={setSelectedFacebookEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                />
+              </View>
+
+              <TouchableOpacity
+                style={[styles.modalSubmitButton, { backgroundColor: "#1877F2" }]}
+                onPress={() => handleSelectFacebookAccount(selectedFacebookEmail)}
+                activeOpacity={0.85}
+              >
+                <Text style={[styles.modalSubmitButtonText, { color: "#FFFFFF" }]}>
+                  Continue with Facebook Account
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Profile Modal for New Social Residents */}
       <Modal
         visible={showProfileModal}
         transparent
@@ -456,10 +615,12 @@ export default function LoginScreen({
 
             <View style={styles.modalHeader}>
               <View style={styles.modalGoogleBrand}>
-                <GoogleIcon size={26} />
+                {authMode === "facebook" ? <FacebookIcon size={26} /> : <GoogleIcon size={26} />}
                 <View style={{ marginLeft: 10 }}>
                   <Text style={styles.modalTitle}>Complete Resident Profile</Text>
-                  <Text style={styles.modalSubtitle}>{googleUser?.google_email}</Text>
+                  <Text style={styles.modalSubtitle}>
+                    {authMode === "facebook" ? facebookUser?.facebook_email : googleUser?.google_email}
+                  </Text>
                 </View>
               </View>
               <TouchableOpacity
@@ -472,15 +633,23 @@ export default function LoginScreen({
 
             <View style={styles.modalDivider} />
 
-            <View style={{ marginTop: 4 }}>
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={{ paddingBottom: 10 }}
+            >
               <Text style={styles.inputLabel}>MOBILE NUMBER (REQUIRED)</Text>
-              <CustomInput
-                placeholder="09XXXXXXXXX"
-                value={phoneNumber}
-                onChangeText={setPhoneNumber}
-                keyboardType="phone-pad"
-                maxLength={11}
-              />
+              <View style={styles.inputCard}>
+                <TextInput
+                  style={styles.inputCardText}
+                  placeholder="09XXXXXXXXX"
+                  placeholderTextColor="#64748B"
+                  value={phoneNumber}
+                  onChangeText={setPhoneNumber}
+                  keyboardType="phone-pad"
+                  maxLength={11}
+                />
+              </View>
 
               <Text style={styles.inputLabel}>BARANGAY (REQUIRED)</Text>
               <TouchableOpacity
@@ -495,11 +664,15 @@ export default function LoginScreen({
               </TouchableOpacity>
 
               <Text style={styles.inputLabel}>COMPLETE ADDRESS (REQUIRED)</Text>
-              <CustomInput
-                placeholder="Purok, Street, House / Building No."
-                value={completeAddress}
-                onChangeText={setCompleteAddress}
-              />
+              <View style={styles.inputCard}>
+                <TextInput
+                  style={styles.inputCardText}
+                  placeholder="Purok, Street, House / Building No."
+                  placeholderTextColor="#64748B"
+                  value={completeAddress}
+                  onChangeText={setCompleteAddress}
+                />
+              </View>
 
               <TouchableOpacity
                 style={[
@@ -518,7 +691,7 @@ export default function LoginScreen({
                   </Text>
                 )}
               </TouchableOpacity>
-            </View>
+            </ScrollView>
           </View>
         </KeyboardAvoidingView>
       </Modal>
@@ -817,6 +990,21 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     marginTop: 10,
     letterSpacing: 0.5,
+  },
+  inputCard: {
+    height: 48,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#1E2D42",
+    backgroundColor: "#0F213A",
+    justifyContent: "center",
+    paddingHorizontal: 14,
+    marginBottom: 10,
+  },
+  inputCardText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#FFFFFF",
   },
   modalSubmitButton: {
     height: 48,

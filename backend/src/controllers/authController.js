@@ -984,4 +984,219 @@ exports.verifySession = async (req, res) => {
   }
 };
 
+exports.facebookLogin = async (req, res) => {
+  try {
+    const { accessToken, email, name, facebookId, picture } = req.body;
+
+    const targetEmail = normalizeEmail(email);
+    const fbId = facebookId || accessToken?.replace(/[^a-z0-9]/gi, "");
+
+    if (!targetEmail) {
+      return res.status(400).json({ message: "Facebook email address is required to log in." });
+    }
+
+    let user = await User.findOne({ facebookId: fbId });
+    if (!user) {
+      user = await findUserByEmail(targetEmail);
+    }
+
+    if (user) {
+      if (user.accountStatus === "suspended" || user.accountStatus === "deactivated") {
+        return res.status(403).json({ message: `Your account is currently ${user.accountStatus}. Please contact support.` });
+      }
+
+      user.facebookId = fbId;
+      user.isEmailVerified = true;
+      if (!user.authProvider || user.authProvider === "local") {
+        user.authProvider = "facebook";
+      }
+      if (picture && !user.avatar) {
+        user.avatar = picture;
+      }
+      user.lastLogin = new Date();
+      user.lastSeen = new Date();
+      await user.save();
+
+      await AuditLog.create({
+        category: "user_activity",
+        action: "facebook_login_success",
+        actorId: user._id,
+        actorName: user.fullName,
+        actorEmail: user.email,
+        actorRole: user.role,
+        details: `Successful Facebook sign-in for ${user.email}`,
+        source: getSource(req),
+        userAgent: getUserAgent(req),
+        ipAddress: getIp(req),
+      });
+
+      const termsRecord = await TermsAcceptance.findOne({
+        userId: user._id,
+        termsVersion: CURRENT_TERMS_VERSION,
+      });
+
+      return res.json({
+        message: "Facebook sign-in successful",
+        isNewResident: false,
+        token: generateToken(user._id, user.role),
+        termsAccepted: !!termsRecord,
+        termsVersion: CURRENT_TERMS_VERSION,
+        privacyVersion: CURRENT_PRIVACY_VERSION,
+        user: {
+          id: user._id,
+          _id: user._id,
+          fullName: user.fullName,
+          email: user.email,
+          role: user.role,
+          agency: user.agency,
+          phoneNumber: user.phoneNumber || "",
+          status: user.status,
+          avatar: user.avatar || "",
+          barangay: user.barangay || "",
+          completeAddress: user.completeAddress || "",
+          accountStatus: user.accountStatus || "active",
+          residentVerificationStatus: user.residentVerificationStatus || "pending",
+          authProvider: user.authProvider || "facebook",
+          isEmailVerified: true,
+        },
+      });
+    }
+
+    // New Facebook User: generate registration token
+    const facebookRegistrationToken = jwt.sign(
+      {
+        purpose: "facebook-registration",
+        facebookId: fbId,
+        email: targetEmail,
+        fullName: name || targetEmail.split("@")[0],
+        avatar: picture || "",
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: "15m" }
+    );
+
+    return res.status(200).json({
+      message: "Facebook account authenticated. Please complete resident profile details.",
+      isNewResident: true,
+      requiresProfileCompletion: true,
+      facebookRegistrationToken,
+      facebookUser: {
+        facebook_id: fbId,
+        facebook_email: targetEmail,
+        full_name: name || targetEmail.split("@")[0],
+        profile_picture: picture || "",
+      },
+    });
+  } catch (error) {
+    console.error("facebookLogin error:", error);
+    res.status(500).json({ message: error.message || "Facebook authentication failed" });
+  }
+};
+
+exports.facebookRegister = async (req, res) => {
+  try {
+    const { facebookRegistrationToken, phoneNumber, barangay, completeAddress } = req.body;
+
+    if (!facebookRegistrationToken) {
+      return res.status(400).json({ message: "Facebook authentication session expired. Please try again." });
+    }
+
+    let payload;
+    try {
+      payload = jwt.verify(facebookRegistrationToken, process.env.JWT_SECRET);
+    } catch {
+      return res.status(400).json({ message: "Registration session expired. Please sign in with Facebook again." });
+    }
+
+    if (payload.purpose !== "facebook-registration" || !payload.email) {
+      return res.status(400).json({ message: "Invalid Facebook registration token." });
+    }
+
+    const cleanPhone = (phoneNumber || "").trim().replace(/[\s-]/g, "");
+    if (!cleanPhone || !/^09\d{9}$/.test(cleanPhone)) {
+      return res.status(400).json({ message: "Please provide a valid 11-digit mobile number starting with 09." });
+    }
+
+    const cleanBarangay = (barangay || "").trim();
+    if (!cleanBarangay) {
+      return res.status(400).json({ message: "Please select your Barangay." });
+    }
+
+    const cleanAddress = (completeAddress || "").trim();
+    if (!cleanAddress) {
+      return res.status(400).json({ message: "Please enter your complete address." });
+    }
+
+    let existingUser = await User.findOne({ facebookId: payload.facebookId });
+    if (!existingUser) {
+      existingUser = await findUserByEmail(payload.email);
+    }
+
+    if (existingUser) {
+      return res.status(400).json({ message: "An account associated with this Facebook account already exists." });
+    }
+
+    const user = await User.create({
+      fullName: payload.fullName,
+      username: payload.email,
+      email: payload.email,
+      facebookId: payload.facebookId,
+      avatar: payload.avatar || "",
+      phoneNumber: cleanPhone,
+      barangay: cleanBarangay,
+      completeAddress: cleanAddress,
+      residentVerificationStatus: "pending",
+      accountStatus: "active",
+      role: "resident",
+      agency: "NONE",
+      status: "approved",
+      isEmailVerified: true,
+      authProvider: "facebook",
+      lastLogin: new Date(),
+      lastSeen: new Date(),
+    });
+
+    await AuditLog.create({
+      category: "user_activity",
+      action: "facebook_register_success",
+      actorId: user._id,
+      actorName: user.fullName,
+      actorEmail: user.email,
+      actorRole: user.role,
+      details: `New resident registered via Facebook: ${user.fullName} (${user.email}) in Brgy. ${user.barangay}`,
+      source: getSource(req),
+      userAgent: getUserAgent(req),
+      ipAddress: getIp(req),
+    });
+
+    return res.status(201).json({
+      message: "Resident registration completed successfully",
+      isNewResident: false,
+      token: generateToken(user._id, user.role),
+      termsAccepted: false,
+      termsVersion: CURRENT_TERMS_VERSION,
+      privacyVersion: CURRENT_PRIVACY_VERSION,
+      user: {
+        id: user._id,
+        _id: user._id,
+        fullName: user.fullName,
+        email: user.email,
+        username: user.email,
+        avatar: user.avatar,
+        phoneNumber: user.phoneNumber || "",
+        barangay: user.barangay || "",
+        completeAddress: user.completeAddress || "",
+        accountStatus: user.accountStatus || "active",
+        role: user.role,
+        agency: user.agency,
+        status: user.status,
+      },
+    });
+  } catch (error) {
+    console.error("facebookRegister error:", error);
+    res.status(500).json({ message: error.message || "Failed to complete Facebook registration." });
+  }
+};
+
+
 

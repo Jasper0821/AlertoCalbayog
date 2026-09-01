@@ -27,13 +27,16 @@ async function createTransporter() {
   ) {
     try {
       const transporter = nodemailer.createTransport({
-        service: "gmail",
+        host: "smtp.gmail.com",
+        port: 465,
         secure: true,
         auth: {
           user: gmailUser,
           pass: gmailPass,
         },
-        authMethod: "LOGIN",
+        connectionTimeout: 8000,
+        greetingTimeout: 8000,
+        socketTimeout: 10000,
         tls: {
           rejectUnauthorized: false,
         },
@@ -41,12 +44,11 @@ async function createTransporter() {
         debug: false,
       });
 
-      await transporter.verify();
-      console.log("\n📧  [Mailer] Gmail SMTP verified and ready to send emails.");
       transporterInstance = transporter;
+      console.log("\n📧  [Mailer] Gmail SMTP transport initialized for", gmailUser);
       return transporterInstance;
     } catch (verifyErr) {
-      console.warn("⚠️  [Mailer Warning] Gmail SMTP verification failed:", verifyErr.message);
+      console.warn("⚠️  [Mailer Warning] Gmail SMTP initialization failed:", verifyErr.message);
       transporterInstance = null;
     }
   }

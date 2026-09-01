@@ -239,7 +239,7 @@ export default function RegisterScreen({ navigation }: Props): React.JSX.Element
 
             <TouchableOpacity
               style={styles.socialBtn}
-              onPress={() => Alert.alert("Facebook", "Connecting with Facebook...")}
+              onPress={() => navigation.navigate("Login")}
               activeOpacity={0.85}
             >
               <FacebookIcon size={20} />

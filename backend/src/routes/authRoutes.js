@@ -10,6 +10,8 @@ const {
   resetPassword,
   googleLogin,
   googleRegister,
+  facebookLogin,
+  facebookRegister,
   verifySession,
   acceptTerms,
 } = require("../controllers/authController");
@@ -20,6 +22,8 @@ router.post("/verify-registration-otp", verifyRegistrationOtp);
 router.post("/login", login);
 router.post("/google-login", googleLogin);
 router.post("/google-register", googleRegister);
+router.post("/facebook-login", facebookLogin);
+router.post("/facebook-register", facebookRegister);
 router.post("/accept-terms", acceptTerms);
 
 router.get("/me", verifySession);
