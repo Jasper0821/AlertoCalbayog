@@ -6,6 +6,7 @@ const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Se
 
 export default function RejectedReports({ reports = [] }) {
   const [search, setSearch] = useState("");
+  const [dateFilter, setDateFilter] = useState("");
   const [selectedReport, setSelectedReport] = useState(null);
 
   const resolved = reports.filter(r => (r.status || "").toLowerCase() === "rejected");
@@ -30,10 +31,15 @@ export default function RejectedReports({ reports = [] }) {
     const loc = typeof r.location === "string" ? r.location : (r.location?.name || "");
     const name = r.userId?.fullName || "";
     const date = r.createdAt ? new Date(r.createdAt) : null;
-    const monthKey = date && !Number.isNaN(date.getTime())
+    const isValidDate = date && !Number.isNaN(date.getTime());
+    const monthKey = isValidDate
       ? `${date.getFullYear()}-${String(date.getMonth()).padStart(2, "0")}`
       : "";
+    const reportDate = isValidDate
+      ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`
+      : "";
     if (monthFilter !== "all" && monthKey !== monthFilter) return false;
+    if (dateFilter && reportDate !== dateFilter) return false;
     if (search && !loc.toLowerCase().includes(search) && !name.toLowerCase().includes(search)) return false;
     return true;
   });
@@ -210,10 +216,10 @@ export default function RejectedReports({ reports = [] }) {
           <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" /></svg>
           <input
             type="text"
-            placeholder="Search..."
+            placeholder="Search location or reporter..."
             value={search}
             onChange={e => setSearch(e.target.value.toLowerCase())}
-            className="pl-9 pr-3 py-2 text-xs border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:border-red-400 focus:ring-2 focus:ring-red-100 outline-none transition-all text-slate-700 w-44"
+            className="pl-9 pr-3 py-2 text-xs border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:border-red-400 focus:ring-2 focus:ring-red-100 outline-none transition-all text-slate-700 w-52"
           />
         </div>
         <select
@@ -226,6 +232,23 @@ export default function RejectedReports({ reports = [] }) {
             <option key={month.value} value={month.value}>{month.label}</option>
           ))}
         </select>
+
+        <div className="relative">
+          <label htmlFor="bfp-rejected-date" className="sr-only">Filter by date</label>
+          <input
+            id="bfp-rejected-date"
+            type="date"
+            value={dateFilter}
+            onChange={e => setDateFilter(e.target.value)}
+            className="px-3 py-2 text-xs border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:border-red-400 focus:ring-2 focus:ring-red-100 outline-none transition-all text-slate-700 cursor-pointer"
+          />
+        </div>
+        {dateFilter && (
+          <button type="button" onClick={() => setDateFilter("")} className="text-xs font-semibold text-slate-500 hover:text-red-600 transition-colors">
+            Clear date
+          </button>
+        )}
+
         <div className="flex items-center gap-3 ml-auto shrink-0">
           <span className="text-xs text-slate-400">
             <span className="font-bold text-slate-700">{filtered.length}</span> records
