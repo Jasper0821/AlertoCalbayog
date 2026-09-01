@@ -1,25 +1,56 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { View, Text, TouchableOpacity, Alert, ActivityIndicator, Linking, AppState, Image, ScrollView } from "react-native";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  Alert,
+  ActivityIndicator,
+  Linking,
+  AppState,
+  Image,
+  ScrollView,
+  StyleSheet,
+  StatusBar,
+  TextInput,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Location from "expo-location";
 import * as ImagePicker from "expo-image-picker";
 import Header from "../components/Header";
-import CustomInput from "../components/CustomInput";
 import { COLORS } from "../styles/colors";
-import api from "../api/axios";
+import {
+  FireIcon,
+  MedicalIcon,
+  CrimeIcon,
+  FloodIcon,
+  OthersIcon,
+  CameraIcon,
+} from "../components/SvgIcons";
+import api, { backendUrl } from "../api/axios";
 import { getToken } from "../utils/Storage";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RouteProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../navigation/AppNavigator";
 
-type EmergencyReportScreenRouteProp = RouteProp<RootStackParamList, "EmergencyReport">;
-type EmergencyReportScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, "EmergencyReport">;
+type EmergencyReportScreenRouteProp = RouteProp<
+  RootStackParamList,
+  "EmergencyReport"
+>;
+type EmergencyReportScreenNavigationProp = NativeStackNavigationProp<
+  RootStackParamList,
+  "EmergencyReport"
+>;
 
 interface Props {
   route: EmergencyReportScreenRouteProp;
   navigation: EmergencyReportScreenNavigationProp;
 }
 
-export default function EmergencyReportScreen({ route, navigation }: Props): React.JSX.Element {
+export default function EmergencyReportScreen({
+  route,
+  navigation,
+}: Props): React.JSX.Element {
+  const insets = useSafeAreaInsets();
   const { emergencyType } = route.params;
   const [description, setDescription] = useState<string>("");
   const [proofPhotos, setProofPhotos] = useState<string[]>([]);
@@ -29,7 +60,6 @@ export default function EmergencyReportScreen({ route, navigation }: Props): Rea
 
   const checkLocationStatus = useCallback(async () => {
     try {
-      // Check if device location services are enabled
       const serviceEnabled = await Location.hasServicesEnabledAsync();
       if (!serviceEnabled) {
         setLocationEnabled(false);
@@ -37,11 +67,10 @@ export default function EmergencyReportScreen({ route, navigation }: Props): Rea
         return;
       }
 
-      // Check if the app has location permission
       const { status } = await Location.getForegroundPermissionsAsync();
       if (status !== "granted") {
-        // Try requesting permission
-        const { status: newStatus } = await Location.requestForegroundPermissionsAsync();
+        const { status: newStatus } =
+          await Location.requestForegroundPermissionsAsync();
         setLocationEnabled(newStatus === "granted");
       } else {
         setLocationEnabled(true);
@@ -53,12 +82,10 @@ export default function EmergencyReportScreen({ route, navigation }: Props): Rea
     }
   }, []);
 
-  // Check location on mount
   useEffect(() => {
     checkLocationStatus();
   }, [checkLocationStatus]);
 
-  // Re-check location when the app comes back to the foreground (user may have toggled location in settings)
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (nextAppState) => {
       if (nextAppState === "active") {
@@ -72,7 +99,10 @@ export default function EmergencyReportScreen({ route, navigation }: Props): Rea
 
   const handleTakePhoto = async () => {
     if (proofPhotos.length >= 5) {
-      Alert.alert("Maximum Limit Reached", "You can upload a maximum of 5 proof photos per emergency report.");
+      Alert.alert(
+        "Maximum Limit Reached",
+        "You can upload a maximum of 5 proof photos per emergency report."
+      );
       return;
     }
 
@@ -87,7 +117,7 @@ export default function EmergencyReportScreen({ route, navigation }: Props): Rea
 
     const result = await ImagePicker.launchCameraAsync({
       allowsEditing: false,
-      quality: 0.5,
+      quality: 0.6,
       base64: true,
     });
 
@@ -105,21 +135,78 @@ export default function EmergencyReportScreen({ route, navigation }: Props): Rea
     setProofPhotos((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const getEmergencyStyles = () => {
-    switch(emergencyType) {
-      case 'fire': return { bg: 'bg-red/10', border: 'border-red', text: 'text-red', btn: 'bg-red' };
-      case 'medical': return { bg: 'bg-green/10', border: 'border-green', text: 'text-green', btn: 'bg-green' };
-      case 'others': return { bg: 'bg-yellow/10', border: 'border-yellow', text: 'text-yellow', btn: 'bg-yellow' };
-      case 'flood': return { bg: 'bg-blue/10', border: 'border-blue', text: 'text-blue', btn: 'bg-blue' };
-      case 'emergency': return { bg: 'bg-green/10', border: 'border-green', text: 'text-green', btn: 'bg-green' };
-      case 'crime': return { bg: 'bg-purple/10', border: 'border-purple', text: 'text-purple', btn: 'bg-purple' };
-      default: return { bg: 'bg-primary/10', border: 'border-primary', text: 'text-primary', btn: 'bg-primary' };
+  const getEmergencyTheme = () => {
+    switch (emergencyType.toLowerCase()) {
+      case "fire":
+        return {
+          bg: "rgba(239, 68, 68, 0.08)",
+          border: "#FCA5A5",
+          text: "#DC2626",
+          badgeBg: "#EF4444",
+          btnBg: "#DC2626",
+          label: "FIRE EMERGENCY",
+          icon: <FireIcon size={22} color="#DC2626" />,
+        };
+      case "medical":
+        return {
+          bg: "rgba(16, 185, 129, 0.08)",
+          border: "#A7F3D0",
+          text: "#059669",
+          badgeBg: "#10B981",
+          btnBg: "#059669",
+          label: "MEDICAL EMERGENCY",
+          icon: <MedicalIcon size={22} color="#059669" />,
+        };
+      case "flood":
+        return {
+          bg: "rgba(14, 165, 233, 0.08)",
+          border: "#BAE6FD",
+          text: "#0284C7",
+          badgeBg: "#0EA5E9",
+          btnBg: "#0284C7",
+          label: "FLOOD EMERGENCY",
+          icon: <FloodIcon size={22} color="#0284C7" />,
+        };
+      case "crime":
+        return {
+          bg: "rgba(139, 92, 246, 0.08)",
+          border: "#DDD6FE",
+          text: "#7C3AED",
+          badgeBg: "#8B5CF6",
+          btnBg: "#7C3AED",
+          label: "CRIME / POLICE REPORT",
+          icon: <CrimeIcon size={22} color="#7C3AED" />,
+        };
+      case "others":
+        return {
+          bg: "rgba(245, 158, 11, 0.08)",
+          border: "#FDE68A",
+          text: "#D97706",
+          badgeBg: "#F59E0B",
+          btnBg: "#D97706",
+          label: "OTHER EMERGENCY",
+          icon: <OthersIcon size={22} color="#D97706" />,
+        };
+      default:
+        return {
+          bg: "rgba(59, 130, 246, 0.08)",
+          border: "#BFDBFE",
+          text: "#2563EB",
+          badgeBg: "#3B82F6",
+          btnBg: "#2563EB",
+          label: `${emergencyType.toUpperCase()} EMERGENCY`,
+          icon: <OthersIcon size={22} color="#2563EB" />,
+        };
     }
   };
 
-  const { bg, border, text, btn } = getEmergencyStyles();
-
-  const isSubmitDisabled = loading || !locationEnabled || checkingLocation || proofPhotos.length < 2 || proofPhotos.length > 5;
+  const theme = getEmergencyTheme();
+  const isSubmitDisabled =
+    loading ||
+    !locationEnabled ||
+    checkingLocation ||
+    proofPhotos.length < 2 ||
+    proofPhotos.length > 5;
 
   const handleSubmit = async () => {
     if (!locationEnabled) {
@@ -128,7 +215,7 @@ export default function EmergencyReportScreen({ route, navigation }: Props): Rea
         "Please enable your location services to submit an emergency report.",
         [
           { text: "Open Settings", onPress: () => Linking.openSettings() },
-          { text: "Cancel", style: "cancel" }
+          { text: "Cancel", style: "cancel" },
         ]
       );
       return;
@@ -149,7 +236,7 @@ export default function EmergencyReportScreen({ route, navigation }: Props): Rea
         location = await Location.getCurrentPositionAsync({
           accuracy: Location.Accuracy.Balanced,
         });
-      } catch (locError) {
+      } catch {
         location = await Location.getLastKnownPositionAsync({});
         if (!location) {
           Alert.alert(
@@ -157,7 +244,7 @@ export default function EmergencyReportScreen({ route, navigation }: Props): Rea
             "Unable to determine your current location. Please make sure your GPS is turned on and try again.",
             [
               { text: "Open Settings", onPress: () => Linking.openSettings() },
-              { text: "Cancel", style: "cancel" }
+              { text: "Cancel", style: "cancel" },
             ]
           );
           setLoading(false);
@@ -170,31 +257,39 @@ export default function EmergencyReportScreen({ route, navigation }: Props): Rea
         "/emergency",
         {
           emergencyType,
-          description: description.trim() || `${emergencyType.toUpperCase()} incident reported with ${proofPhotos.length} proof photos`,
+          description:
+            description.trim() ||
+            `${emergencyType.toUpperCase()} incident reported with ${proofPhotos.length} proof photos`,
           proofPhotos,
           latitude: location.coords.latitude,
-          longitude: location.coords.longitude
+          longitude: location.coords.longitude,
         },
         {
           headers: {
-            Authorization: `Bearer ${token}`
-          }
+            Authorization: `Bearer ${token}`,
+          },
         }
       );
 
-      Alert.alert("Success ✓", "Emergency report with proof photos submitted successfully.");
+      Alert.alert(
+        "Report Submitted ✓",
+        "Your emergency report with photo proof has been sent to responders."
+      );
 
       navigation.navigate("LiveTracking", {
         reportId: res.data.report._id,
         latitude: location.coords.latitude,
         longitude: location.coords.longitude,
-        emergencyType
+        emergencyType,
       });
     } catch (error: any) {
       const isRateLimit = error.response?.status === 429;
       Alert.alert(
-        isRateLimit ? "Spam Protection Active" : "Error",
-        error.response?.data?.message || error.message || "Failed to send report"
+        isRateLimit ? "Spam Protection Active" : "Submission Failed",
+        error.response?.data?.message ||
+          (error.message === "Network Error"
+            ? `Cannot connect to server at ${backendUrl}.`
+            : error.message || "Failed to send report.")
       );
     } finally {
       setLoading(false);
@@ -202,46 +297,66 @@ export default function EmergencyReportScreen({ route, navigation }: Props): Rea
   };
 
   return (
-    <View className="flex-1 bg-darkBlue">
+    <View style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor={COLORS.background} />
+
+      {/* Top Civic Header */}
       <Header title="Report Emergency" showBack />
 
-      <ScrollView className="flex-1 p-5" showsVerticalScrollIndicator={false}>
-        <View className="bg-surface rounded-3xl p-6 border border-border shadow-2xl shadow-slate-900/10 mb-8">
-          <Text className="text-textGray mb-4 font-black text-[10px] uppercase tracking-widest">Emergency Type</Text>
-          <View className={`py-2 px-4 rounded-xl border self-start mb-6 ${bg} ${border}`}>
-             <Text className={`text-base font-black tracking-widest ${text}`}>
-               {emergencyType.toUpperCase()}
-             </Text>
+      <ScrollView
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: Math.max(insets.bottom, 20) + 16 },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Main Clean Card */}
+        <View style={styles.mainCard}>
+          {/* Emergency Type Badge */}
+          <Text style={styles.sectionLabel}>EMERGENCY TYPE</Text>
+          <View
+            style={[
+              styles.typeBadge,
+              { backgroundColor: theme.bg, borderColor: theme.border },
+            ]}
+          >
+            <View style={styles.iconContainer}>{theme.icon}</View>
+            <Text style={[styles.typeText, { color: theme.text }]}>
+              {theme.label}
+            </Text>
           </View>
 
-          {/* ── CAMERA PROOF PHOTOS SECTION ── */}
-          <View className="mb-6 p-4 rounded-2xl bg-darkBlue/40 border border-border">
-            <View className="flex-row items-center justify-between mb-2">
-              <Text className="text-white font-black text-[11px] uppercase tracking-widest">
-                📷 Scene Proof Photos <Text className="text-red font-bold">*</Text>
+          {/* Camera Proof Section */}
+          <View style={styles.photoBoxContainer}>
+            <View style={styles.photoHeaderRow}>
+              <Text style={styles.photoTitleText}>
+                📷 Scene Proof Photos <Text style={styles.requiredAsterisk}>*</Text>
               </Text>
-              <View className="px-2 py-0.5 rounded-full bg-accent/20 border border-accent/40">
-                <Text className="text-accent text-[10px] font-bold">
+              <View style={styles.countBadge}>
+                <Text style={styles.countBadgeText}>
                   {proofPhotos.length} / 5 photos
                 </Text>
               </View>
             </View>
 
-            <Text className="text-textGray text-[11px] mb-3 leading-tight">
-              Please take <Text className="text-white font-bold">2 to 5 clear photos</Text> of the emergency scene using your camera as proof for responders.
+            <Text style={styles.photoInstructionsText}>
+              Please take{" "}
+              <Text style={styles.instructionHighlight}>2 to 5 clear photos</Text> of
+              the emergency scene using your camera as proof for responders.
             </Text>
 
-            {/* Photo Preview Grid */}
-            <View className="flex-row flex-wrap gap-2 mb-3">
+            {/* Thumbnails Grid */}
+            <View style={styles.photoGrid}>
               {proofPhotos.map((photo, index) => (
-                <View key={index} className="relative w-[72px] h-[72px] rounded-xl overflow-hidden border border-border bg-slate-800">
-                  <Image source={{ uri: photo }} className="w-full h-full" resizeMode="cover" />
+                <View key={index} style={styles.thumbnailWrapper}>
+                  <Image source={{ uri: photo }} style={styles.thumbnailImage} />
                   <TouchableOpacity
                     onPress={() => handleRemovePhoto(index)}
-                    className="absolute top-1 right-1 w-5 h-5 rounded-full bg-red/90 items-center justify-center"
+                    style={styles.removePhotoBtn}
                     activeOpacity={0.8}
+                    hitSlop={{ top: 6, right: 6, bottom: 6, left: 6 }}
                   >
-                    <Text className="text-white text-[10px] font-black">✕</Text>
+                    <Text style={styles.removePhotoIcon}>✕</Text>
                   </TouchableOpacity>
                 </View>
               ))}
@@ -249,67 +364,88 @@ export default function EmergencyReportScreen({ route, navigation }: Props): Rea
               {proofPhotos.length < 5 && (
                 <TouchableOpacity
                   onPress={handleTakePhoto}
-                  className="w-[72px] h-[72px] rounded-xl border-2 border-dashed border-accent/60 bg-accent/10 items-center justify-center"
+                  style={styles.addPhotoCard}
                   activeOpacity={0.7}
                 >
-                  <Text className="text-accent text-xl mb-0.5">📷</Text>
-                  <Text className="text-accent font-bold text-[9px]">Take Photo</Text>
+                  <CameraIcon size={24} color="#0284C7" />
+                  <Text style={styles.addPhotoText}>Take Photo</Text>
                 </TouchableOpacity>
               )}
             </View>
 
             {proofPhotos.length < 2 && (
-              <Text className="text-red/90 text-[10px] font-semibold">
-                ⚠️ Take at least {2 - proofPhotos.length} more photo{2 - proofPhotos.length > 1 ? "s" : ""} to enable submission.
+              <Text style={styles.warningPhotoText}>
+                ⚠️ Take at least {2 - proofPhotos.length} more photo
+                {2 - proofPhotos.length > 1 ? "s" : ""} to enable submission.
               </Text>
             )}
           </View>
 
-          <Text className="text-textGray mb-2 font-black text-[10px] uppercase tracking-widest">Additional Details (Optional)</Text>
-          <CustomInput
-            placeholder="Describe the situation briefly..."
-            value={description}
-            onChangeText={setDescription}
-            multiline={true}
-            numberOfLines={4}
-            className="h-[100px]"
-            style={{ textAlignVertical: 'top' }}
-          />
+          {/* Description Section */}
+          <Text style={styles.sectionLabel}>ADDITIONAL DETAILS (OPTIONAL)</Text>
+          <View style={styles.textAreaWrapper}>
+            <TextInput
+              style={styles.textAreaInput}
+              placeholder="Describe the situation briefly (e.g. Landmark, condition)..."
+              placeholderTextColor="#94A3B8"
+              value={description}
+              onChangeText={setDescription}
+              multiline
+              numberOfLines={4}
+              textAlignVertical="top"
+            />
+          </View>
 
-          {/* Location warning banner */}
+          {/* Location Disabled Banner */}
           {!checkingLocation && !locationEnabled && (
             <TouchableOpacity
-              className="mt-4 py-3 px-4 rounded-xl bg-red/10 border border-red/30 flex-row items-center"
+              style={styles.locationBanner}
               onPress={() => Linking.openSettings()}
-              activeOpacity={0.7}
+              activeOpacity={0.8}
             >
-              <Text className="text-red text-lg mr-2">⚠️</Text>
-              <View className="flex-1">
-                <Text className="text-red font-bold text-xs">Location Services Disabled</Text>
-                <Text className="text-red/70 text-[10px] mt-0.5">
+              <Text style={styles.locationWarningIcon}>⚠️</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.locationBannerTitle}>
+                  Location Services Disabled
+                </Text>
+                <Text style={styles.locationBannerSub}>
                   Tap here to enable location in settings to submit a report.
                 </Text>
               </View>
             </TouchableOpacity>
           )}
 
-          <TouchableOpacity 
-            className={`py-4 rounded-2xl items-center mt-6 shadow-lg ${btn} shadow-slate-900/10`}
+          {/* Submit Button */}
+          <TouchableOpacity
+            style={[
+              styles.submitBtn,
+              { backgroundColor: theme.btnBg },
+              isSubmitDisabled && styles.submitBtnDisabled,
+            ]}
             onPress={handleSubmit}
             disabled={isSubmitDisabled}
-            style={isSubmitDisabled ? { opacity: 0.4 } : undefined}
+            activeOpacity={0.85}
           >
             {loading ? (
-               <ActivityIndicator color="white" />
+              <ActivityIndicator color="#FFFFFF" size="small" />
             ) : checkingLocation ? (
-               <View className="flex-row items-center">
-                 <ActivityIndicator color="white" size="small" />
-                 <Text className="text-white font-black text-base uppercase tracking-widest ml-2">Checking Location...</Text>
-               </View>
+              <View style={styles.btnRow}>
+                <ActivityIndicator color="#64748B" size="small" />
+                <Text style={[styles.submitBtnText, styles.submitBtnTextDisabled]}>
+                  Checking Location...
+                </Text>
+              </View>
             ) : (
-               <Text className="text-white font-black text-base uppercase tracking-widest">
-                 {proofPhotos.length < 2 ? "Take 2+ Photos to Submit" : "Submit Report"}
-               </Text>
+              <Text
+                style={[
+                  styles.submitBtnText,
+                  isSubmitDisabled && styles.submitBtnTextDisabled,
+                ]}
+              >
+                {proofPhotos.length < 2
+                  ? "TAKE 2+ PHOTOS TO SUBMIT"
+                  : "SUBMIT REPORT"}
+              </Text>
             )}
           </TouchableOpacity>
         </View>
@@ -317,3 +453,226 @@ export default function EmergencyReportScreen({ route, navigation }: Props): Rea
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
+  scrollContent: {
+    paddingHorizontal: 18,
+    paddingTop: 8,
+  },
+  mainCard: {
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 24,
+    padding: 20,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  sectionLabel: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: COLORS.textGray,
+    letterSpacing: 0.8,
+    marginBottom: 8,
+  },
+  typeBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    marginBottom: 20,
+  },
+  iconContainer: {
+    marginRight: 8,
+  },
+  typeText: {
+    fontSize: 13,
+    fontWeight: "900",
+    letterSpacing: 0.8,
+  },
+  photoBoxContainer: {
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 18,
+    padding: 16,
+    marginBottom: 20,
+  },
+  photoHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  photoTitleText: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: COLORS.primary,
+  },
+  requiredAsterisk: {
+    color: "#EF4444",
+    fontWeight: "900",
+  },
+  countBadge: {
+    backgroundColor: "rgba(59, 130, 246, 0.1)",
+    borderWidth: 1,
+    borderColor: "rgba(59, 130, 246, 0.3)",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  countBadgeText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#2563EB",
+  },
+  photoInstructionsText: {
+    fontSize: 12.5,
+    color: "#475569",
+    lineHeight: 19,
+    marginBottom: 14,
+  },
+  instructionHighlight: {
+    color: "#0F172A",
+    fontWeight: "800",
+  },
+  photoGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    marginBottom: 10,
+  },
+  thumbnailWrapper: {
+    position: "relative",
+    width: 76,
+    height: 76,
+    borderRadius: 16,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+    backgroundColor: "#F1F5F9",
+  },
+  thumbnailImage: {
+    width: "100%",
+    height: "100%",
+    resizeMode: "cover",
+  },
+  removePhotoBtn: {
+    position: "absolute",
+    top: 4,
+    right: 4,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: "#EF4444",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  removePhotoIcon: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "900",
+  },
+  addPhotoCard: {
+    width: 76,
+    height: 76,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderStyle: "dashed",
+    borderColor: "rgba(14, 165, 233, 0.5)",
+    backgroundColor: "rgba(14, 165, 233, 0.06)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  addPhotoText: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#0284C7",
+    marginTop: 4,
+  },
+  warningPhotoText: {
+    fontSize: 11.5,
+    fontWeight: "700",
+    color: "#DC2626",
+    marginTop: 6,
+  },
+  textAreaWrapper: {
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 16,
+    padding: 12,
+    marginBottom: 16,
+  },
+  textAreaInput: {
+    height: 95,
+    fontSize: 14,
+    color: COLORS.primary,
+    lineHeight: 20,
+  },
+  locationBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FEF2F2",
+    borderWidth: 1,
+    borderColor: "#FECACA",
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 18,
+  },
+  locationWarningIcon: {
+    fontSize: 20,
+    marginRight: 10,
+  },
+  locationBannerTitle: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#991B1B",
+  },
+  locationBannerSub: {
+    fontSize: 11,
+    color: "#B91C1C",
+    marginTop: 2,
+  },
+  submitBtn: {
+    width: "100%",
+    height: 52,
+    borderRadius: 26,
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 6,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  submitBtnDisabled: {
+    backgroundColor: "#E2E8F0",
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  btnRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  submitBtnText: {
+    fontSize: 14,
+    fontWeight: "900",
+    color: "#FFFFFF",
+    letterSpacing: 0.5,
+  },
+  submitBtnTextDisabled: {
+    color: "#64748B",
+  },
+});

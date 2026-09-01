@@ -6,6 +6,7 @@ import SplashScreen from "../screens/SplashScreen";
 import LoginScreen from "../screens/LoginScreen";
 import PasswordLoginScreen from "../screens/PasswordLoginScreen";
 import RegisterScreen from "../screens/RegisterScreen";
+import OtpVerificationScreen from "../screens/OtpVerificationScreen";
 import HomeScreen from "../screens/HomeScreen";
 import EmergencyReportScreen from "../screens/EmergencyReportScreen";
 import LiveTrackingScreen from "../screens/LiveTrackingScreen";
@@ -20,7 +21,17 @@ export type RootStackParamList = {
   Login: undefined;
   PasswordLogin: undefined;
   Register: undefined;
-  ForgotPassword: undefined;
+  OtpVerification: {
+    email: string;
+    mode?: "registration" | "forgot_password";
+    registerData?: {
+      fullName: string;
+      phoneNumber: string;
+      password: string;
+      role: string;
+    };
+  };
+  ForgotPassword: { step?: "request" | "verify" | "reset"; resetToken?: string; email?: string } | undefined;
   Home: undefined;
   EmergencyReport: { emergencyType: string };
   LiveTracking: { reportId: string; latitude: number; longitude: number; emergencyType: string; reportStatus?: string };
@@ -38,13 +49,14 @@ export default function AppNavigator(): React.JSX.Element {
       <Stack.Navigator
         initialRouteName="Splash"
         screenOptions={{
-          headerShown: false
+          headerShown: false,
         }}
       >
         <Stack.Screen name="Splash" component={SplashScreen} />
         <Stack.Screen name="Login" component={LoginScreen} />
         <Stack.Screen name="PasswordLogin" component={PasswordLoginScreen} />
         <Stack.Screen name="Register" component={RegisterScreen} />
+        <Stack.Screen name="OtpVerification" component={OtpVerificationScreen} />
         <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
         <Stack.Screen name="Home" component={HomeScreen} />
         <Stack.Screen name="EmergencyReport" component={EmergencyReportScreen} />
