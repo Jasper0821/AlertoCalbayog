@@ -7,260 +7,252 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-
+  Image,
   StyleSheet,
   StatusBar,
+  ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import CustomInput from "../components/CustomInput";
-import { ArrowLeftIcon } from "../components/SvgIcons";
+import AuthInputCard from "../components/AuthInputCard";
+import {
+  MailIcon,
+  LockIcon,
+  UserIcon,
+  PhoneIcon,
+  GoogleIcon,
+  FacebookIcon,
+  CheckIcon,
+} from "../components/SvgIcons";
 import api, { backendUrl } from "../api/axios";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../navigation/AppNavigator";
-import { COLORS } from "../styles/colors";
 
-type RegisterScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, "Register">;
+type RegisterScreenNavigationProp = NativeStackNavigationProp<
+  RootStackParamList,
+  "Register"
+>;
 
 interface Props {
   navigation: RegisterScreenNavigationProp;
 }
 
 export default function RegisterScreen({ navigation }: Props): React.JSX.Element {
+  const insets = useSafeAreaInsets();
   const [fullName, setFullName] = useState<string>("");
   const [email, setEmail] = useState<string>("");
   const [phoneNumber, setPhoneNumber] = useState<string>("");
   const [password, setPassword] = useState<string>("");
-  const [verificationCode, setVerificationCode] = useState<string>("");
-  const [registrationToken, setRegistrationToken] = useState<string>("");
-  const [codeSent, setCodeSent] = useState<boolean>(false);
-  const [sendingCode, setSendingCode] = useState<boolean>(false);
-  const [verifyingCode, setVerifyingCode] = useState<boolean>(false);
-  const insets = useSafeAreaInsets();
+  const [confirmPassword, setConfirmPassword] = useState<string>("");
+  const [agreeTerms, setAgreeTerms] = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(false);
 
   const getErrorMessage = (error: any, fallback: string): string =>
     error.response?.data?.message ||
     (error.message === "Network Error"
-      ? `Cannot connect to server at ${backendUrl}. Please ensure your device is connected to the network.`
+      ? `Cannot connect to server at ${backendUrl}. Please check your network connection.`
       : error.message || fallback);
 
-  const requestVerificationCode = async (): Promise<void> => {
+  const handleStartRegistration = async (): Promise<void> => {
     const cleanEmail = email.trim().toLowerCase();
-    if (!/^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@gmail\.com$/i.test(cleanEmail)) {
-      Alert.alert("Gmail Required", "Please enter a valid Gmail address.");
+
+    if (!fullName.trim()) {
+      Alert.alert("Input Required", "Please enter your full name.");
       return;
     }
 
-    setSendingCode(true);
+    if (!cleanEmail || !/^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@gmail\.com$/i.test(cleanEmail)) {
+      Alert.alert("Gmail Required", "Please enter a valid Gmail address (e.g. name@gmail.com).");
+      return;
+    }
+
+    if (!password) {
+      Alert.alert("Input Required", "Please enter a password.");
+      return;
+    }
+
+    if (password.length < 6) {
+      Alert.alert("Password Too Short", "Password must be at least 6 characters long.");
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      Alert.alert("Password Mismatch", "Passwords do not match. Please try again.");
+      return;
+    }
+
+    if (!agreeTerms) {
+      Alert.alert("Terms Agreement Required", "Please agree to the Terms of Service to proceed.");
+      return;
+    }
+
+    setLoading(true);
+
     try {
+      // Step 1: Request OTP code from backend
       await api.post("/auth/request-registration-otp", { email: cleanEmail });
-      setRegistrationToken("");
-      setCodeSent(true);
-      Alert.alert("Verification Code Sent", `A 6-digit code was sent to ${cleanEmail}.`);
-    } catch (error: any) {
-      Alert.alert("Gmail Not Verified", getErrorMessage(error, "This Gmail address could not be verified."));
-    } finally {
-      setSendingCode(false);
-    }
-  };
 
-  const verifyEmailCode = async (): Promise<void> => {
-    if (!codeSent || verificationCode.replace(/\D/g, "").length !== 6) {
-      Alert.alert("Verification Required", "Enter the 6-digit code sent to your Gmail address.");
-      return;
-    }
+      setLoading(false);
 
-    setVerifyingCode(true);
-    try {
-      const response = await api.post("/auth/verify-registration-otp", {
-        email: email.trim().toLowerCase(),
-        code: verificationCode,
+      // Step 2: Navigate to OTP Verification Screen matching Image 3 mockup
+      navigation.navigate("OtpVerification", {
+        email: cleanEmail,
+        mode: "registration",
+        registerData: {
+          fullName: fullName.trim(),
+          phoneNumber: phoneNumber.trim(),
+          password,
+          role: "resident",
+        },
       });
-      setRegistrationToken(response.data.registrationToken);
-      Alert.alert("Gmail Verified", "Your Gmail address has been verified. You can now register.");
     } catch (error: any) {
-      Alert.alert("Verification Failed", getErrorMessage(error, "The verification code is invalid."));
-    } finally {
-      setVerifyingCode(false);
-    }
-  };
-
-  const handleRegister = async (): Promise<void> => {
-    if (!registrationToken) {
-      Alert.alert("Gmail Verification Required", "Verify your Gmail address before creating an account.");
-      return;
-    }
-    try {
-      await api.post("/auth/register", {
-        fullName,
-        email: email.trim().toLowerCase(),
-        phoneNumber,
-        password,
-        registrationToken,
-        role: "resident"
-      });
-
-      Alert.alert("Success", "Account created successfully");
-      navigation.navigate("Login");
-    } catch (error: any) {
-      console.error("Registration error:", error);
-      Alert.alert("Register Failed", getErrorMessage(error, "Registration failed"));
+      setLoading(false);
+      Alert.alert("Verification Error", getErrorMessage(error, "Could not send verification code."));
     }
   };
 
   return (
-    <View className="flex-1 bg-background">
-      <StatusBar barStyle="dark-content" backgroundColor={COLORS.background} />
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="#040C1A" />
 
       <KeyboardAvoidingView
-        className="flex-1"
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <ScrollView
           contentContainerStyle={[
             styles.scrollContent,
-            { paddingTop: Math.max(insets.top, 16) + 8, paddingBottom: Math.max(insets.bottom, 16) + 16 },
+            {
+              paddingTop: Math.max(insets.top, 16) + 10,
+              paddingBottom: Math.max(insets.bottom, 16) + 16,
+            },
           ]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* ── Back Button ── */}
-          <View style={styles.topRow}>
-            <TouchableOpacity
-              onPress={() => navigation.goBack()}
-              activeOpacity={0.75}
-              accessibilityRole="button"
-              accessibilityLabel="Go back"
-              hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
-              style={styles.backButton}
-            >
-              <ArrowLeftIcon size={18} color={COLORS.primary} />
-            </TouchableOpacity>
+          {/* Logo & Screen Title */}
+          <View style={styles.brandHeader}>
+            <View style={styles.logoCircle}>
+              <Image
+                source={require("../../assets/logo.png")}
+                style={styles.logoImage}
+                resizeMode="contain"
+              />
+            </View>
+            <Text style={styles.screenTitle}>Create Account</Text>
           </View>
 
-          {/* ── Centered Form Area ── */}
-          <View style={styles.formSection}>
-            <Text style={styles.heading}>Create Account</Text>
-            <Text style={styles.subheading}>
-              Start securing your community and getting help fast.
-            </Text>
-
-            {/* Fast Google Resident Sign Up Banner */}
-            <TouchableOpacity
-              style={styles.googleFastCard}
-              onPress={() => navigation.navigate("Login")}
-              activeOpacity={0.85}
-            >
-              <View style={{ flex: 1 }}>
-                <View style={styles.fastBadge}>
-                  <Text style={styles.fastBadgeText}>RESIDENTS FAST TRACK</Text>
-                </View>
-                <Text style={styles.googleFastTitle}>Sign Up with Google</Text>
-                <Text style={styles.googleFastSub}>Fast registration • No password required</Text>
-              </View>
-              <Text style={styles.googleFastArrow}>➔</Text>
-            </TouchableOpacity>
-
-            {/* Subtle divider */}
-            <View style={styles.divider} />
-
-
-            {/* Full Name Field */}
-            <Text style={styles.fieldLabel}>Full Name</Text>
-            <CustomInput
-              placeholder="Enter your Name"
+          {/* Form Area */}
+          <View style={styles.formContainer}>
+            <AuthInputCard
+              label="Full Name"
+              icon={<UserIcon size={20} color="#38BDF8" />}
+              placeholder="James Bond"
               value={fullName}
               onChangeText={setFullName}
               autoCapitalize="words"
             />
 
-            {/* Email Field */}
-            <Text style={styles.fieldLabel}>Email Address</Text>
-            <CustomInput
-              placeholder="Enter your Email"
+            <AuthInputCard
+              label="Email"
+              icon={<MailIcon size={20} color="#38BDF8" />}
+              placeholder="jamesbond123@gmail.com"
               value={email}
-              onChangeText={(value) => {
-                setEmail(value);
-                setRegistrationToken("");
-                setCodeSent(false);
-              }}
+              onChangeText={setEmail}
               keyboardType="email-address"
               autoCapitalize="none"
             />
 
-            <TouchableOpacity
-              style={styles.verificationButton}
-              onPress={requestVerificationCode}
-              disabled={sendingCode}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.verificationButtonText}>{sendingCode ? "Sending Code..." : codeSent ? "Resend Gmail Code" : "Verify Gmail Address"}</Text>
-            </TouchableOpacity>
-
-            {codeSent && (
-              <>
-                <Text style={styles.fieldLabel}>Gmail Verification Code</Text>
-                <CustomInput
-                  placeholder="Enter 6-digit code"
-                  value={verificationCode}
-                  onChangeText={setVerificationCode}
-                  keyboardType="number-pad"
-                  maxLength={6}
-                />
-                <TouchableOpacity
-                  style={[styles.verificationButton, registrationToken ? styles.verifiedButton : undefined]}
-                  onPress={verifyEmailCode}
-                  disabled={verifyingCode || Boolean(registrationToken)}
-                  activeOpacity={0.85}
-                >
-                  <Text style={[styles.verificationButtonText, registrationToken ? styles.verifiedButtonText : undefined]}>{registrationToken ? "Gmail Verified" : verifyingCode ? "Verifying..." : "Confirm Code"}</Text>
-                </TouchableOpacity>
-              </>
-            )}
-
-            {/* Phone Number Field */}
-            <Text style={styles.fieldLabel}>Phone Number</Text>
-            <CustomInput
-              placeholder="Enter your Phone Number"
+            <AuthInputCard
+              label="Phone Number"
+              icon={<PhoneIcon size={18} color="#38BDF8" />}
+              placeholder="09XXXXXXXXX"
               value={phoneNumber}
               onChangeText={setPhoneNumber}
               keyboardType="phone-pad"
             />
 
-            {/* Password Field */}
-            <Text style={styles.fieldLabel}>Password</Text>
-            <CustomInput
-              placeholder="Enter your password"
-              secureTextEntry
+            <AuthInputCard
+              label="Password"
+              icon={<LockIcon size={20} color="#38BDF8" />}
+              isPassword
+              placeholder="••••••••"
               value={password}
               onChangeText={setPassword}
             />
 
-            {/* Register Button */}
-            <TouchableOpacity
-              style={styles.registerButton}
-              onPress={handleRegister}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.registerButtonText}>Register Account</Text>
-            </TouchableOpacity>
+            <AuthInputCard
+              label="Confirm Password"
+              icon={<LockIcon size={20} color="#38BDF8" />}
+              isPassword
+              placeholder="••••••••"
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+            />
 
-            {/* Login Link */}
-            <View style={styles.loginRow}>
-              <Text style={styles.loginText}>
-                Already have an account?{" "}
-              </Text>
-              <TouchableOpacity onPress={() => navigation.navigate("Login")}>
-                <Text style={styles.loginLink}>Sign In</Text>
+            {/* Terms of Service Checkbox Row */}
+            <View style={styles.termsRow}>
+              <TouchableOpacity
+                style={styles.termsCheckboxContainer}
+                onPress={() => setAgreeTerms(!agreeTerms)}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.checkbox, agreeTerms && styles.checkboxChecked]}>
+                  {agreeTerms && <CheckIcon size={12} color="#040C1A" />}
+                </View>
+                <Text style={styles.termsText}>I agree to the </Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => navigation.navigate("UserAgreement")}>
+                <Text style={styles.termsLink}>Terms of Service</Text>
               </TouchableOpacity>
             </View>
-          </View>
 
-          {/* ── Bottom tagline ── */}
-          <View style={styles.footer}>
-            <View style={styles.footerLine} />
-            <Text style={styles.footerText}>
-              Public Safety &amp; Emergency Alert System
-            </Text>
+            {/* Primary Action Button: Create Account */}
+            <TouchableOpacity
+              style={[styles.createBtn, loading && styles.btnDisabled]}
+              onPress={handleStartRegistration}
+              activeOpacity={0.85}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator color="#040C1A" size="small" />
+              ) : (
+                <Text style={styles.createBtnText}>Create Account</Text>
+              )}
+            </TouchableOpacity>
+
+            {/* Divider */}
+            <View style={styles.dividerRow}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>Or Create with</Text>
+              <View style={styles.dividerLine} />
+            </View>
+
+            {/* Social Options */}
+            <TouchableOpacity
+              style={styles.socialBtn}
+              onPress={() => navigation.navigate("Login")}
+              activeOpacity={0.85}
+            >
+              <GoogleIcon size={20} />
+              <Text style={styles.socialBtnText}>Log In with Google</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.socialBtn}
+              onPress={() => Alert.alert("Facebook", "Connecting with Facebook...")}
+              activeOpacity={0.85}
+            >
+              <FacebookIcon size={20} />
+              <Text style={styles.socialBtnText}>Log In with Facebook</Text>
+            </TouchableOpacity>
+
+            {/* Bottom Link Row */}
+            <View style={styles.bottomLinkRow}>
+              <Text style={styles.bottomPrompt}>Do you have an account? </Text>
+              <TouchableOpacity onPress={() => navigation.navigate("Login")}>
+                <Text style={styles.bottomLink}>Log In</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -269,192 +261,153 @@ export default function RegisterScreen({ navigation }: Props): React.JSX.Element
 }
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "#040C1A",
+  },
   scrollContent: {
     flexGrow: 1,
-    paddingHorizontal: 28,
+    paddingHorizontal: 24,
     justifyContent: "space-between",
   },
-
-  /* ── Top Row ── */
-  topRow: {
-    flexDirection: "row",
+  brandHeader: {
     alignItems: "center",
-    marginBottom: 8,
+    marginTop: 6,
+    marginBottom: 14,
   },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: COLORS.surface,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+  logoCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "#0A1D38",
+    borderWidth: 2,
+    borderColor: "#38BDF8",
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 14,
-    shadowColor: COLORS.primary,
+    marginBottom: 10,
+    shadowColor: "#38BDF8",
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    elevation: 3,
-  },
-
-  /* ── Form Section ── */
-  formSection: {
-    flex: 1,
-    justifyContent: "center",
-    paddingVertical: 12,
-  },
-  heading: {
-    fontSize: 32,
-    fontWeight: "900",
-    color: COLORS.primary,
-    letterSpacing: -1,
-    marginBottom: 6,
-  },
-  subheading: {
-    fontSize: 15,
-    color: COLORS.textMuted,
-    lineHeight: 22,
-    marginBottom: 4,
-  },
-  divider: {
-    width: 40,
-    height: 3.5,
-    backgroundColor: COLORS.accent,
-    borderRadius: 4,
-    marginTop: 14,
-    marginBottom: 28,
-  },
-  fieldLabel: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: COLORS.primary,
-    marginBottom: 6,
-    letterSpacing: 0.2,
-    textTransform: "uppercase",
-    opacity: 0.65,
-  },
-
-  /* ── Register Button ── */
-  registerButton: {
-    marginTop: 24,
-    backgroundColor: COLORS.primary,
-    paddingVertical: 16,
-    borderRadius: 16,
-    alignItems: "center",
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.25,
-    shadowRadius: 16,
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
     elevation: 6,
   },
-  registerButtonText: {
-    fontSize: 16,
+  logoImage: {
+    width: 38,
+    height: 38,
+  },
+  screenTitle: {
+    fontSize: 26,
     fontWeight: "900",
     color: "#FFFFFF",
-    letterSpacing: 1.5,
-    textTransform: "uppercase",
+    letterSpacing: -0.5,
   },
-  verificationButton: {
-    marginTop: 4,
-    marginBottom: 18,
-    borderWidth: 1,
-    borderColor: COLORS.primary,
-    borderRadius: 12,
-    paddingVertical: 12,
-    alignItems: "center",
+  formContainer: {
+    width: "100%",
   },
-  verifiedButton: {
-    backgroundColor: "#15803D",
-    borderColor: "#15803D",
-  },
-  verificationButtonText: {
-    fontSize: 13,
-    fontWeight: "800",
-    color: COLORS.primary,
-  },
-  verifiedButtonText: {
-    color: "#FFFFFF",
-  },
-
-  /* ── Login Link ── */
-  loginRow: {
+  termsRow: {
     flexDirection: "row",
-    justifyContent: "center",
-    marginTop: 28,
-  },
-  loginText: {
-    fontSize: 14,
-    color: COLORS.textMuted,
-  },
-  loginLink: {
-    fontSize: 14,
-    fontWeight: "800",
-    color: COLORS.accent,
-  },
-
-  /* ── Footer ── */
-  footer: {
     alignItems: "center",
-    paddingTop: 12,
-    paddingBottom: 8,
+    marginTop: 2,
+    marginBottom: 18,
   },
-  footerLine: {
-    width: 32,
-    height: 3,
-    backgroundColor: COLORS.border,
-    borderRadius: 2,
+  termsCheckboxContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  checkbox: {
+    width: 18,
+    height: 18,
+    borderRadius: 4,
+    borderWidth: 1.5,
+    borderColor: "#475569",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 8,
+  },
+  checkboxChecked: {
+    backgroundColor: "#38BDF8",
+    borderColor: "#38BDF8",
+  },
+  termsText: {
+    fontSize: 12.5,
+    color: "#94A3B8",
+    fontWeight: "600",
+  },
+  termsLink: {
+    fontSize: 12.5,
+    color: "#38BDF8",
+    fontWeight: "700",
+  },
+  createBtn: {
+    width: "100%",
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: "#38BDF8",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16,
+    shadowColor: "#38BDF8",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    elevation: 5,
+  },
+  createBtnText: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#040C1A",
+    letterSpacing: 0.3,
+  },
+  btnDisabled: {
+    opacity: 0.6,
+  },
+  dividerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginVertical: 12,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: "#16273E",
+  },
+  dividerText: {
+    fontSize: 12,
+    color: "#64748B",
+    marginHorizontal: 12,
+    fontWeight: "600",
+  },
+  socialBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#0B1728",
+    borderWidth: 1,
+    borderColor: "#1E2D42",
     marginBottom: 10,
   },
-  footerText: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: COLORS.textMuted,
-    letterSpacing: 1.5,
-    textTransform: "uppercase",
-    opacity: 0.5,
-  },
-
-  /* ── Fast Track Banner ── */
-  googleFastCard: {
-    marginTop: 14,
-    backgroundColor: "#F0F9FF",
-    borderWidth: 1,
-    borderColor: "#BAE6FD",
-    borderRadius: 16,
-    padding: 14,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  fastBadge: {
-    backgroundColor: "#0284C7",
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 6,
-    alignSelf: "flex-start",
-    marginBottom: 4,
-  },
-  fastBadgeText: {
-    fontSize: 9,
-    fontWeight: "900",
-    color: "#FFFFFF",
-    letterSpacing: 0.5,
-  },
-  googleFastTitle: {
+  socialBtnText: {
     fontSize: 14,
-    fontWeight: "800",
-    color: "#0F172A",
-  },
-  googleFastSub: {
-    fontSize: 11,
-    color: "#64748B",
-    marginTop: 2,
-  },
-  googleFastArrow: {
-    fontSize: 16,
-    fontWeight: "800",
-    color: "#0284C7",
+    fontWeight: "700",
+    color: "#E2E8F0",
     marginLeft: 10,
   },
+  bottomLinkRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 14,
+    marginBottom: 8,
+  },
+  bottomPrompt: {
+    fontSize: 13,
+    color: "#94A3B8",
+  },
+  bottomLink: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#38BDF8",
+  },
 });
-

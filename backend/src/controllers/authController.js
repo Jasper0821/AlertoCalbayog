@@ -321,6 +321,10 @@ exports.login = async (req, res) => {
       ipAddress: getIp(req),
     });
 
+    user.lastLogin = new Date();
+    user.lastSeen = new Date();
+    await user.save();
+
     res.json({
       message: "Login successful",
       token: generateToken(user._id, user.role),

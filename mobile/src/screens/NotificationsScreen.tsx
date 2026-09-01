@@ -66,17 +66,17 @@ function getRelativeTime(dateString: string): string {
 function getStatusAccent(status: string): { color: string; bg: string; icon: string; label: string } {
   switch (status?.toLowerCase()) {
     case "rejected":
-      return { color: "#EF4444", bg: "rgba(239, 68, 68, 0.08)", icon: "❌", label: "Rejected" };
+      return { color: "#DC2626", bg: "rgba(239, 68, 68, 0.1)", icon: "❌", label: "Rejected" };
     case "responding":
     case "active":
-      return { color: "#3B82F6", bg: "rgba(59, 130, 246, 0.08)", icon: "🚨", label: "Responding" };
+      return { color: "#0284C7", bg: "rgba(14, 165, 233, 0.1)", icon: "🚨", label: "Responding" };
     case "resolved":
     case "responded":
-      return { color: "#3B82F6", bg: "rgba(59, 130, 246, 0.08)", icon: "✅", label: "Scene Handled" };
+      return { color: "#2563EB", bg: "rgba(37, 99, 235, 0.1)", icon: "✅", label: "Scene Done" };
     case "closed":
-      return { color: "#10B981", bg: "rgba(16, 185, 129, 0.08)", icon: "📁", label: "Closed" };
+      return { color: "#059669", bg: "rgba(16, 185, 129, 0.1)", icon: "📁", label: "Closed" };
     default:
-      return { color: "#0A1E3F", bg: "rgba(10, 30, 63, 0.05)", icon: "📋", label: "Updated" };
+      return { color: "#0A1E3F", bg: "rgba(10, 30, 63, 0.06)", icon: "📋", label: "Updated" };
   }
 }
 
@@ -114,7 +114,6 @@ export default function NotificationsScreen(): React.JSX.Element {
       setNotifications((prev) =>
         prev.map((n) => ({ ...n, read: true }))
       );
-      // Broadcast so the Header badge updates
       DeviceEventEmitter.emit("notificationsRead");
     } catch (error: any) {
       console.log("Failed to mark all as read:", error.response?.data || error.message);
@@ -193,7 +192,6 @@ export default function NotificationsScreen(): React.JSX.Element {
     );
   };
 
-  // Re-fetch every time the screen comes into focus (e.g. navigating back)
   useFocusEffect(
     useCallback(() => {
       fetchNotifications();
@@ -203,14 +201,10 @@ export default function NotificationsScreen(): React.JSX.Element {
   useEffect(() => {
     fetchNotifications();
 
-    // Listen for the DeviceEventEmitter bridge from HomeScreen
     const sub = DeviceEventEmitter.addListener("reportStatusUpdated", () => {
       fetchNotifications();
     });
 
-    // Also listen directly on the socket in case the event arrives while
-    // this screen is mounted (covers edge cases where the emitter bridge
-    // in HomeScreen hasn't fired yet).
     const handleSocketNotification = () => {
       fetchNotifications();
     };
@@ -229,8 +223,6 @@ export default function NotificationsScreen(): React.JSX.Element {
   }, []);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
-
-  // Determine which notifications to display based on expanded state
   const hasMore = notifications.length > INITIAL_DISPLAY_COUNT;
   const displayedNotifications = expanded
     ? notifications
@@ -241,28 +233,37 @@ export default function NotificationsScreen(): React.JSX.Element {
     <View style={[styles.container, { paddingTop: Math.max(insets.top, 16) }]}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.background} />
 
-      {/* ── Header ── */}
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <TouchableOpacity
-            onPress={() => navigation.goBack()}
-            activeOpacity={0.75}
-            hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
-            style={styles.backButton}
-          >
-            <ArrowLeftIcon size={20} color={COLORS.primary} />
-          </TouchableOpacity>
-          <View>
-            <Text style={styles.headerTitle}>Notifications</Text>
-            {unreadCount > 0 && (
-              <Text style={styles.headerSubtitle}>
-                {unreadCount} unread
-              </Text>
-            )}
-          </View>
+      {/* ── Top Header Bar ── */}
+      <View style={styles.headerBar}>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          activeOpacity={0.75}
+          hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+          style={styles.backButton}
+        >
+          <ArrowLeftIcon size={20} color={COLORS.primary} />
+        </TouchableOpacity>
+        <View style={styles.headerTitleGroup}>
+          <Text style={styles.headerTitle}>Notifications</Text>
+          <View style={styles.headerTitleBar} />
+        </View>
+      </View>
+
+      {/* ── Sub-header / Actions Toolbar ── */}
+      <View style={styles.toolbar}>
+        <View style={styles.unreadBadge}>
+          <View
+            style={[
+              styles.unreadBadgeDot,
+              { backgroundColor: unreadCount > 0 ? COLORS.accent : "#94A3B8" },
+            ]}
+          />
+          <Text style={styles.unreadBadgeText}>
+            {unreadCount > 0 ? `${unreadCount} unread` : "All read"}
+          </Text>
         </View>
 
-        <View style={styles.headerActions}>
+        <View style={styles.toolbarActions}>
           {unreadCount > 0 && (
             <TouchableOpacity
               onPress={handleMarkAllRead}
@@ -293,7 +294,7 @@ export default function NotificationsScreen(): React.JSX.Element {
         </View>
       </View>
 
-      {/* ── Content ── */}
+      {/* ── Content Area ── */}
       {loading ? (
         <View style={styles.emptyContainer}>
           <ActivityIndicator size="large" color={COLORS.accent} />
@@ -310,10 +311,17 @@ export default function NotificationsScreen(): React.JSX.Element {
         </View>
       ) : (
         <ScrollView
-          contentContainerStyle={[styles.listContent, { paddingBottom: Math.max(insets.bottom, 16) + 16 }]}
+          contentContainerStyle={[
+            styles.listContent,
+            { paddingBottom: Math.max(insets.bottom, 16) + 16 },
+          ]}
           showsVerticalScrollIndicator={false}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.accent} />
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={COLORS.accent}
+            />
           }
         >
           {displayedNotifications.map((notif) => {
@@ -321,7 +329,8 @@ export default function NotificationsScreen(): React.JSX.Element {
             const isUnread = !notif.read;
 
             const resolutionEvidence: string[] =
-              Array.isArray(notif.metadata?.resolutionEvidence) && notif.metadata.resolutionEvidence.length > 0
+              Array.isArray(notif.metadata?.resolutionEvidence) &&
+              notif.metadata.resolutionEvidence.length > 0
                 ? notif.metadata.resolutionEvidence
                 : Array.isArray(notif.reportId?.resolutionEvidence)
                 ? notif.reportId.resolutionEvidence
@@ -330,50 +339,74 @@ export default function NotificationsScreen(): React.JSX.Element {
             return (
               <TouchableOpacity
                 key={notif._id}
-                activeOpacity={0.8}
+                activeOpacity={0.85}
                 onPress={() => {
                   if (isUnread) handleMarkOneRead(notif._id);
                 }}
-                style={[
-                  styles.card,
-                  isUnread && styles.cardUnread,
-                ]}
+                style={[styles.card, isUnread && styles.cardUnread]}
               >
                 {/* Left accent strip */}
-                <View style={[styles.accentStrip, { backgroundColor: accent.color }]} />
+                <View
+                  style={[styles.accentStrip, { backgroundColor: accent.color }]}
+                />
 
                 <View style={styles.cardBody}>
-                  {/* Top row: icon + title + time/delete */}
+                  {/* Top Header Row */}
                   <View style={styles.cardTopRow}>
-                    <View style={[styles.statusIconCircle, { backgroundColor: accent.bg }]}>
+                    <View
+                      style={[
+                        styles.statusIconCircle,
+                        { backgroundColor: accent.bg },
+                      ]}
+                    >
                       <Text style={styles.statusIcon}>{accent.icon}</Text>
                     </View>
+
                     <View style={styles.cardTitleArea}>
                       <View style={styles.cardTitleRow}>
-                        <Text style={styles.cardTitle} numberOfLines={1}>{notif.title}</Text>
-                        {isUnread && <View style={[styles.unreadDot, { backgroundColor: accent.color }]} />}
+                        <Text style={styles.cardTitle} numberOfLines={1}>
+                          {notif.title}
+                        </Text>
+                        {isUnread && (
+                          <View
+                            style={[
+                              styles.unreadDot,
+                              { backgroundColor: accent.color },
+                            ]}
+                          />
+                        )}
                       </View>
-                      <View style={[styles.statusPill, { backgroundColor: accent.bg }]}>
-                        <Text style={[styles.statusPillText, { color: accent.color }]}>{accent.label}</Text>
+                      <View
+                        style={[
+                          styles.statusPill,
+                          { backgroundColor: accent.bg },
+                        ]}
+                      >
+                        <Text
+                          style={[styles.statusPillText, { color: accent.color }]}
+                        >
+                          {accent.label}
+                        </Text>
                       </View>
                     </View>
+
                     <View style={styles.cardRightArea}>
-                      <Text style={styles.timeText}>{getRelativeTime(notif.createdAt)}</Text>
+                      <Text style={styles.timeText}>
+                        {getRelativeTime(notif.createdAt)}
+                      </Text>
                       <TouchableOpacity
                         onPress={() => handleDeleteNotification(notif._id)}
                         style={styles.deleteCardButton}
                         activeOpacity={0.7}
                         hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
                       >
-                        <TrashIcon size={14} color={COLORS.red} />
+                        <TrashIcon size={15} color="#94A3B8" />
                       </TouchableOpacity>
                     </View>
                   </View>
 
-                  {/* Message */}
-                  <Text style={styles.cardMessage} numberOfLines={3}>
-                    {notif.message}
-                  </Text>
+                  {/* Message Body */}
+                  <Text style={styles.cardMessage}>{notif.message}</Text>
 
                   {/* Responder Resolution Evidence Photos */}
                   {resolutionEvidence.length > 0 && (
@@ -381,7 +414,11 @@ export default function NotificationsScreen(): React.JSX.Element {
                       <Text style={styles.evidenceTitle}>
                         📷 Responder Evidence ({resolutionEvidence.length})
                       </Text>
-                      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.evidenceScroll}>
+                      <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        style={styles.evidenceScroll}
+                      >
                         {resolutionEvidence.map((src, idx) => (
                           <TouchableOpacity
                             key={idx}
@@ -389,18 +426,24 @@ export default function NotificationsScreen(): React.JSX.Element {
                             activeOpacity={0.8}
                             style={styles.evidenceThumb}
                           >
-                            <Image source={{ uri: src }} style={styles.evidenceImage} resizeMode="cover" />
+                            <Image
+                              source={{ uri: src }}
+                              style={styles.evidenceImage}
+                              resizeMode="cover"
+                            />
                           </TouchableOpacity>
                         ))}
                       </ScrollView>
                     </View>
                   )}
 
-                  {/* Bottom: type badge */}
+                  {/* Footer: Type Badge */}
                   <View style={styles.cardFooter}>
                     <View style={styles.typeBadge}>
                       <Text style={styles.typeBadgeText}>
-                        {notif.type === "responder_assigned" ? "Responder Assigned" : "Status Update"}
+                        {notif.type === "responder_assigned"
+                          ? "Responder Assigned"
+                          : "Status Update"}
                       </Text>
                     </View>
                   </View>
@@ -413,11 +456,13 @@ export default function NotificationsScreen(): React.JSX.Element {
           {hasMore && (
             <TouchableOpacity
               onPress={() => {
-                LayoutAnimation.configureNext(LayoutAnimation.create(
-                  300,
-                  LayoutAnimation.Types.easeInEaseOut,
-                  LayoutAnimation.Properties.opacity
-                ));
+                LayoutAnimation.configureNext(
+                  LayoutAnimation.create(
+                    300,
+                    LayoutAnimation.Types.easeInEaseOut,
+                    LayoutAnimation.Properties.opacity
+                  )
+                );
                 setExpanded((prev) => !prev);
               }}
               activeOpacity={0.7}
@@ -478,39 +523,30 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background,
   },
 
-  /* ── Header ── */
-  header: {
+  /* ── Header Bar ── */
+  headerBar: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
     paddingHorizontal: 20,
-    paddingBottom: 16,
-  },
-  headerLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    flex: 1,
-  },
-  headerActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
+    paddingBottom: 10,
   },
   backButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: COLORS.surface,
     borderWidth: 1,
-    borderColor: COLORS.border,
     justifyContent: "center",
     alignItems: "center",
     marginRight: 14,
     shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.06,
-    shadowRadius: 10,
+    shadowRadius: 8,
     elevation: 2,
+  },
+  headerTitleGroup: {
+    justifyContent: "center",
   },
   headerTitle: {
     fontSize: 22,
@@ -518,15 +554,50 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
     letterSpacing: -0.5,
   },
-  headerSubtitle: {
+  headerTitleBar: {
+    width: 32,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: COLORS.primary,
+    marginTop: 3,
+  },
+
+  /* ── Sub-header / Toolbar ── */
+  toolbar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    marginBottom: 6,
+  },
+  unreadBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(59, 130, 246, 0.08)",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  unreadBadgeDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    marginRight: 6,
+  },
+  unreadBadgeText: {
     fontSize: 12,
-    fontWeight: "600",
+    fontWeight: "800",
     color: COLORS.accent,
-    marginTop: 1,
+  },
+  toolbarActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
   markAllButton: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: 10,
     backgroundColor: "rgba(59, 130, 246, 0.08)",
   },
@@ -538,11 +609,11 @@ const styles = StyleSheet.create({
   deleteAllButton: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: 10,
     backgroundColor: "rgba(239, 68, 68, 0.08)",
-    gap: 5,
+    gap: 4,
   },
   deleteAllText: {
     fontSize: 12,
@@ -584,7 +655,7 @@ const styles = StyleSheet.create({
 
   /* ── List ── */
   listContent: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 18,
     paddingTop: 4,
   },
 
@@ -592,25 +663,25 @@ const styles = StyleSheet.create({
   card: {
     flexDirection: "row",
     backgroundColor: COLORS.surface,
-    borderRadius: 18,
-    marginBottom: 12,
+    borderRadius: 20,
+    marginBottom: 14,
     borderWidth: 1,
     borderColor: COLORS.border,
     overflow: "hidden",
     shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 1,
-  },
-  cardUnread: {
-    backgroundColor: "#FAFBFF",
-    borderColor: "rgba(59, 130, 246, 0.15)",
-    shadowOpacity: 0.08,
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
     elevation: 2,
   },
+  cardUnread: {
+    backgroundColor: "#F0F7FF",
+    borderColor: "rgba(59, 130, 246, 0.25)",
+    shadowOpacity: 0.08,
+    elevation: 3,
+  },
   accentStrip: {
-    width: 4,
+    width: 4.5,
   },
   cardBody: {
     flex: 1,
@@ -621,15 +692,15 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
   },
   statusIconCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 13,
+    width: 42,
+    height: 42,
+    borderRadius: 14,
     justifyContent: "center",
     alignItems: "center",
     marginRight: 12,
   },
   statusIcon: {
-    fontSize: 18,
+    fontSize: 19,
   },
   cardTitleArea: {
     flex: 1,
@@ -640,41 +711,48 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   cardTitle: {
-    fontSize: 15,
+    fontSize: 15.5,
     fontWeight: "800",
     color: COLORS.primary,
     letterSpacing: -0.2,
   },
   unreadDot: {
-    width: 7,
-    height: 7,
+    width: 8,
+    height: 8,
     borderRadius: 4,
     marginLeft: 6,
   },
   statusPill: {
     alignSelf: "flex-start",
     paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 6,
+    paddingVertical: 3,
+    borderRadius: 8,
     marginTop: 4,
   },
   statusPillText: {
     fontSize: 10,
-    fontWeight: "800",
+    fontWeight: "900",
     textTransform: "uppercase",
-    letterSpacing: 0.5,
+    letterSpacing: 0.6,
+  },
+  cardRightArea: {
+    alignItems: "flex-end",
+    justifyContent: "space-between",
   },
   timeText: {
     fontSize: 11,
     fontWeight: "600",
-    color: COLORS.textMuted,
-    marginTop: 2,
+    color: "#64748B",
+  },
+  deleteCardButton: {
+    marginTop: 10,
+    padding: 4,
   },
   cardMessage: {
     fontSize: 13.5,
-    lineHeight: 20,
-    color: COLORS.textMuted,
-    marginTop: 12,
+    lineHeight: 21,
+    color: "#334155",
+    marginTop: 10,
   },
   cardFooter: {
     flexDirection: "row",
@@ -684,27 +762,54 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 8,
-    backgroundColor: "rgba(10, 30, 63, 0.04)",
+    backgroundColor: "rgba(10, 30, 63, 0.05)",
   },
   typeBadgeText: {
     fontSize: 10,
-    fontWeight: "700",
-    color: COLORS.textMuted,
+    fontWeight: "800",
+    color: "#64748B",
     textTransform: "uppercase",
     letterSpacing: 0.8,
   },
-  cardRightArea: {
-    alignItems: "flex-end",
-    justifyContent: "space-between",
+
+  /* ── Evidence Gallery ── */
+  evidenceContainer: {
+    marginTop: 12,
+    padding: 12,
+    borderRadius: 14,
+    backgroundColor: "rgba(59, 130, 246, 0.06)",
+    borderWidth: 1,
+    borderColor: "rgba(59, 130, 246, 0.2)",
   },
-  deleteCardButton: {
-    marginTop: 8,
-    padding: 4,
+  evidenceTitle: {
+    fontSize: 10.5,
+    fontWeight: "800",
+    color: COLORS.accent,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: 8,
+  },
+  evidenceScroll: {
+    flexDirection: "row",
+  },
+  evidenceThumb: {
+    width: 60,
+    height: 60,
+    borderRadius: 12,
+    overflow: "hidden",
+    marginRight: 8,
+    borderWidth: 1,
+    borderColor: "rgba(59, 130, 246, 0.3)",
+    backgroundColor: "#1E293B",
+  },
+  evidenceImage: {
+    width: "100%",
+    height: "100%",
   },
 
   /* ── See More Button ── */
   seeMoreButton: {
-    marginTop: 4,
+    marginTop: 6,
     marginBottom: 8,
     alignItems: "center",
   },
@@ -743,41 +848,6 @@ const styles = StyleSheet.create({
   seeMoreArrow: {
     fontSize: 10,
     color: COLORS.accent,
-  },
-
-  /* ── Evidence Gallery ── */
-  evidenceContainer: {
-    marginTop: 10,
-    padding: 10,
-    borderRadius: 12,
-    backgroundColor: "rgba(59, 130, 246, 0.06)",
-    borderWidth: 1,
-    borderColor: "rgba(59, 130, 246, 0.2)",
-  },
-  evidenceTitle: {
-    fontSize: 10,
-    fontWeight: "800",
-    color: COLORS.accent,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    marginBottom: 6,
-  },
-  evidenceScroll: {
-    flexDirection: "row",
-  },
-  evidenceThumb: {
-    width: 54,
-    height: 54,
-    borderRadius: 10,
-    overflow: "hidden",
-    marginRight: 8,
-    borderWidth: 1,
-    borderColor: "rgba(59, 130, 246, 0.3)",
-    backgroundColor: "#1E293B",
-  },
-  evidenceImage: {
-    width: "100%",
-    height: "100%",
   },
 
   /* ── Lightbox Modal ── */
