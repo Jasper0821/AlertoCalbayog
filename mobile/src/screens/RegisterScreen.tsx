@@ -11,19 +11,13 @@ import {
   StyleSheet,
   StatusBar,
   ActivityIndicator,
+  Modal,
+  TextInput,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import AuthInputCard from "../components/AuthInputCard";
-import {
-  MailIcon,
-  LockIcon,
-  UserIcon,
-  PhoneIcon,
-  GoogleIcon,
-  FacebookIcon,
-  CheckIcon,
-} from "../components/SvgIcons";
 import api, { backendUrl } from "../api/axios";
+import { saveToken, saveUser } from "../utils/Storage";
+import CALBAYOG_BARANGAYS from "../constants/calbayogBarangays";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../navigation/AppNavigator";
 
@@ -39,29 +33,50 @@ interface Props {
 export default function RegisterScreen({ navigation }: Props): React.JSX.Element {
   const insets = useSafeAreaInsets();
   const [fullName, setFullName] = useState<string>("");
-  const [email, setEmail] = useState<string>("");
-  const [phoneNumber, setPhoneNumber] = useState<string>("");
+  const [mobileNumber, setMobileNumber] = useState<string>("");
+  const [emergencyContactNumber, setEmergencyContactNumber] = useState<string>("");
+  const [barangay, setBarangay] = useState<string>("");
+  const [completeAddress, setCompleteAddress] = useState<string>("");
   const [password, setPassword] = useState<string>("");
   const [confirmPassword, setConfirmPassword] = useState<string>("");
+  const [showPassword, setShowPassword] = useState<boolean>(false);
   const [agreeTerms, setAgreeTerms] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
 
-  const getErrorMessage = (error: any, fallback: string): string =>
-    error.response?.data?.message ||
-    (error.message === "Network Error"
-      ? `Cannot connect to server at ${backendUrl}. Please check your network connection.`
-      : error.message || fallback);
+  // Barangay Picker Modal
+  const [showBarangayPicker, setShowBarangayPicker] = useState<boolean>(false);
+  const [barangaySearch, setBarangaySearch] = useState<string>("");
 
-  const handleStartRegistration = async (): Promise<void> => {
-    const cleanEmail = email.trim().toLowerCase();
+  const filteredBarangays = CALBAYOG_BARANGAYS.filter((bgy) =>
+    bgy.toLowerCase().includes(barangaySearch.toLowerCase())
+  );
+
+  const handleRegister = async (): Promise<void> => {
+    const cleanMobile = mobileNumber.trim().replace(/[\s-]/g, "");
+    const cleanEmergency = emergencyContactNumber.trim().replace(/[\s-]/g, "");
 
     if (!fullName.trim()) {
       Alert.alert("Input Required", "Please enter your full name.");
       return;
     }
 
-    if (!cleanEmail || !/^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@gmail\.com$/i.test(cleanEmail)) {
-      Alert.alert("Gmail Required", "Please enter a valid Gmail address (e.g. name@gmail.com).");
+    if (!cleanMobile || !/^09\d{9}$/.test(cleanMobile)) {
+      Alert.alert("Invalid Mobile Number", "Please enter a valid 11-digit mobile number starting with 09.");
+      return;
+    }
+
+    if (!cleanEmergency || !/^09\d{9}$/.test(cleanEmergency)) {
+      Alert.alert("Invalid Emergency Contact", "Please enter a valid 11-digit emergency contact number.");
+      return;
+    }
+
+    if (!barangay) {
+      Alert.alert("Barangay Required", "Please select your Barangay in Calbayog City.");
+      return;
+    }
+
+    if (!completeAddress.trim()) {
+      Alert.alert("Address Required", "Please enter your complete house or street address.");
       return;
     }
 
@@ -81,32 +96,36 @@ export default function RegisterScreen({ navigation }: Props): React.JSX.Element
     }
 
     if (!agreeTerms) {
-      Alert.alert("Terms Agreement Required", "Please agree to the Terms of Service to proceed.");
+      Alert.alert("Terms Agreement Required", "Please agree to the User Agreement to proceed.");
       return;
     }
 
     setLoading(true);
 
     try {
-      // Step 1: Request OTP code from backend
-      await api.post("/auth/request-registration-otp", { email: cleanEmail });
-
-      setLoading(false);
-
-      // Step 2: Navigate to OTP Verification Screen matching Image 3 mockup
-      navigation.navigate("OtpVerification", {
-        email: cleanEmail,
-        mode: "registration",
-        registerData: {
-          fullName: fullName.trim(),
-          phoneNumber: phoneNumber.trim(),
-          password,
-          role: "resident",
-        },
+      const res = await api.post("/auth/register", {
+        fullName: fullName.trim(),
+        mobileNumber: cleanMobile,
+        password,
+        confirmPassword,
+        completeAddress: completeAddress.trim(),
+        barangay,
+        emergencyContactNumber: cleanEmergency,
       });
+
+      await saveToken(res.data.token);
+      await saveUser(res.data.user);
+
+      // Instant access to Emergency Dashboard (Home)
+      navigation.replace("Home");
     } catch (error: any) {
       setLoading(false);
-      Alert.alert("Verification Error", getErrorMessage(error, "Could not send verification code."));
+      const errorMsg =
+        error.response?.data?.message ||
+        (error.message === "Network Error"
+          ? `Cannot connect to server at ${backendUrl}. Please check your network connection.`
+          : error.message || "Registration failed. Please try again.");
+      Alert.alert("Registration Failed", errorMsg);
     }
   };
 
@@ -123,13 +142,13 @@ export default function RegisterScreen({ navigation }: Props): React.JSX.Element
             styles.scrollContent,
             {
               paddingTop: Math.max(insets.top, 16) + 10,
-              paddingBottom: Math.max(insets.bottom, 16) + 16,
+              paddingBottom: Math.max(insets.bottom, 16) + 20,
             },
           ]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Logo & Screen Title */}
+          {/* Header */}
           <View style={styles.brandHeader}>
             <View style={styles.logoCircle}>
               <Image
@@ -138,124 +157,183 @@ export default function RegisterScreen({ navigation }: Props): React.JSX.Element
                 resizeMode="contain"
               />
             </View>
-            <Text style={styles.screenTitle}>Create Account</Text>
+            <Text style={styles.screenTitle}>Create Resident Account</Text>
           </View>
 
-          {/* Form Area */}
+          {/* Form */}
           <View style={styles.formContainer}>
-            <AuthInputCard
-              label="Full Name"
-              icon={<UserIcon size={20} color="#38BDF8" />}
-              placeholder="James Bond"
-              value={fullName}
-              onChangeText={setFullName}
-              autoCapitalize="words"
-            />
+            {/* Full Name */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>FULL NAME *</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Juan Dela Cruz"
+                placeholderTextColor="#64748B"
+                value={fullName}
+                onChangeText={setFullName}
+                autoCapitalize="words"
+              />
+            </View>
 
-            <AuthInputCard
-              label="Email"
-              icon={<MailIcon size={20} color="#38BDF8" />}
-              placeholder="jamesbond123@gmail.com"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
+            {/* Mobile Number & Emergency Contact */}
+            <View style={styles.row}>
+              <View style={[styles.inputGroup, { flex: 1, marginRight: 6 }]}>
+                <Text style={styles.label}>MOBILE NUMBER *</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="09123456789"
+                  placeholderTextColor="#64748B"
+                  keyboardType="phone-pad"
+                  maxLength={11}
+                  value={mobileNumber}
+                  onChangeText={setMobileNumber}
+                />
+              </View>
 
-            <AuthInputCard
-              label="Phone Number"
-              icon={<PhoneIcon size={18} color="#38BDF8" />}
-              placeholder="09XXXXXXXXX"
-              value={phoneNumber}
-              onChangeText={setPhoneNumber}
-              keyboardType="phone-pad"
-            />
+              <View style={[styles.inputGroup, { flex: 1, marginLeft: 6 }]}>
+                <Text style={styles.label}>EMERGENCY CONTACT *</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="09987654321"
+                  placeholderTextColor="#64748B"
+                  keyboardType="phone-pad"
+                  maxLength={11}
+                  value={emergencyContactNumber}
+                  onChangeText={setEmergencyContactNumber}
+                />
+              </View>
+            </View>
 
-            <AuthInputCard
-              label="Password"
-              icon={<LockIcon size={20} color="#38BDF8" />}
-              isPassword
-              placeholder="••••••••"
-              value={password}
-              onChangeText={setPassword}
-            />
-
-            <AuthInputCard
-              label="Confirm Password"
-              icon={<LockIcon size={20} color="#38BDF8" />}
-              isPassword
-              placeholder="••••••••"
-              value={confirmPassword}
-              onChangeText={setConfirmPassword}
-            />
-
-            {/* Terms of Service Checkbox Row */}
-            <View style={styles.termsRow}>
+            {/* Barangay Selector */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>BARANGAY (CALBAYOG) *</Text>
               <TouchableOpacity
-                style={styles.termsCheckboxContainer}
-                onPress={() => setAgreeTerms(!agreeTerms)}
+                style={styles.input}
+                onPress={() => setShowBarangayPicker(true)}
                 activeOpacity={0.7}
               >
-                <View style={[styles.checkbox, agreeTerms && styles.checkboxChecked]}>
-                  {agreeTerms && <CheckIcon size={12} color="#040C1A" />}
-                </View>
-                <Text style={styles.termsText}>I agree to the </Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => navigation.navigate("UserAgreement")}>
-                <Text style={styles.termsLink}>Terms of Service</Text>
+                <Text style={{ color: barangay ? "#FFFFFF" : "#64748B", fontSize: 13, fontWeight: "600" }}>
+                  {barangay ? `Brgy. ${barangay}` : "Select Barangay"}
+                </Text>
               </TouchableOpacity>
             </View>
 
-            {/* Primary Action Button: Create Account */}
+            {/* Complete Address */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>COMPLETE ADDRESS *</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Purok, Street, House No."
+                placeholderTextColor="#64748B"
+                value={completeAddress}
+                onChangeText={setCompleteAddress}
+              />
+            </View>
+
+            {/* Password & Confirm Password */}
+            <View style={styles.row}>
+              <View style={[styles.inputGroup, { flex: 1, marginRight: 6 }]}>
+                <Text style={styles.label}>PASSWORD *</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="••••••••"
+                  placeholderTextColor="#64748B"
+                  secureTextEntry={!showPassword}
+                  value={password}
+                  onChangeText={setPassword}
+                />
+              </View>
+
+              <View style={[styles.inputGroup, { flex: 1, marginLeft: 6 }]}>
+                <Text style={styles.label}>CONFIRM PASSWORD *</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="••••••••"
+                  placeholderTextColor="#64748B"
+                  secureTextEntry={!showPassword}
+                  value={confirmPassword}
+                  onChangeText={setConfirmPassword}
+                />
+              </View>
+            </View>
+
+            {/* Terms Row */}
+            <TouchableOpacity
+              style={styles.termsRow}
+              onPress={() => setAgreeTerms(!agreeTerms)}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.checkbox, agreeTerms && styles.checkboxChecked]}>
+                {agreeTerms && <Text style={styles.checkmark}>✓</Text>}
+              </View>
+              <Text style={styles.termsText}>
+                I agree to the <Text style={styles.termsLink}>User Agreement</Text> &amp; emergency telemetry.
+              </Text>
+            </TouchableOpacity>
+
+            {/* Create Account Button */}
             <TouchableOpacity
               style={[styles.createBtn, loading && styles.btnDisabled]}
-              onPress={handleStartRegistration}
+              onPress={handleRegister}
               activeOpacity={0.85}
               disabled={loading}
             >
               {loading ? (
-                <ActivityIndicator color="#040C1A" size="small" />
+                <ActivityIndicator color="#FFFFFF" size="small" />
               ) : (
-                <Text style={styles.createBtnText}>Create Account</Text>
+                <Text style={styles.createBtnText}>REGISTER &amp; ACCESS DASHBOARD</Text>
               )}
             </TouchableOpacity>
 
-            {/* Divider */}
-            <View style={styles.dividerRow}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>Or Create with</Text>
-              <View style={styles.dividerLine} />
-            </View>
-
-            {/* Social Options */}
-            <TouchableOpacity
-              style={styles.socialBtn}
-              onPress={() => navigation.navigate("Login")}
-              activeOpacity={0.85}
-            >
-              <GoogleIcon size={20} />
-              <Text style={styles.socialBtnText}>Log In with Google</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.socialBtn}
-              onPress={() => navigation.navigate("Login")}
-              activeOpacity={0.85}
-            >
-              <FacebookIcon size={20} />
-              <Text style={styles.socialBtnText}>Log In with Facebook</Text>
-            </TouchableOpacity>
-
-            {/* Bottom Link Row */}
+            {/* Back to Login Link */}
             <View style={styles.bottomLinkRow}>
-              <Text style={styles.bottomPrompt}>Do you have an account? </Text>
+              <Text style={styles.bottomPrompt}>Already have an account? </Text>
               <TouchableOpacity onPress={() => navigation.navigate("Login")}>
-                <Text style={styles.bottomLink}>Log In</Text>
+                <Text style={styles.bottomLink}>Sign In</Text>
               </TouchableOpacity>
             </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Barangay Selection Modal */}
+      <Modal visible={showBarangayPicker} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Select Barangay in Calbayog</Text>
+
+            <TextInput
+              style={styles.modalSearchInput}
+              placeholder="Search barangay..."
+              placeholderTextColor="#64748B"
+              value={barangaySearch}
+              onChangeText={setBarangaySearch}
+            />
+
+            <ScrollView style={{ maxHeight: 300 }}>
+              {filteredBarangays.map((bgy) => (
+                <TouchableOpacity
+                  key={bgy}
+                  style={styles.barangayItem}
+                  onPress={() => {
+                    setBarangay(bgy);
+                    setShowBarangayPicker(false);
+                  }}
+                >
+                  <Text style={styles.barangayText}>Brgy. {bgy}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+            <TouchableOpacity
+              style={styles.modalCloseBtn}
+              onPress={() => setShowBarangayPicker(false)}
+            >
+              <Text style={styles.modalCloseText}>CLOSE</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -267,52 +345,74 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    paddingHorizontal: 24,
-    justifyContent: "space-between",
+    paddingHorizontal: 20,
   },
   brandHeader: {
     alignItems: "center",
-    marginTop: 6,
-    marginBottom: 14,
+    marginBottom: 16,
   },
   logoCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 60,
+    height: 60,
+    borderRadius: 20,
     backgroundColor: "#0A1D38",
-    borderWidth: 2,
+    borderWidth: 1,
     borderColor: "#38BDF8",
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 10,
-    shadowColor: "#38BDF8",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
+    marginBottom: 8,
   },
   logoImage: {
-    width: 38,
-    height: 38,
+    width: 36,
+    height: 36,
   },
   screenTitle: {
-    fontSize: 26,
+    fontSize: 22,
     fontWeight: "900",
     color: "#FFFFFF",
-    letterSpacing: -0.5,
+  },
+  screenSubTitle: {
+    fontSize: 11.5,
+    fontWeight: "600",
+    color: "#38BDF8",
+    marginTop: 2,
   },
   formContainer: {
-    width: "100%",
+    backgroundColor: "#0B192C",
+    borderRadius: 20,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.08)",
+  },
+  inputGroup: {
+    marginBottom: 12,
+  },
+  row: {
+    flexDirection: "row",
+  },
+  label: {
+    color: "#64748B",
+    fontSize: 9.5,
+    fontWeight: "900",
+    letterSpacing: 0.8,
+    marginBottom: 4,
+  },
+  input: {
+    backgroundColor: "#040C1A",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#1E293B",
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "600",
+    height: 44,
+    paddingHorizontal: 12,
+    justifyContent: "center",
   },
   termsRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 2,
-    marginBottom: 18,
-  },
-  termsCheckboxContainer: {
-    flexDirection: "row",
-    alignItems: "center",
+    marginVertical: 12,
   },
   checkbox: {
     width: 18,
@@ -328,86 +428,103 @@ const styles = StyleSheet.create({
     backgroundColor: "#38BDF8",
     borderColor: "#38BDF8",
   },
+  checkmark: {
+    color: "#040C1A",
+    fontSize: 11,
+    fontWeight: "900",
+  },
   termsText: {
-    fontSize: 12.5,
+    fontSize: 11,
     color: "#94A3B8",
     fontWeight: "600",
   },
   termsLink: {
-    fontSize: 12.5,
     color: "#38BDF8",
     fontWeight: "700",
   },
   createBtn: {
-    width: "100%",
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: "#38BDF8",
+    backgroundColor: "#DC2626",
+    borderRadius: 12,
+    height: 48,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 16,
-    shadowColor: "#38BDF8",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 12,
-    elevation: 5,
+    marginTop: 4,
   },
   createBtnText: {
-    fontSize: 16,
-    fontWeight: "800",
-    color: "#040C1A",
-    letterSpacing: 0.3,
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "900",
+    letterSpacing: 0.8,
   },
   btnDisabled: {
     opacity: 0.6,
-  },
-  dividerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginVertical: 12,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: "#16273E",
-  },
-  dividerText: {
-    fontSize: 12,
-    color: "#64748B",
-    marginHorizontal: 12,
-    fontWeight: "600",
-  },
-  socialBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: "#0B1728",
-    borderWidth: 1,
-    borderColor: "#1E2D42",
-    marginBottom: 10,
-  },
-  socialBtnText: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#E2E8F0",
-    marginLeft: 10,
   },
   bottomLinkRow: {
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
     marginTop: 14,
-    marginBottom: 8,
   },
   bottomPrompt: {
-    fontSize: 13,
+    fontSize: 12,
     color: "#94A3B8",
   },
   bottomLink: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "800",
     color: "#38BDF8",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.8)",
+    justifyContent: "center",
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: "#0B192C",
+    borderRadius: 20,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: "#1E293B",
+  },
+  modalTitle: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "800",
+    marginBottom: 12,
+  },
+  modalSearchInput: {
+    backgroundColor: "#040C1A",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#1E293B",
+    color: "#FFFFFF",
+    fontSize: 13,
+    height: 42,
+    paddingHorizontal: 12,
+    marginBottom: 10,
+  },
+  barangayItem: {
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#16273E",
+  },
+  barangayText: {
+    color: "#E2E8F0",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  modalCloseBtn: {
+    backgroundColor: "#1E293B",
+    borderRadius: 10,
+    height: 40,
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 14,
+  },
+  modalCloseText: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "900",
   },
 });

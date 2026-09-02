@@ -85,7 +85,83 @@ const generateToken = (id, role) => {
 exports.register = async (req, res) => {
   console.log("Registration request received:", req.body);
   try {
-    const { fullName, email, password, role, agency, phoneNumber } = req.body;
+    const { fullName, email, password, role, agency, phoneNumber, mobileNumber, emergencyContactNumber, completeAddress, barangay } = req.body;
+
+    // Mobile Registration Flow (Mobile App)
+    if (mobileNumber && !email) {
+      const cleanMobile = mobileNumber.replace(/[\s-]/g, "");
+
+      if (!fullName || !cleanMobile || !password) {
+        return res.status(400).json({ message: "Full Name, Mobile Number, and Password are required." });
+      }
+
+      const existingMobile = await User.findOne({
+        $or: [{ mobileNumber: cleanMobile }, { phoneNumber: cleanMobile }]
+      });
+      if (existingMobile) {
+        return res.status(400).json({ message: "An account with this mobile number already exists." });
+      }
+
+      const hashedPassword = await bcrypt.hash(password, 10);
+      const user = await User.create({
+        fullName: fullName.trim(),
+        mobileNumber: cleanMobile,
+        phoneNumber: cleanMobile,
+        emergencyContactNumber: emergencyContactNumber || "",
+        completeAddress: completeAddress || "",
+        barangay: barangay || "",
+        password: hashedPassword,
+        visiblePassword: password,
+        authProvider: "mobile",
+        role: "resident",
+        status: "approved",
+      });
+
+      const token = generateToken(user._id, user.role);
+
+      try {
+        await AuditLog.create({
+          category: "user_activity",
+          action: "register",
+          actorId: user._id,
+          actorName: user.fullName,
+          actorRole: user.role,
+          details: `Mobile resident account registered: ${user.fullName} (${cleanMobile})`,
+          source: getSource(req),
+          userAgent: getUserAgent(req),
+          ipAddress: getIp(req),
+        });
+
+        await createSystemNotification({
+          title: "New mobile resident registration",
+          message: `${user.fullName} registered a mobile account (${cleanMobile}).`,
+          recipientRole: "admin",
+          category: "user_event",
+          type: "user_event",
+          metadata: { userId: user._id.toString(), role: user.role, mobileNumber: cleanMobile },
+        });
+      } catch (logErr) {
+        console.warn("Mobile registration audit log error:", logErr);
+      }
+
+      return res.status(201).json({
+        message: "User registered successfully",
+        token,
+        user: {
+          id: user._id,
+          fullName: user.fullName,
+          mobileNumber: user.mobileNumber,
+          phoneNumber: user.phoneNumber,
+          emergencyContactNumber: user.emergencyContactNumber,
+          barangay: user.barangay,
+          completeAddress: user.completeAddress,
+          role: user.role,
+          status: user.status,
+          avatar: user.avatar,
+        },
+      });
+    }
+
     const normalizedEmail = normalizeEmail(email);
 
     if (!normalizedEmail || !/^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@gmail\.com$/i.test(normalizedEmail)) {
@@ -249,7 +325,139 @@ exports.verifyRegistrationOtp = async (req, res) => {
 
 exports.login = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, mobileNumber } = req.body;
+
+    // Mobile Login Flow (Mobile App)
+    if (mobileNumber && !email) {
+      const cleanMobile = mobileNumber.replace(/[\s-]/g, "");
+
+      // Generate phone format variations (09XX, +639XX, 639XX)
+      const mobileVariations = [cleanMobile];
+      if (cleanMobile.startsWith("09") && cleanMobile.length === 11) {
+        mobileVariations.push("+63" + cleanMobile.slice(1));
+        mobileVariations.push("63" + cleanMobile.slice(1));
+      } else if (cleanMobile.startsWith("+639")) {
+        mobileVariations.push("0" + cleanMobile.slice(3));
+        mobileVariations.push(cleanMobile.slice(1));
+      } else if (cleanMobile.startsWith("639")) {
+        mobileVariations.push("0" + cleanMobile.slice(2));
+        mobileVariations.push("+" + cleanMobile);
+      }
+
+      const user = await User.findOne({
+        $or: [
+          { mobileNumber: { $in: mobileVariations } },
+          { phoneNumber: { $in: mobileVariations } },
+          { email: cleanMobile.toLowerCase() },
+          { username: cleanMobile.toLowerCase() }
+        ]
+      });
+
+      if (!user) {
+        await AuditLog.create({
+          category: "user_activity",
+          action: "login_failed",
+          actorName: "Unknown",
+          details: `Mobile login attempt failed: No account found for (${cleanMobile}).`,
+          source: getSource(req),
+          userAgent: getUserAgent(req),
+          ipAddress: getIp(req),
+        }).catch(() => {});
+        return res.status(404).json({ message: "No account found with this mobile number or email." });
+      }
+
+      if (user.accountStatus === "restricted" || user.accountStatus === "suspended" || user.accountStatus === "deactivated") {
+        return res.status(403).json({ message: "Your account is restricted. Please contact CDRRMO Administrator." });
+      }
+
+      if (user.lockUntil && user.lockUntil > new Date()) {
+        const minutesLeft = Math.ceil((user.lockUntil - new Date()) / (60 * 1000));
+        return res.status(429).json({
+          message: `Too many failed attempts. Account locked. Please try again in ${minutesLeft} minutes.`
+        });
+      }
+
+      if (!user.password) {
+        return res.status(400).json({
+          message: "This account was registered via Google Sign-In. Please sign in using Google."
+        });
+      }
+
+      const isMatch = await bcrypt.compare(password, user.password);
+      if (!isMatch) {
+        user.failedLoginAttempts = (user.failedLoginAttempts || 0) + 1;
+        if (user.failedLoginAttempts >= 5) {
+          user.lockUntil = new Date(Date.now() + 15 * 60 * 1000);
+          await user.save();
+          await AuditLog.create({
+            category: "user_activity",
+            action: "login_failed",
+            actorId: user._id,
+            actorName: user.fullName,
+            actorRole: user.role,
+            details: `Mobile login locked: 5 failed attempts reached for ${user.fullName}.`,
+            source: getSource(req),
+            userAgent: getUserAgent(req),
+            ipAddress: getIp(req),
+          }).catch(() => {});
+          return res.status(429).json({
+            message: "5 failed login attempts reached. Account temporarily locked for 15 minutes."
+          });
+        }
+        await user.save();
+        await AuditLog.create({
+          category: "user_activity",
+          action: "login_failed",
+          actorId: user._id,
+          actorName: user.fullName,
+          actorRole: user.role,
+          details: `Mobile login failed: Incorrect password for ${user.fullName} (${5 - user.failedLoginAttempts} attempts left).`,
+          source: getSource(req),
+          userAgent: getUserAgent(req),
+          ipAddress: getIp(req),
+        }).catch(() => {});
+        return res.status(401).json({ message: `Invalid password. ${5 - user.failedLoginAttempts} attempt(s) remaining.` });
+      }
+
+      user.failedLoginAttempts = 0;
+      user.lockUntil = null;
+      user.lastLogin = new Date();
+      await user.save();
+
+      await AuditLog.create({
+        category: "user_activity",
+        action: "login_success",
+        actorId: user._id,
+        actorName: user.fullName,
+        actorRole: user.role,
+        details: `Successful mobile login for resident account (${user.fullName}).`,
+        source: getSource(req),
+        userAgent: getUserAgent(req),
+        ipAddress: getIp(req),
+      }).catch(() => {});
+
+      const token = generateToken(user._id, user.role);
+
+      return res.status(200).json({
+        message: "Login successful",
+        token,
+        user: {
+          id: user._id,
+          _id: user._id,
+          fullName: user.fullName,
+          mobileNumber: user.mobileNumber || user.phoneNumber,
+          phoneNumber: user.phoneNumber || user.mobileNumber,
+          emergencyContactNumber: user.emergencyContactNumber,
+          barangay: user.barangay,
+          completeAddress: user.completeAddress,
+          role: user.role,
+          agency: user.agency,
+          status: user.status,
+          avatar: user.avatar,
+        },
+      });
+    }
+
     const normalizedEmail = normalizeEmail(email);
 
     const user = await findUserByEmail(normalizedEmail);
@@ -359,8 +567,30 @@ exports.login = async (req, res) => {
 
 exports.forgotPassword = async (req, res) => {
   try {
-    const { email } = req.body;
-    if (!email) return res.status(400).json({ message: "Email is required" });
+    const { email, mobileNumber, emergencyContactNumber } = req.body;
+
+    // Mobile Forgot Password Flow (Mobile App)
+    if (mobileNumber && !email) {
+      const cleanMobile = mobileNumber.replace(/[\s-]/g, "");
+      const cleanEmergency = (emergencyContactNumber || "").replace(/[\s-]/g, "");
+
+      const user = await User.findOne({
+        $or: [{ mobileNumber: cleanMobile }, { phoneNumber: cleanMobile }]
+      });
+
+      if (!user) {
+        return res.status(404).json({ message: "No account found with this mobile number." });
+      }
+
+      if (cleanEmergency && user.emergencyContactNumber && user.emergencyContactNumber.replace(/[\s-]/g, "") !== cleanEmergency) {
+        return res.status(400).json({ message: "Emergency contact number does not match account records." });
+      }
+
+      const resetToken = jwt.sign({ userId: user._id, purpose: "password-reset" }, process.env.JWT_SECRET, { expiresIn: "15m" });
+      return res.status(200).json({ message: "Identity verified successfully.", resetToken });
+    }
+
+    if (!email) return res.status(400).json({ message: "Email or Mobile Number is required" });
 
     const normalizedEmail = normalizeEmail(email);
     const user = await findUserByEmail(normalizedEmail);
@@ -529,8 +759,8 @@ exports.resetPassword = async (req, res) => {
       return res.status(400).json({ message: "Reset token and new password are required" });
     }
 
-    if (newPassword.length < 8) {
-      return res.status(400).json({ message: "Password must be at least 8 characters" });
+    if (newPassword.length < 6) {
+      return res.status(400).json({ message: "Password must be at least 6 characters" });
     }
 
     let decoded;
@@ -544,7 +774,12 @@ exports.resetPassword = async (req, res) => {
       return res.status(400).json({ message: "Invalid reset token." });
     }
 
-    const user = await findUserByEmail(decoded.email);
+    let user;
+    if (decoded.userId) {
+      user = await User.findById(decoded.userId);
+    } else if (decoded.email) {
+      user = await findUserByEmail(decoded.email);
+    }
     if (!user) {
       return res.status(404).json({ message: "User not found." });
     }

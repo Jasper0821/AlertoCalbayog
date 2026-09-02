@@ -106,7 +106,7 @@ function AdminDashboard() {
 
   useEffect(() => {
     if (Object.keys(statusOverrides).length > 0) {
-      localStorage.setItem("pnpStatusOverrides", JSON.stringify(statusOverrides));
+      try { localStorage.setItem("pnpStatusOverrides", JSON.stringify(statusOverrides)); } catch (_) {}
     }
   }, [statusOverrides]);
   const [isOffline, setIsOffline] = useState(false);
@@ -116,7 +116,7 @@ function AdminDashboard() {
   });
 
   useEffect(() => {
-    localStorage.setItem("pnpActiveNav", activeNav);
+    try { localStorage.setItem("pnpActiveNav", activeNav); } catch (_) {}
   }, [activeNav]);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSidebarHovered, setIsSidebarHovered] = useState(false);

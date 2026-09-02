@@ -15,6 +15,7 @@ import UserAgreementScreen from "../screens/UserAgreementScreen";
 import NotificationsScreen from "../screens/NotificationsScreen";
 import SettingsScreen from "../screens/SettingsScreen";
 import ForgotPasswordScreen from "../screens/ForgotPasswordScreen";
+import UserProfileScreen from "../screens/UserProfileScreen";
 
 export type RootStackParamList = {
   Splash: undefined;
@@ -39,7 +40,8 @@ export type RootStackParamList = {
   UserAgreement: undefined;
   Notifications: undefined;
   Settings: undefined;
-};  
+  UserProfile: undefined;
+};
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -65,6 +67,7 @@ export default function AppNavigator(): React.JSX.Element {
         <Stack.Screen name="UserAgreement" component={UserAgreementScreen} />
         <Stack.Screen name="Notifications" component={NotificationsScreen} />
         <Stack.Screen name="Settings" component={SettingsScreen} />
+        <Stack.Screen name="UserProfile" component={UserProfileScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

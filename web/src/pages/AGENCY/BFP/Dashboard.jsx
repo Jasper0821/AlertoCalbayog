@@ -105,7 +105,7 @@ function BfpDashboard() {
   });
 
   useEffect(() => {
-    localStorage.setItem("bfpActiveNav", activeNav);
+    try { localStorage.setItem("bfpActiveNav", activeNav); } catch (_) {}
   }, [activeNav]);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSidebarHovered, setIsSidebarHovered] = useState(false);

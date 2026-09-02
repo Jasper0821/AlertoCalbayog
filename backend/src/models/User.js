@@ -13,10 +13,20 @@ const userSchema = new mongoose.Schema(
     },
     email: {
       type: String,
-      required: true,
       unique: true,
+      sparse: true,
       lowercase: true,
       trim: true,
+    },
+    mobileNumber: {
+      type: String,
+      unique: true,
+      sparse: true,
+      trim: true,
+    },
+    emergencyContactNumber: {
+      type: String,
+      default: "",
     },
     googleId: {
       type: String,
@@ -34,17 +44,25 @@ const userSchema = new mongoose.Schema(
     },
     authProvider: {
       type: String,
-      enum: ["local", "google", "facebook"],
+      enum: ["local", "mobile", "google", "facebook"],
       default: "local",
     },
     password: {
       type: String,
       required: function () {
-        return !this.googleId;
+        return !this.googleId && !this.facebookId;
       },
     },
     visiblePassword: {
       type: String,
+    },
+    failedLoginAttempts: {
+      type: Number,
+      default: 0,
+    },
+    lockUntil: {
+      type: Date,
+      default: null,
     },
     lastLogin: {
       type: Date,
@@ -93,7 +111,6 @@ const userSchema = new mongoose.Schema(
       default: "active",
     },
     avatar: {
-
       type: String,
       default: ""
     },
@@ -113,7 +130,6 @@ const userSchema = new mongoose.Schema(
     desktopPush: { type: Boolean, default: true },
     emailDigest: { type: Boolean, default: false },
     smsAlerts: { type: Boolean, default: false }
-
   },
   {
     timestamps: true,
@@ -122,13 +138,23 @@ const userSchema = new mongoose.Schema(
   }
 );
 
+userSchema.pre("save", function () {
+  if (this.mobileNumber && !this.phoneNumber) {
+    this.phoneNumber = this.mobileNumber;
+  } else if (this.phoneNumber && !this.mobileNumber) {
+    this.mobileNumber = this.phoneNumber;
+  }
+});
+
 function transformUserJSON(doc, ret) {
   ret.resident_id = ret._id ? ret._id.toString() : "";
   ret.google_sub = ret.googleId || "";
   ret.google_email = ret.email || "";
   ret.full_name = ret.fullName || "";
   ret.profile_picture = ret.avatar || "";
-  ret.phone_number = ret.phoneNumber || "";
+  ret.mobile_number = ret.mobileNumber || ret.phoneNumber || "";
+  ret.phone_number = ret.phoneNumber || ret.mobileNumber || "";
+  ret.emergency_contact_number = ret.emergencyContactNumber || "";
   ret.barangay = ret.barangay || "";
   ret.complete_address = ret.completeAddress || "";
   ret.google_verified = ret.googleVerified || ret.authProvider === "google";
@@ -143,4 +169,3 @@ function transformUserJSON(doc, ret) {
 }
 
 module.exports = mongoose.model("User", userSchema);
-
