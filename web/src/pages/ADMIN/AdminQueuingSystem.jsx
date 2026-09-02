@@ -82,7 +82,7 @@ export default function AdminQueuingSystem({ reports = [], onStatusChange, onVie
                 const type = (report.emergencyType || report.type || report.incidentType || "others").toLowerCase();
                 const tc = TYPE_COLORS[type] || TYPE_COLORS.others;
                 const sc = STATUS_STYLES[(report.status || "pending").toLowerCase()] || STATUS_STYLES.pending;
-                const locationText = formatLocationForTable(report.location);
+                const locationText = formatLocationForTable(report.location, report);
                 const timeStr = report.createdAt
                   ? new Date(report.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })
                   : "--:--";
@@ -215,7 +215,7 @@ export default function AdminQueuingSystem({ reports = [], onStatusChange, onVie
                 <dl className="grid grid-cols-2 gap-3 text-xs">
                   <div>
                     <dt className="text-[10px] font-black uppercase tracking-widest text-slate-400">Location</dt>
-                    <dd className="mt-0.5 text-slate-700 truncate font-medium">{formatLocationForTable(report.location)}</dd>
+                    <dd className="mt-0.5 text-slate-700 truncate font-medium">{formatLocationForTable(report.location, report)}</dd>
                   </div>
                   <div>
                     <dt className="text-[10px] font-black uppercase tracking-widest text-slate-400">Reporter</dt>

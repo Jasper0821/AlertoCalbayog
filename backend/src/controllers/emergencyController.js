@@ -25,7 +25,7 @@ const cleanPurok = (value = "") => {
   return name ? `Purok ${name}` : "";
 };
 
-const buildReadableLocationName = ({ barangay, purok, street }) => {
+const buildReadableLocationName = ({ barangay, purok, street, cityOrTown, userBarangay, userAddress }) => {
   const safeBarangay = cleanBarangay(barangay);
   const safePurok = cleanPurok(purok);
   const isGenericBarangay = !safeBarangay || /^district$/i.test(safeBarangay);
@@ -36,10 +36,20 @@ const buildReadableLocationName = ({ barangay, purok, street }) => {
   if (!isGenericBarangay) {
     parts.push(safeBarangay.toLowerCase().startsWith("brgy") ? safeBarangay : `Brgy. ${safeBarangay}`);
   }
-  parts.push("Calbayog City");
+  if (cityOrTown) {
+    parts.push(cityOrTown);
+  } else if (!isGenericBarangay || street || safePurok) {
+    parts.push("Calbayog City");
+  }
 
-  if (parts.length <= 1) return "";
-  return parts.join(", ");
+  if (parts.length > 0) return parts.join(", ");
+
+  if (userAddress) return userAddress;
+  if (userBarangay && !/^district$/i.test(userBarangay)) {
+    return userBarangay.toLowerCase().startsWith("brgy") ? userBarangay : `Brgy. ${userBarangay}`;
+  }
+
+  return "";
 };
 
 exports.createEmergencyReport = async (req, res) => {
@@ -122,11 +132,12 @@ exports.createEmergencyReport = async (req, res) => {
     let barangay = "";
     let street = "";
     let purok = "";
+    let cityOrTown = "";
 
     try {
       if (typeof fetch === "function") {
         const controller = new AbortController();
-        const geoTimeout = setTimeout(() => controller.abort(), 1000);
+        const geoTimeout = setTimeout(() => controller.abort(), 3500);
 
         const response = await fetch(
           `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&accept-language=en`,
@@ -141,8 +152,9 @@ exports.createEmergencyReport = async (req, res) => {
           const data = await response.json();
           if (data && data.address) {
             const addr = data.address;
-            barangay = addr.suburb || addr.neighbourhood || addr.village || addr.quarter || addr.city_district || "";
-            street = addr.road || addr.street || addr.footway || addr.path || "";
+            barangay = addr.suburb || addr.neighbourhood || addr.village || addr.quarter || addr.city_district || addr.hamlet || addr.subdistrict || addr.district || "";
+            street = addr.road || addr.street || addr.footway || addr.path || addr.pedestrian || "";
+            cityOrTown = addr.city || addr.town || addr.municipality || addr.county || addr.state_district || "";
 
             if (addr.neighbourhood && addr.neighbourhood.toLowerCase().includes("purok")) {
               purok = addr.neighbourhood;
@@ -152,18 +164,17 @@ exports.createEmergencyReport = async (req, res) => {
               purok = addr.subdivision;
             }
 
-            const parts = [];
             barangay = cleanBarangay(barangay);
             purok = cleanPurok(purok);
 
-            if (purok) parts.push(purok);
-            if (street && street !== purok) parts.push(street);
-            if (barangay && barangay !== purok && barangay !== street && !/^district$/i.test(barangay)) {
-              parts.push(barangay.toLowerCase().startsWith("brgy") ? barangay : `Brgy. ${barangay}`);
-            }
-            if (addr.city) parts.push(addr.city);
-
-            name = buildReadableLocationName({ barangay, purok, street }) || "";
+            name = buildReadableLocationName({
+              barangay,
+              purok,
+              street,
+              cityOrTown,
+              userBarangay: resident.barangay,
+              userAddress: resident.completeAddress
+            }) || "";
           }
         }
       }
@@ -171,6 +182,21 @@ exports.createEmergencyReport = async (req, res) => {
       if (err.name !== "AbortError") {
         console.error("Reverse geocoding failed:", err.message);
       }
+    }
+
+    if (!barangay && resident.barangay) {
+      barangay = resident.barangay;
+    }
+
+    if (!name) {
+      name = buildReadableLocationName({
+        barangay,
+        purok,
+        street,
+        cityOrTown,
+        userBarangay: resident.barangay,
+        userAddress: resident.completeAddress
+      }) || (resident.completeAddress ? resident.completeAddress : (resident.barangay ? `Brgy. ${resident.barangay}` : ""));
     }
 
     const report = await EmergencyReport.create({

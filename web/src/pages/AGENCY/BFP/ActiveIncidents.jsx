@@ -42,7 +42,7 @@ export default function ActiveIncidents({ reports = [] }) {
           <tbody className="divide-y divide-slate-100">
             {activeReports.map((report, idx) => {
               // Location
-              const locationText = formatLocationForTable(report.location);
+              const locationText = formatLocationForTable(report.location, report);
 
               // Time
               const timeStr = report.createdAt

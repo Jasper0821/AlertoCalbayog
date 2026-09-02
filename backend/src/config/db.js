@@ -7,6 +7,19 @@ const connectDB = async () => {
     }
     await mongoose.connect(process.env.MONGO_URI);
     console.log("MongoDB connected");
+
+    // Clean up null/empty values for sparse-indexed fields and resync MongoDB indexes
+    try {
+      const User = require("../models/User");
+      await User.updateMany({ email: { $in: [null, ""] } }, { $unset: { email: "" } });
+      await User.updateMany({ username: { $in: [null, ""] } }, { $unset: { username: "" } });
+      await User.updateMany({ googleId: { $in: [null, ""] } }, { $unset: { googleId: "" } });
+      await User.updateMany({ facebookId: { $in: [null, ""] } }, { $unset: { facebookId: "" } });
+      await User.syncIndexes();
+      console.log("MongoDB User indexes synchronized successfully.");
+    } catch (indexErr) {
+      console.warn("Index synchronization warning:", indexErr.message);
+    }
   } catch (error) {
     console.error("Database connection error:", error.message);
     process.exit(1);

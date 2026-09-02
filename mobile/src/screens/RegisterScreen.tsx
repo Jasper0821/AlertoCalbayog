@@ -70,8 +70,8 @@ export default function RegisterScreen({ navigation }: Props): React.JSX.Element
       return;
     }
 
-    if (!barangay) {
-      Alert.alert("Barangay Required", "Please select your Barangay in Calbayog City.");
+    if (!barangay.trim()) {
+      Alert.alert("Barangay Required", "Please enter or select your Barangay.");
       return;
     }
 
@@ -204,18 +204,41 @@ export default function RegisterScreen({ navigation }: Props): React.JSX.Element
               </View>
             </View>
 
-            {/* Barangay Selector */}
+            {/* Barangay Input & Selector */}
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>BARANGAY (CALBAYOG) *</Text>
-              <TouchableOpacity
-                style={styles.input}
-                onPress={() => setShowBarangayPicker(true)}
-                activeOpacity={0.7}
-              >
-                <Text style={{ color: barangay ? "#FFFFFF" : "#64748B", fontSize: 13, fontWeight: "600" }}>
-                  {barangay ? `Brgy. ${barangay}` : "Select Barangay"}
-                </Text>
-              </TouchableOpacity>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                <Text style={styles.label}>BARANGAY *</Text>
+                <TouchableOpacity onPress={() => setShowBarangayPicker(true)}>
+                  <Text style={{ color: "#38BDF8", fontSize: 10, fontWeight: "800" }}>SELECT FROM LIST</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={{ flexDirection: "row", alignItems: "center" }}>
+                <TextInput
+                  style={[styles.input, { flex: 1 }]}
+                  placeholder="Type your Barangay (or pick from list)"
+                  placeholderTextColor="#64748B"
+                  value={barangay}
+                  onChangeText={setBarangay}
+                  autoCapitalize="words"
+                />
+                <TouchableOpacity
+                  style={{
+                    backgroundColor: "#1E293B",
+                    borderRadius: 10,
+                    height: 44,
+                    paddingHorizontal: 12,
+                    justifyContent: "center",
+                    alignItems: "center",
+                    marginLeft: 8,
+                    borderWidth: 1,
+                    borderColor: "rgba(255, 255, 255, 0.1)",
+                  }}
+                  onPress={() => setShowBarangayPicker(true)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={{ color: "#38BDF8", fontSize: 10, fontWeight: "900" }}>LIST</Text>
+                </TouchableOpacity>
+              </View>
             </View>
 
             {/* Complete Address */}
@@ -300,15 +323,44 @@ export default function RegisterScreen({ navigation }: Props): React.JSX.Element
       <Modal visible={showBarangayPicker} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Select Barangay in Calbayog</Text>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <Text style={styles.modalTitle}>Select Barangay</Text>
+              <TouchableOpacity onPress={() => setShowBarangayPicker(false)}>
+                <Text style={{ color: "#94A3B8", fontSize: 16, fontWeight: "800" }}>✕</Text>
+              </TouchableOpacity>
+            </View>
 
             <TextInput
               style={styles.modalSearchInput}
-              placeholder="Search barangay..."
+              placeholder="Search or type custom barangay..."
               placeholderTextColor="#64748B"
               value={barangaySearch}
               onChangeText={setBarangaySearch}
             />
+
+            {barangaySearch.trim().length > 0 &&
+              !filteredBarangays.some((b) => b.toLowerCase() === barangaySearch.trim().toLowerCase()) && (
+                <TouchableOpacity
+                  style={{
+                    backgroundColor: "#0A1D38",
+                    borderColor: "#38BDF8",
+                    borderWidth: 1,
+                    borderRadius: 10,
+                    paddingVertical: 12,
+                    paddingHorizontal: 14,
+                    marginBottom: 10,
+                  }}
+                  onPress={() => {
+                    setBarangay(barangaySearch.trim());
+                    setShowBarangayPicker(false);
+                    setBarangaySearch("");
+                  }}
+                >
+                  <Text style={{ color: "#38BDF8", fontSize: 13, fontWeight: "700" }}>
+                    Use custom: "{barangaySearch.trim()}"
+                  </Text>
+                </TouchableOpacity>
+              )}
 
             <ScrollView style={{ maxHeight: 300 }}>
               {filteredBarangays.map((bgy) => (
@@ -318,6 +370,7 @@ export default function RegisterScreen({ navigation }: Props): React.JSX.Element
                   onPress={() => {
                     setBarangay(bgy);
                     setShowBarangayPicker(false);
+                    setBarangaySearch("");
                   }}
                 >
                   <Text style={styles.barangayText}>Brgy. {bgy}</Text>

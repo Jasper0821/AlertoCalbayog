@@ -144,7 +144,7 @@ function getIncidentId(report, index) {
 }
 
 function getLocation(report) {
-  return formatLocationForTable(report?.location);
+  return formatLocationForTable(report?.location, report);
 }
 
 function getStatusInfo(status) {
@@ -3949,6 +3949,7 @@ export default function AdminDashboard() {
         ];
         const allEvidenceImages = Array.from(
           new Set([
+            ...(Array.isArray(report.proofPhotos) ? report.proofPhotos : []),
             ...(Array.isArray(report.resolutionEvidence) ? report.resolutionEvidence : []),
             ...(Array.isArray(report.evidenceImages) ? report.evidenceImages : []),
             ...(Array.isArray(report.proofImages) ? report.proofImages : []),

@@ -95,7 +95,7 @@ export default function QueuingSystem({ reports = [], onStatusChange }) {
                   const statusStyle = STATUS_STYLES[status] || STATUS_STYLES.pending;
 
                   const incId = report._id ? `INC-${report._id.slice(-6).toUpperCase()}` : `INC-${1000 + idx}`;
-                  const locationText = formatLocationForTable(report.location);
+                  const locationText = formatLocationForTable(report.location, report);
                   const date = report.createdAt ? new Date(report.createdAt) : new Date();
 
                   return (
