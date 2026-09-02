@@ -139,6 +139,18 @@ const userSchema = new mongoose.Schema(
 );
 
 userSchema.pre("save", function () {
+  if (this.email === null || this.email === "") {
+    this.email = undefined;
+  }
+  if (this.username === null || this.username === "") {
+    this.username = undefined;
+  }
+  if (this.googleId === null || this.googleId === "") {
+    this.googleId = undefined;
+  }
+  if (this.facebookId === null || this.facebookId === "") {
+    this.facebookId = undefined;
+  }
   if (this.mobileNumber && !this.phoneNumber) {
     this.phoneNumber = this.mobileNumber;
   } else if (this.phoneNumber && !this.mobileNumber) {

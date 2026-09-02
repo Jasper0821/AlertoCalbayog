@@ -115,19 +115,34 @@ export default function EmergencyReportScreen({
       return;
     }
 
-    const result = await ImagePicker.launchCameraAsync({
-      allowsEditing: false,
-      quality: 0.6,
-      base64: true,
-    });
+    let currentCount = proofPhotos.length;
 
-    if (!result.canceled && result.assets && result.assets.length > 0) {
+    while (currentCount < 5) {
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: false,
+        quality: 0.6,
+        base64: true,
+      });
+
+      if (result.canceled || !result.assets || result.assets.length === 0) {
+        break;
+      }
+
       const asset = result.assets[0];
       const imageUri = asset.base64
         ? `data:image/jpeg;base64,${asset.base64}`
         : asset.uri;
 
       setProofPhotos((prev) => [...prev, imageUri]);
+      currentCount++;
+
+      if (currentCount >= 5) {
+        Alert.alert(
+          "Maximum Limit Reached",
+          "You have captured the maximum of 5 proof photos."
+        );
+        break;
+      }
     }
   };
 

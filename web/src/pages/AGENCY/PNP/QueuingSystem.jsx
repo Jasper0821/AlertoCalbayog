@@ -90,7 +90,7 @@ export default function QueuingSystem({ reports = [], onStatusChange }) {
                 const type = (report.emergencyType || "others").toLowerCase();
                 const tc = TYPE_COLORS[type] || TYPE_COLORS.others;
                 const sc = STATUS_STYLES[(report.status || "pending").toLowerCase()] || STATUS_STYLES.pending;
-                const locationText = formatLocationForTable(report.location);
+                const locationText = formatLocationForTable(report.location, report);
                 const timeStr = report.createdAt
                   ? new Date(report.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })
                   : "--:--";
@@ -179,7 +179,7 @@ export default function QueuingSystem({ reports = [], onStatusChange }) {
                   </button>
                 </div>
                 <dl className="grid grid-cols-2 gap-2 text-xs">
-                  <div><dt className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Location</dt><dd className="mt-0.5 text-slate-700 truncate">{formatLocationForTable(report.location)}</dd></div>
+                  <div><dt className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Location</dt><dd className="mt-0.5 text-slate-700 truncate">{formatLocationForTable(report.location, report)}</dd></div>
                   <div><dt className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Reporter</dt><dd className="mt-0.5 text-slate-700">{report.userId?.fullName || "Anonymous"}</dd></div>
                   <div><dt className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Contact</dt><dd className="mt-0.5 font-mono text-slate-700">{report.userId?.phoneNumber || report.phoneNumber || "N/A"}</dd></div>
                 </dl>

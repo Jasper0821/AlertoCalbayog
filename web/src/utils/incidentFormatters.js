@@ -48,13 +48,16 @@ export function formatIncidentLocation(location) {
   return `${streetPurok}, ${bgy}`;
 }
 
-/**
- * Build a meaningful location string for table columns.
- * Avoids showing just "District" — prefers street, then barangay,
- * and falls back to coordinates if nothing useful is available.
- */
-export function formatLocationForTable(location) {
-  if (!location) return "Unknown Location";
+export function formatLocationForTable(location, report) {
+  if (!location) {
+    if (report?.userId?.completeAddress) return report.userId.completeAddress;
+    if (report?.userId?.barangay) {
+      const b = report.userId.barangay.trim();
+      return b.toLowerCase().startsWith("brgy") ? b : `Brgy. ${b}`;
+    }
+    return "Unknown Location";
+  }
+
   if (typeof location === "string") {
     const cleaned = location
       .replace(/,?\s*brgy\.?\s*district,?/gi, "")
@@ -69,8 +72,9 @@ export function formatLocationForTable(location) {
   const purok = (location.purok || "").trim();
   const lat = location.latitude;
   const lng = location.longitude;
+  const rawName = (location.name || location.address || "").trim();
 
-  // Check if barangay is just a generic "District" value (not a real barangay name)
+  // Check if barangay is generic
   const isGenericBarangay = !barangay || /^district$/i.test(barangay);
 
   const parts = [];
@@ -88,18 +92,27 @@ export function formatLocationForTable(location) {
 
   if (parts.length > 0) return parts.join(", ");
 
-  // Fall back to coordinates if no street/barangay info is useful
-  if (lat && lng) {
-    return `${Number(lat).toFixed(5)}, ${Number(lng).toFixed(5)}`;
-  }
-
-  if (location.name) {
-    const cleanedName = location.name
+  // Check location.name / location.address if valid and readable
+  if (rawName) {
+    const cleanedName = rawName
       .replace(/,?\s*brgy\.?\s*district,?/gi, "")
       .replace(/,?\s*district,?/gi, "")
       .replace(/^[,\s]+|[,\s]+$/g, "")
       .trim();
     if (cleanedName) return cleanedName;
+  }
+
+  // Fallback: check reporter resident profile completeAddress or barangay
+  const userBarangay = (report?.userId?.barangay || "").trim();
+  const userAddress = (report?.userId?.completeAddress || "").trim();
+  if (userAddress) return userAddress;
+  if (userBarangay && !/^district$/i.test(userBarangay)) {
+    return userBarangay.toLowerCase().startsWith("brgy") ? userBarangay : `Brgy. ${userBarangay}`;
+  }
+
+  // Fall back to coordinates if no readable address text is found anywhere
+  if (lat && lng) {
+    return `${Number(lat).toFixed(5)}, ${Number(lng).toFixed(5)}`;
   }
 
   return "Unknown Location";

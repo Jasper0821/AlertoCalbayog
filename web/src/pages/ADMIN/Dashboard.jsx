@@ -144,7 +144,7 @@ function getIncidentId(report, index) {
 }
 
 function getLocation(report) {
-  return formatLocationForTable(report?.location);
+  return formatLocationForTable(report?.location, report);
 }
 
 function getStatusInfo(status) {
