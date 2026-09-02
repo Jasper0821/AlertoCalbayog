@@ -106,7 +106,7 @@ export default function QueuingSystem({ reports = [], onStatusChange }) {
                       <td className="block px-0 py-1 lg:table-cell lg:px-5 lg:py-3.5">
                         <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${typeStyle.bg} ${typeStyle.text} ${typeStyle.border} border`}>
                           <span className={`w-1.5 h-1.5 rounded-full ${typeStyle.dot}`} />
-                          🔥 {typeLabel}
+                          {typeLabel}
                         </span>
                       </td>
                       <td className="block px-0 py-1 lg:table-cell lg:px-5 lg:py-3.5 text-xs text-slate-600 max-w-[200px] truncate" title={locationText}>
@@ -182,8 +182,8 @@ export default function QueuingSystem({ reports = [], onStatusChange }) {
         <ResolutionEvidenceModal
           report={reports.find(r => r._id === evidenceIncidentId)}
           onClose={() => setEvidenceIncidentId(null)}
-          onSubmit={(id, newStatus, evidenceImages) => {
-            onStatusChange(id, newStatus, evidenceImages);
+          onSubmit={async (images) => {
+            await onStatusChange(evidenceIncidentId, "resolved", images);
             setEvidenceIncidentId(null);
           }}
         />

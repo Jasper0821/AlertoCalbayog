@@ -63,7 +63,6 @@ export default function ActiveIncidents({ reports = [] }) {
                   {/* Type */}
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2.5">
-                      <span className="text-[17px] leading-none shrink-0">🔥</span>
                       <span className="text-xs font-medium text-slate-800">Fire</span>
                     </div>
                   </td>

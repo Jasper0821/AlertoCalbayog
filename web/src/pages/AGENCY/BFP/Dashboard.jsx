@@ -153,7 +153,7 @@ function BfpDashboard() {
   // Helper: send a native OS desktop notification
   const sendDesktopNotification = (report) => {
     if (!("Notification" in window) || Notification.permission !== "granted") return;
-    const title = `🔥 BFP ALERT: ${report.emergencyType || "Fire Emergency"}`;
+    const title = `BFP ALERT: ${report.emergencyType || "Fire Emergency"}`;
     const body = [
       report.userId?.fullName || "Anonymous Reporter",
       report.location?.name || report.location?.barangay || "Unknown Location",
@@ -187,7 +187,7 @@ function BfpDashboard() {
   const handleStatusChange = async (id, newStatus, evidenceImages = []) => {
     setStatusOverrides(prev => ({ ...prev, [id]: newStatus }));
     try {
-      const res = await api.put(`/reports/${id}/status`, { status: newStatus, evidenceImages });
+      const res = await api.put(`/emergency/${id}`, { status: newStatus, evidenceImages });
       const updatedReport = res.data?.report;
       if (updatedReport?._id) {
         setReports(prev => prev.map(r => r._id === updatedReport._id ? updatedReport : r));
@@ -861,7 +861,7 @@ function BfpDashboard() {
       </main>
 
       {/* ═══════════════════════════════════════════════════════
-           🔥  PROFESSIONAL FIRE EMERGENCY ALERT DISPATCH MODAL 🔥
+           PROFESSIONAL FIRE EMERGENCY ALERT DISPATCH MODAL
           ═══════════════════════════════════════════════════════ */}
       {activeAlert && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">

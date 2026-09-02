@@ -5,6 +5,7 @@ const {
   getAllReports,
   getMyReports,
   deleteMyReport,
+  deleteAllClosedReports,
   getReportsByAgency,
   getDeletedReports,
   restoreReport
@@ -13,6 +14,7 @@ const { updateReportStatus } = require("../controllers/reportController");
 const authMiddleware = require("../middleware/authMiddleware");
 
 router.post("/", authMiddleware, createEmergencyReport);
+router.delete("/closed", authMiddleware, deleteAllClosedReports);
 router.get("/", authMiddleware, getAllReports);
 router.get("/me", authMiddleware, getMyReports);
 router.get("/deleted", authMiddleware, getDeletedReports);

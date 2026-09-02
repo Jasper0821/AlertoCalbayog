@@ -2,31 +2,21 @@ import { useState } from "react";
 import { getPriority, getIncidentId, formatLocationForTable } from "../../../utils/incidentFormatters.js";
 import IncidentDetailModal from "../PNP/IncidentDetailModal.jsx";
 
-const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-
 export default function IncidentHistory({ reports = [] }) {
   const [search, setSearch] = useState("");
-  const [yearFilter, setYearFilter] = useState("all");
-  const [monthFilter, setMonthFilter] = useState("all");
-  const [dayFilter, setDayFilter] = useState("all");
+  const [dateFilter, setDateFilter] = useState("");
   const [selectedReport, setSelectedReport] = useState(null);
 
   const resolved = reports.filter(r => ["resolved", "responded"].includes((r.status || "").toLowerCase()));
-
-  const historyYears = Array.from(new Set(
-    resolved
-      .map(report => report.createdAt ? new Date(report.createdAt) : null)
-      .filter(date => date && !Number.isNaN(date.getTime()))
-      .map(date => date.getFullYear())
-  )).sort((a, b) => b - a);
 
   const filtered = resolved.filter(r => {
     const loc = typeof r.location === "string" ? r.location : (r.location?.name || "");
     const name = r.userId?.fullName || "";
     const date = r.createdAt ? new Date(r.createdAt) : null;
-    if (yearFilter !== "all" && (!date || date.getFullYear() !== Number(yearFilter))) return false;
-    if (monthFilter !== "all" && (!date || date.getMonth() + 1 !== Number(monthFilter))) return false;
-    if (dayFilter !== "all" && (!date || date.getDate() !== Number(dayFilter))) return false;
+    const reportDate = date && !Number.isNaN(date.getTime())
+      ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`
+      : "";
+    if (dateFilter && reportDate !== dateFilter) return false;
     if (search && !loc.toLowerCase().includes(search) && !name.toLowerCase().includes(search)) return false;
     return true;
   });
@@ -210,22 +200,21 @@ export default function IncidentHistory({ reports = [] }) {
           />
         </div>
 
-        <select
-          value={yearFilter}
-          onChange={e => setYearFilter(e.target.value)}
-          className="px-3 py-2 text-xs border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:border-red-400 focus:ring-2 focus:ring-red-100 outline-none transition-all text-slate-700 cursor-pointer"
-        >
-          <option value="all">All Years</option>
-          {historyYears.map(year => <option key={year} value={year}>{year}</option>)}
-        </select>
-        <select value={monthFilter} onChange={e => setMonthFilter(e.target.value)} className="px-3 py-2 text-xs border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:border-red-400 focus:ring-2 focus:ring-red-100 outline-none transition-all text-slate-700 cursor-pointer">
-          <option value="all">All Months</option>
-          {MONTH_NAMES.map((month, index) => <option key={month} value={index + 1}>{month}</option>)}
-        </select>
-        <select value={dayFilter} onChange={e => setDayFilter(e.target.value)} className="px-3 py-2 text-xs border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:border-red-400 focus:ring-2 focus:ring-red-100 outline-none transition-all text-slate-700 cursor-pointer">
-          <option value="all">All Days</option>
-          {Array.from({ length: 31 }, (_, index) => index + 1).map(day => <option key={day} value={day}>{day}</option>)}
-        </select>
+        <div className="relative">
+          <label htmlFor="bfp-history-date" className="sr-only">Filter by date</label>
+          <input
+            id="bfp-history-date"
+            type="date"
+            value={dateFilter}
+            onChange={e => setDateFilter(e.target.value)}
+            className="px-3 py-2 text-xs border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:border-red-400 focus:ring-2 focus:ring-red-100 outline-none transition-all text-slate-700 cursor-pointer"
+          />
+        </div>
+        {dateFilter && (
+          <button type="button" onClick={() => setDateFilter("")} className="text-xs font-semibold text-slate-500 hover:text-red-600 transition-colors">
+            Clear date
+          </button>
+        )}
 
         <div className="flex items-center gap-3 ml-auto shrink-0">
           <span className="text-xs text-slate-400">
@@ -269,7 +258,6 @@ export default function IncidentHistory({ reports = [] }) {
                   <tr key={r._id || i} className="block rounded-xl border border-slate-200 bg-slate-50 p-4 shadow-sm transition-colors hover:bg-slate-100 lg:table-row lg:rounded-none lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none lg:hover:bg-slate-50">
                     <td className="block px-0 py-1.5 lg:table-cell lg:px-5 lg:py-3.5">
                       <div className="flex items-center gap-2">
-                        <span className="text-base">🔥</span>
                         <span className="text-xs font-medium text-slate-700">Fire Emergency</span>
                       </div>
                     </td>

@@ -516,7 +516,7 @@ function AdminDashboard() {
 
   const renderContent = () => {
     switch (activeNav) {
-      case "dashboard": return <DashboardOverview reports={filteredReports} setActiveNav={setActiveNav} />;
+      case "dashboard": return <DashboardOverview reports={filteredReports} setActiveNav={setActiveNav} onStatusChange={handleStatusChange} />;
       case "incident-reports": return <ActiveIncidents reports={filteredReports} onStatusChange={handleStatusChange} />;
       case "queuing": return <QueuingSystem reports={filteredReports} onStatusChange={handleStatusChange} />;
       case "live-map": return <LiveMap reports={filteredReports} />;
@@ -524,7 +524,7 @@ function AdminDashboard() {
       case "rejected-incidents": return <RejectedReports reports={filteredReports} />;
       case "analytics": return <Analytics reports={filteredReports} />;
       case "settings": return <Settings user={user} onUserUpdate={setUser} />;
-      default: return <DashboardOverview reports={filteredReports} setActiveNav={setActiveNav} />;
+      default: return <DashboardOverview reports={filteredReports} setActiveNav={setActiveNav} onStatusChange={handleStatusChange} />;
     }
   };
 
