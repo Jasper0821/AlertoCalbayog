@@ -1955,6 +1955,23 @@ export default function AdminDashboard() {
               </div>
             </AnalyticsCard>
 
+            <AnalyticsCard title="Top Barangays by Reports" subtitle="Barangays with the highest incident volume">
+              <div style={{ height: 200 }}>
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} initialDimension={{ width: 100, height: 100 }}>
+                  <BarChart
+                    data={analyticsData.barangays.slice(0, 8)}
+                    layout="vertical"
+                    margin={{ top: 8, right: 16, left: 12, bottom: 0 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" horizontal={false} />
+                    <XAxis type="number" allowDecimals={false} axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 11, fontWeight: 700 }} />
+                    <YAxis type="category" dataKey="name" width={88} axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 10, fontWeight: 700 }} />
+                    <Tooltip content={<ChartTooltip />} />
+                    <Bar dataKey="value" fill="#0f766e" radius={[0, 8, 8, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </AnalyticsCard>
           </div>
         </div>
       )}
@@ -2480,8 +2497,8 @@ export default function AdminDashboard() {
                   <select
                     value={userForm.agency}
                     onChange={(event) => setUserForm({ ...userForm, agency: event.target.value })}
-                    disabled={userForm.role === "resident" || userForm.role === "admin"}
-                    className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-600/10 disabled:bg-slate-100 disabled:text-slate-400"
+                    disabled={userForm.role !== "responder"}
+                    className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-600/10 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400 disabled:opacity-70"
                   >
                     <option value="NONE" disabled>
                       Select agency
@@ -3936,22 +3953,24 @@ export default function AdminDashboard() {
       {selectedReport && (() => {
         const { report, index } = selectedReport;
         const statusInfo = getStatusInfo(report.status);
+        const isRejected = (report.status || "").toLowerCase() === "rejected";
+        const rejectionLog = [...(report.actionLog || [])].reverse().find((entry) => entry.toStatus === "rejected");
+        const eventDate = isRejected
+          ? report.rejectedAt || rejectionLog?.createdAt
+          : report.closedAt;
         const detailRows = [
           ["Incident ID", getIncidentId(report, index)],
           ["Emergency Type", TYPE_LABELS[report.emergencyType] || report.emergencyType || "Incident"],
-          ["Agency Type", report.assignedAgency && report.assignedAgency !== "NONE" ? report.assignedAgency : (report.notifiedAgencies || []).join(", ") || "Unassigned"],
+          ["Agency", report.assignedAgency && report.assignedAgency !== "NONE" ? report.assignedAgency : (report.notifiedAgencies || []).join(", ") || "Unassigned"],
           ["Reporter", report.userId?.fullName || "Unknown"],
           ["Contact", report.userId?.phoneNumber || "No contact number"],
-          ["Responder", report.assignedResponder?.fullName || "Unassigned"],
           ["Location", getLocation(report)],
           ["Reported", report.createdAt ? new Date(report.createdAt).toLocaleString() : "—"],
-          ["Closed", report.closedAt ? new Date(report.closedAt).toLocaleString() : "—"],
+          [isRejected ? "Rejected" : "Closed", eventDate ? new Date(eventDate).toLocaleString() : "N/A"],
         ];
-        const allEvidenceImages = Array.from(
+        const userEvidenceImages = Array.from(
           new Set([
             ...(Array.isArray(report.proofPhotos) ? report.proofPhotos : []),
-            ...(Array.isArray(report.resolutionEvidence) ? report.resolutionEvidence : []),
-            ...(Array.isArray(report.evidenceImages) ? report.evidenceImages : []),
             ...(Array.isArray(report.proofImages) ? report.proofImages : []),
             ...(Array.isArray(report.media) ? report.media : []),
             ...(Array.isArray(report.images) ? report.images : []),
@@ -3959,9 +3978,40 @@ export default function AdminDashboard() {
             ...(typeof report.image === "string" && report.image ? [report.image] : []),
           ].filter(Boolean))
         );
+        const responderEvidenceImages = Array.from(
+          new Set([
+            ...(Array.isArray(report.resolutionEvidence) ? report.resolutionEvidence : []),
+            ...(Array.isArray(report.evidenceImages) ? report.evidenceImages : []),
+          ].filter(Boolean))
+        );
+        const renderEvidenceGallery = (images, source) => (
+          <div>
+            <p className="mb-2 text-[10px] font-black uppercase tracking-widest text-slate-400">
+              {source} ({images.length})
+            </p>
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+              {images.map((src, i) => (
+                <button
+                  key={`${source}-${i}`}
+                  type="button"
+                  onClick={() => setPreviewImage(src)}
+                  className="group relative aspect-square overflow-hidden rounded-xl border border-slate-200 bg-slate-100 shadow-sm transition-all hover:ring-2 hover:ring-emerald-500"
+                >
+                  <img src={src} alt={`${source} ${i + 1}`} className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-105" />
+                  <span className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 transition-opacity group-hover:opacity-100">
+                    <svg className="h-5 w-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        );
+        const hasEvidence = userEvidenceImages.length > 0 || responderEvidenceImages.length > 0;
         return (
           <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/60 p-4" onMouseDown={() => setSelectedReport(null)}>
-            <div className="w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl" onMouseDown={(event) => event.stopPropagation()}>
+            <div className="flex h-[calc(100dvh-2rem)] max-h-[39rem] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl" onMouseDown={(event) => event.stopPropagation()}>
               <div className="flex items-start justify-between bg-slate-900 px-6 py-5 text-white">
                 <div>
                   <p className="text-[10px] font-black uppercase tracking-widest text-slate-300">Incident details</p>
@@ -3971,7 +4021,7 @@ export default function AdminDashboard() {
                   <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" d="m6 6 12 12M18 6 6 18" /></svg>
                 </button>
               </div>
-              <div className="max-h-[70vh] space-y-5 overflow-y-auto p-6">
+              <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4 sm:p-6">
                 <div className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-black ${statusInfo.bg} ${statusInfo.border} ${statusInfo.text}`}>
                   <span className={`h-1.5 w-1.5 rounded-full ${statusInfo.dot}`} /> {statusInfo.label}
                 </div>
@@ -3988,36 +4038,27 @@ export default function AdminDashboard() {
                   <p className="mt-1 whitespace-pre-wrap rounded-lg bg-slate-50 p-3 text-sm leading-6 text-slate-700">{report.description || "No description provided."}</p>
                 </div>
 
-                {allEvidenceImages.length > 0 && (
-                  <div>
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
-                      📷 Scene & Proof of Evidence ({allEvidenceImages.length})
-                    </p>
-                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                      {allEvidenceImages.map((src, i) => (
-                        <button
-                          key={i}
-                          type="button"
-                          onClick={() => setPreviewImage(src)}
-                          className="group relative aspect-square overflow-hidden rounded-xl border border-slate-200 bg-slate-100 transition-all hover:ring-2 hover:ring-emerald-500 shadow-sm"
-                        >
-                          <img src={src} alt={`Evidence ${i + 1}`} className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-105" />
-                          <span className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 transition-opacity group-hover:opacity-100">
-                            <svg className="h-5 w-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                            </svg>
-                          </span>
-                        </button>
-                      ))}
-                    </div>
+                {hasEvidence && (
+                  <div className="space-y-5">
+                    {userEvidenceImages.length > 0 && renderEvidenceGallery(userEvidenceImages, "Photos from user")}
+                    {responderEvidenceImages.length > 0 && renderEvidenceGallery(responderEvidenceImages, "Photos from responder")}
                   </div>
                 )}
-                {allEvidenceImages.length === 0 && (
+                {!hasEvidence && (
                   <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
                     <p className="text-[10px] font-black uppercase tracking-widest text-amber-700">Scene & Proof of Evidence</p>
                     <p className="mt-1 text-sm font-semibold text-amber-800">No evidence was submitted. This may be a false report.</p>
                   </div>
                 )}
+              </div>
+              <div className="flex shrink-0 justify-end border-t border-slate-100 bg-slate-50 px-4 py-3 sm:px-6">
+                <button
+                  type="button"
+                  onClick={() => setSelectedReport(null)}
+                  className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-600 transition hover:bg-slate-100"
+                >
+                  Close
+                </button>
               </div>
             </div>
           </div>

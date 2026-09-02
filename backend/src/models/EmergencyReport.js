@@ -54,6 +54,10 @@ const emergencyReportSchema = new mongoose.Schema(
       type: Date,
       default: null
     },
+    rejectedAt: {
+      type: Date,
+      default: null
+    },
     location: {
       latitude: {
         type: Number,
