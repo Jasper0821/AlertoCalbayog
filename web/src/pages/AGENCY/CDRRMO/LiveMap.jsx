@@ -103,10 +103,11 @@ function buildDivIcon(cfg) {
 export default function LiveMap({ reports = [] }) {
   const [isSatellite, setIsSatellite] = useState(false);
 
-  // Filter out resolved/closed reports — they disappear from live map once resolved
+  // Only show pending reports — marker is removed from live map once the
+  // status is changed in the queue (responding/active/resolved/closed/etc.)
   const safeReports = (Array.isArray(reports) ? reports : []).filter(r => {
     const status = (r.status || "").toLowerCase();
-    return !["resolved", "closed", "responded", "cancelled"].includes(status);
+    return status === "pending";
   });
 
   // Deterministic coordinate distribution for reports without geolocation
