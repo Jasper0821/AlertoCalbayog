@@ -1017,26 +1017,6 @@ export default function AdminDashboard() {
     });
   }, [agencyFilter, rejectedDateFilter, reports, searchQuery]);
 
-  const rejectedReports = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    return reports.filter((report, index) => {
-      const status = (report.status || "pending").toLowerCase();
-      if (status !== "rejected") return false;
-
-      if (q) {
-        const incidentId = getIncidentId(report, index).toLowerCase();
-        const haystack = [
-          incidentId,
-          report.emergencyType,
-          report.userId?.fullName,
-          report.assignedResponder?.fullName,
-          getLocation(report),
-        ].join(" ").toLowerCase();
-        if (!haystack.includes(q)) return false;
-      }
-      return true;
-    });
-  }, [reports, searchQuery]);
 
   const stats = useMemo(() => {
     const open = reports.filter((report) => !["resolved", "responded", "closed"].includes((report.status || "").toLowerCase())).length;
