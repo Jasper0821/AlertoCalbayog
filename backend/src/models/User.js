@@ -70,6 +70,11 @@ const userSchema = new mongoose.Schema(
     lastSeen: {
       type: Date,
     },
+    lastIpAddress: {
+      type: String,
+      default: "",
+      trim: true,
+    },
     role: {
       type: String,
       enum: ["resident", "responder", "staff", "admin"],
@@ -175,6 +180,7 @@ function transformUserJSON(doc, ret) {
   ret.created_at = ret.createdAt;
   ret.updated_at = ret.updatedAt;
   ret.last_login = ret.lastLogin;
+  ret.last_ip_address = ret.lastIpAddress || "";
   delete ret.password;
   delete ret.visiblePassword;
   return ret;

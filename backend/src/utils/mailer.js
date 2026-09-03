@@ -139,9 +139,9 @@ async function sendRegistrationOtpEmail(toEmail, otpCode, expiryMinutes = 7) {
     const info = await transporter.sendMail({
       from: `"Alerto Calbayog" <${fromAddress}>`,
       to: recipient,
-      subject: "Verify your Alerto Calbayog Gmail address",
+      subject: "Verify your Alerto Calbayog email address",
       text: `Your Alerto Calbayog registration code is: ${otpCode}. This code expires in ${expiryMinutes} minutes. If you did not start registration, you can ignore this email.`,
-      html: `<div style="font-family:Arial,sans-serif;color:#0f172a"><h2>Verify your Gmail address</h2><p>Use this code to finish creating your Alerto Calbayog account:</p><p style="font-size:32px;font-weight:700;letter-spacing:7px">${otpCode}</p><p>This code expires in ${expiryMinutes} minutes.</p></div>`,
+      html: `<div style="font-family:Arial,sans-serif;color:#0f172a"><h2>Verify your email address</h2><p>Use this code to finish creating your Alerto Calbayog account:</p><p style="font-size:32px;font-weight:700;letter-spacing:7px">${otpCode}</p><p>This code expires in ${expiryMinutes} minutes.</p></div>`,
     });
     console.log(`\n✅  [Registration OTP] Code sent to ${recipient}: ${otpCode}`);
     return info;
