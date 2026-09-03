@@ -115,6 +115,7 @@ exports.register = async (req, res) => {
         authProvider: "mobile",
         role: "resident",
         status: "approved",
+        lastIpAddress: getIp(req),
       });
 
       const token = generateToken(user._id, user.role);
@@ -164,23 +165,8 @@ exports.register = async (req, res) => {
 
     const normalizedEmail = normalizeEmail(email);
 
-    if (!normalizedEmail || !/^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@gmail\.com$/i.test(normalizedEmail)) {
-      return res.status(400).json({ message: "Please use a valid Gmail address." });
-    }
-
-    const registrationToken = req.body.registrationToken;
-    if (!registrationToken) {
-      return res.status(400).json({ message: "Please verify your Gmail address before registering." });
-    }
-
-    let registration;
-    try {
-      registration = jwt.verify(registrationToken, process.env.JWT_SECRET);
-    } catch {
-      return res.status(400).json({ message: "Your Gmail verification has expired. Please request a new code." });
-    }
-    if (registration.purpose !== "registration" || registration.email !== normalizedEmail) {
-      return res.status(400).json({ message: "This Gmail verification does not match the email address entered." });
+    if (!normalizedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      return res.status(400).json({ message: "Please use a valid email address." });
     }
 
     const existingUser = await findUserByEmail(normalizedEmail);
@@ -206,6 +192,7 @@ exports.register = async (req, res) => {
       agency: agency || "NONE",
       phoneNumber,
       status: role === "responder" ? "pending" : "approved",
+      lastIpAddress: getIp(req),
     });
 
     await AuditLog.create({
@@ -272,11 +259,11 @@ exports.register = async (req, res) => {
 exports.requestRegistrationOtp = async (req, res) => {
   try {
     const normalizedEmail = normalizeEmail(req.body.email);
-    if (!normalizedEmail || !/^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@gmail\.com$/i.test(normalizedEmail)) {
-      return res.status(400).json({ message: "Please enter a valid Gmail address." });
+    if (!normalizedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      return res.status(400).json({ message: "Please enter a valid email address." });
     }
     if (await findUserByEmail(normalizedEmail)) {
-      return res.status(400).json({ message: "An account already exists for this Gmail address." });
+      return res.status(400).json({ message: "An account already exists for this email address." });
     }
 
     await Otp.deleteMany({ email: normalizedEmail, purpose: "registration" });
@@ -288,7 +275,7 @@ exports.requestRegistrationOtp = async (req, res) => {
       expiresAt: new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000),
     });
     await sendRegistrationOtpEmail(normalizedEmail, code, OTP_EXPIRY_MINUTES);
-    return res.status(200).json({ message: "Verification code sent to your Gmail address." });
+    return res.status(200).json({ message: "Verification code sent to your email address." });
   } catch (error) {
     console.error("requestRegistrationOtp error:", error);
     return res.status(500).json({ message: error.message || "Failed to send verification code. Please try again." });
@@ -301,11 +288,11 @@ exports.verifyRegistrationOtp = async (req, res) => {
     const rawCode = req.body.code || req.body.otpCode || req.body.verificationCode;
     const normalizedCode = normalizeOtpCode(rawCode);
     if (!normalizedEmail || normalizedCode?.length !== 6) {
-      return res.status(400).json({ message: "Enter your Gmail address and the complete 6-digit code." });
+      return res.status(400).json({ message: "Enter your email address and the complete 6-digit code." });
     }
     const record = await Otp.findOne({ email: normalizedEmail, purpose: "registration", used: false }).sort({ expiresAt: -1 });
     if (!record) {
-      return res.status(400).json({ message: "No active verification code found for this Gmail address. Please request a new code." });
+      return res.status(400).json({ message: "No active verification code found for this email address. Please request a new code." });
     }
     if (record.expiresAt < new Date()) {
       return res.status(400).json({ message: "The verification code has expired. Please request a new code." });
@@ -316,10 +303,10 @@ exports.verifyRegistrationOtp = async (req, res) => {
     record.used = true;
     await record.save();
     const registrationToken = jwt.sign({ email: normalizedEmail, purpose: "registration" }, process.env.JWT_SECRET, { expiresIn: "10m" });
-    return res.status(200).json({ message: "Gmail address verified.", registrationToken });
+    return res.status(200).json({ message: "Email address verified.", registrationToken });
   } catch (error) {
     console.error("verifyRegistrationOtp error:", error);
-    return res.status(500).json({ message: "Unable to verify the Gmail code. Please try again." });
+    return res.status(500).json({ message: "Unable to verify the email code. Please try again." });
   }
 };
 
@@ -422,6 +409,7 @@ exports.login = async (req, res) => {
       user.failedLoginAttempts = 0;
       user.lockUntil = null;
       user.lastLogin = new Date();
+      user.lastIpAddress = getIp(req);
       await user.save();
 
       await AuditLog.create({
@@ -531,6 +519,7 @@ exports.login = async (req, res) => {
 
     user.lastLogin = new Date();
     user.lastSeen = new Date();
+    user.lastIpAddress = getIp(req);
     await user.save();
 
     res.json({
@@ -1039,6 +1028,7 @@ exports.googleRegister = async (req, res) => {
       authProvider: "google",
       lastLogin: new Date(),
       lastSeen: new Date(),
+      lastIpAddress: getIp(req),
     });
 
     await AuditLog.create({
@@ -1250,6 +1240,7 @@ exports.facebookLogin = async (req, res) => {
       }
       user.lastLogin = new Date();
       user.lastSeen = new Date();
+      user.lastIpAddress = getIp(req);
       await user.save();
 
       await AuditLog.create({
@@ -1389,6 +1380,7 @@ exports.facebookRegister = async (req, res) => {
       authProvider: "facebook",
       lastLogin: new Date(),
       lastSeen: new Date(),
+      lastIpAddress: getIp(req),
     });
 
     await AuditLog.create({

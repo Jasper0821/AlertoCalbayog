@@ -662,6 +662,7 @@ function BfpDashboard() {
         <nav className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-2 py-4 space-y-0.5">
           {NAV.map(item => {
             const isActive = activeNav === item.id;
+            const navCount = item.id === "queuing" ? pendingCount : 0;
             return (
               <button
                 key={item.id}
@@ -684,6 +685,11 @@ function BfpDashboard() {
 
                 {/* Label */}
                 <span className={`truncate transition-all duration-300 ${isSidebarOpen || isSidebarHovered ? "opacity-100 w-auto" : "opacity-0 w-0 overflow-hidden"}`}>{item.label}</span>
+                {navCount > 0 && (
+                  <span className="absolute right-2 top-1/2 min-w-5 -translate-y-1/2 rounded-full bg-red-500 px-1.5 py-0.5 text-center text-[10px] font-black leading-none text-white">
+                    {navCount > 99 ? "99+" : navCount}
+                  </span>
+                )}
 
               </button>
             );
@@ -770,7 +776,9 @@ function BfpDashboard() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                 </svg>
                 {pendingCount > 0 && (
-                  <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-500 ring-2 ring-white" />
+                  <span className="absolute -right-1 -top-1 min-w-5 rounded-full bg-red-500 px-1 py-0.5 text-center text-[10px] font-black leading-none text-white ring-2 ring-white">
+                    {pendingCount > 99 ? "99+" : pendingCount}
+                  </span>
                 )}
               </button>
 

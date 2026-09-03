@@ -2545,6 +2545,7 @@ export default function AdminDashboard() {
                   ["Status", selectedUserInfo.status || "Active"],
                   ["Agency", selectedUserInfo.agency && selectedUserInfo.agency !== "NONE" ? selectedUserInfo.agency : "Not assigned"],
                   ["Registered", selectedUserInfo.createdAt ? new Date(selectedUserInfo.createdAt).toLocaleString("en-PH") : "Not available"],
+                  ["IP address", selectedUserInfo.lastIpAddress || selectedUserInfo.last_ip_address || "Not available"],
                   ...(selectedUserInfo.employeeId ? [["Employee ID", selectedUserInfo.employeeId]] : []),
                   ...(selectedUserInfo.rank ? [["Rank", selectedUserInfo.rank]] : []),
                 ].map(([label, value]) => (
@@ -3868,6 +3869,11 @@ export default function AdminDashboard() {
           {NAV.map((item) => {
             const Icon = item.icon;
             const isActive = activeNav === item.id;
+            const navCount = item.id === "queuing"
+              ? reports.filter((report) => (report.status || "").toLowerCase() === "pending").length
+              : item.id === "responder-approvals"
+                ? users.filter((user) => user.role === "responder" && (user.status === "pending" || !user.status)).length
+                : 0;
             return (
               <button
                 key={item.id}
@@ -3880,6 +3886,11 @@ export default function AdminDashboard() {
                 {isActive && <div className="absolute left-0 top-1/2 h-1/2 w-1 -translate-y-1/2 rounded-r-full bg-emerald-400" />}
                 <Icon className={`h-[18px] w-[18px] shrink-0 ${isActive ? "text-white" : "text-emerald-400/70"}`} />
                 <span className={`whitespace-nowrap transition-opacity duration-300 ${isSidebarOpen ? "opacity-100" : "md:opacity-0 md:group-hover/sidebar:opacity-100 opacity-100"}`}>{item.label}</span>
+                {navCount > 0 && (
+                  <span className="absolute right-2 top-1/2 min-w-5 -translate-y-1/2 rounded-full bg-red-500 px-1.5 py-0.5 text-center text-[10px] font-black leading-none text-white">
+                    {navCount > 99 ? "99+" : navCount}
+                  </span>
+                )}
               </button>
             );
           })}
@@ -3920,8 +3931,10 @@ export default function AdminDashboard() {
             <div className="flex shrink-0 items-center gap-2 sm:gap-5">
               <button onClick={() => { fetchNotifications(); setIsNotificationsModalOpen(true); }} className="relative rounded-lg bg-slate-50 p-2.5 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 border border-slate-100" aria-label="Open notifications">
                 <Bell className="h-5 w-5" />
-                {notifications.some((item) => !item.read) && (
-                  <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-red-500 ring-2 ring-slate-50" />
+                {notifications.filter((item) => !item.read).length > 0 && (
+                  <span className="absolute -right-1 -top-1 min-w-5 rounded-full bg-red-500 px-1 py-0.5 text-center text-[10px] font-black leading-none text-white ring-2 ring-white">
+                    {notifications.filter((item) => !item.read).length > 99 ? "99+" : notifications.filter((item) => !item.read).length}
+                  </span>
                 )}
               </button>
               <div className="flex items-center gap-3 border-l border-slate-100 pl-2 sm:pl-5">
