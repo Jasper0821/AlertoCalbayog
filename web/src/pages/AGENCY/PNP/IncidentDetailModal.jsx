@@ -126,8 +126,17 @@ export default function IncidentDetailModal({ report: initialReport, onClose }) 
           style={{ background: BRAND }}
         >
           <span className="text-white font-bold text-sm">Incident Details</span>
-          <button onClick={onClose} className="text-white/70 hover:text-white transition-colors">
-            <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              if (typeof onClose === "function") onClose();
+            }}
+            className="p-1.5 -mr-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/10 active:scale-95 transition-all cursor-pointer z-20"
+            aria-label="Close modal"
+          >
+            <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
@@ -181,8 +190,13 @@ export default function IncidentDetailModal({ report: initialReport, onClose }) 
         {/* Footer */}
         <div className="px-4 py-3 bg-slate-50 border-t border-slate-100 flex justify-end">
           <button
-            onClick={onClose}
-            className="px-4 py-1.5 rounded-lg text-xs font-semibold text-slate-600 bg-white border border-slate-200 hover:bg-slate-100 transition-colors"
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              if (typeof onClose === "function") onClose();
+            }}
+            className="px-4 py-1.5 rounded-lg text-xs font-semibold text-slate-600 bg-white border border-slate-200 hover:bg-slate-100 active:scale-95 transition-colors cursor-pointer"
           >
             Close
           </button>
