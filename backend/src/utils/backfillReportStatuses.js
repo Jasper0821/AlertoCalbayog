@@ -33,6 +33,23 @@ async function backfillReportStatuses() {
   }));
 
   console.log(`Backfilled ${reports.length} legacy incident report status value(s).`);
+
+  const mapAgencies = require("./agencyMapper");
+  const unmappedReports = await EmergencyReport.find({
+    $or: [
+      { notifiedAgencies: { $exists: false } },
+      { notifiedAgencies: { $size: 0 } },
+      { notifiedAgencies: null }
+    ]
+  });
+
+  if (unmappedReports.length > 0) {
+    await Promise.all(unmappedReports.map(async (report) => {
+      report.notifiedAgencies = mapAgencies(report.emergencyType || "others") || ["CDRRMO"];
+      await report.save();
+    }));
+    console.log(`Backfilled notifiedAgencies for ${unmappedReports.length} report(s).`);
+  }
 }
 
 module.exports = backfillReportStatuses;

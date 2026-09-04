@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { getIncidentId, getPriority } from "../../../utils/incidentFormatters.js";
+import api from "../../../api/axios.js";
 
 const BRAND = "#7c3aed";
 
@@ -38,7 +39,21 @@ function EvidenceGallery({ images }) {
  * Shared compact incident detail modal for all PNP dashboard sections.
  * Usage: <IncidentDetailModal report={selectedReport} onClose={() => setSelectedReport(null)} />
  */
-export default function IncidentDetailModal({ report, onClose }) {
+export default function IncidentDetailModal({ report: initialReport, onClose }) {
+  const [fullReport, setFullReport] = useState(initialReport);
+
+  useEffect(() => {
+    setFullReport(initialReport);
+    if (initialReport?._id && (!initialReport.proofPhotos || !initialReport.resolutionEvidence)) {
+      api.get(`/emergency/${initialReport._id}`)
+        .then((res) => {
+          if (res.data?._id) setFullReport(res.data);
+        })
+        .catch((err) => console.warn("Failed to load full report details:", err));
+    }
+  }, [initialReport]);
+
+  const report = fullReport || initialReport;
   if (!report) return null;
 
   const phone = report.userId?.phoneNumber || report.phoneNumber || null;

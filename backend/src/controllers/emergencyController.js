@@ -308,6 +308,7 @@ exports.createEmergencyReport = async (req, res) => {
 exports.getAllReports = async (req, res) => {
   try {
     const reports = await EmergencyReport.find({ isDeleted: { $ne: true } })
+      .select("-proofPhotos -resolutionEvidence")
       .populate("userId", "fullName email role")
       .populate("assignedResponder", "fullName email role agency phoneNumber")
       .sort({ createdAt: -1 });
@@ -321,11 +322,29 @@ exports.getAllReports = async (req, res) => {
 exports.getMyReports = async (req, res) => {
   try {
     const reports = await EmergencyReport.find({ userId: req.user.id, isDeleted: { $ne: true } })
+      .select("-proofPhotos -resolutionEvidence")
       .populate("userId", "fullName email role")
       .populate("assignedResponder", "fullName email role agency phoneNumber")
       .sort({ createdAt: -1 });
 
     res.json(reports);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.getReportById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const report = await EmergencyReport.findById(id)
+      .populate("userId", "fullName email role phoneNumber avatar barangay completeAddress")
+      .populate("assignedResponder", "fullName email role agency phoneNumber");
+
+    if (!report) {
+      return res.status(404).json({ message: "Report not found" });
+    }
+
+    res.json(report);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -389,7 +408,23 @@ exports.deleteAllClosedReports = async (req, res) => {
 exports.getReportsByAgency = async (req, res) => {
   try {
     const { agency } = req.params;
-    const reports = await EmergencyReport.find({ notifiedAgencies: agency, isDeleted: { $ne: true } })
+    const agencyUpper = String(agency).toUpperCase();
+
+    let typeFallback = [];
+    if (agencyUpper === "BFP") typeFallback = ["fire"];
+    else if (agencyUpper === "PNP") typeFallback = ["crime"];
+    else if (agencyUpper === "CDRRMO") typeFallback = ["fire", "flood", "emergency", "medical", "others"];
+
+    const reports = await EmergencyReport.find({
+      isDeleted: { $ne: true },
+      $or: [
+        { notifiedAgencies: { $in: [agencyUpper, agency, new RegExp(`^${agencyUpper}$`, "i")] } },
+        { emergencyType: { $in: typeFallback } },
+        { notifiedAgencies: { $exists: false } },
+        { notifiedAgencies: { $size: 0 } }
+      ]
+    })
+      .select("-proofPhotos -resolutionEvidence")
       .populate("userId", "fullName email role phoneNumber")
       .populate("assignedResponder", "fullName email role agency phoneNumber")
       .sort({ createdAt: -1 });
@@ -406,6 +441,7 @@ exports.getDeletedReports = async (req, res) => {
       return res.status(403).json({ message: "Access denied. Only administrators can view deleted reports." });
     }
     const reports = await EmergencyReport.find({ isDeleted: true })
+      .select("-proofPhotos -resolutionEvidence")
       .populate("userId", "fullName email role")
       .populate("assignedResponder", "fullName email role agency phoneNumber")
       .sort({ updatedAt: -1 });
