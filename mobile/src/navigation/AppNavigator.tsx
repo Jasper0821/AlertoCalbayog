@@ -21,7 +21,18 @@ export type RootStackParamList = {
   Splash: undefined;
   Login: undefined;
   PasswordLogin: undefined;
-  Register: undefined;
+  // Params are only present when finishing a Google sign-up: the account is
+  // already verified by Google, so the screen just collects the mobile number.
+  Register:
+    | {
+        googleRegistrationToken: string;
+        googleUser: {
+          google_email: string;
+          full_name: string;
+          profile_picture?: string;
+        };
+      }
+    | undefined;
   OtpVerification: {
     email: string;
     mode?: "registration" | "forgot_password";

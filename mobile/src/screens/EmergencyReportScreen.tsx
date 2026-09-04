@@ -47,6 +47,9 @@ interface Props {
   navigation: EmergencyReportScreenNavigationProp;
 }
 
+const MIN_PHOTOS = 2;
+const MAX_PHOTOS = 5;
+
 export default function EmergencyReportScreen({
   route,
   navigation,
@@ -58,6 +61,10 @@ export default function EmergencyReportScreen({
   const [loading, setLoading] = useState<boolean>(false);
   const [locationEnabled, setLocationEnabled] = useState<boolean>(false);
   const [checkingLocation, setCheckingLocation] = useState<boolean>(true);
+  // Percentage of the report body uploaded. Photos are sent as base64, so on a
+  // weak mobile signal this is the difference between "is it frozen?" and
+  // watching real progress during the most stressful moment of the app.
+  const [uploadProgress, setUploadProgress] = useState<number>(0);
 
   const checkLocationStatus = useCallback(async () => {
     try {
@@ -99,10 +106,10 @@ export default function EmergencyReportScreen({
   }, [checkLocationStatus]);
 
   const handleTakePhoto = async () => {
-    if (proofPhotos.length >= 5) {
+    if (proofPhotos.length >= MAX_PHOTOS) {
       Alert.alert(
         "Maximum Limit Reached",
-        "You can upload a maximum of 5 proof photos per emergency report."
+        `You can upload a maximum of ${MAX_PHOTOS} proof photos per emergency report.`
       );
       return;
     }
@@ -118,7 +125,7 @@ export default function EmergencyReportScreen({
 
     let currentCount = proofPhotos.length;
 
-    while (currentCount < 5) {
+    while (currentCount < MAX_PHOTOS) {
       const result = await ImagePicker.launchCameraAsync({
         allowsEditing: false,
         quality: 0.6,
@@ -144,10 +151,10 @@ export default function EmergencyReportScreen({
       setProofPhotos((prev) => [...prev, imageUri]);
       currentCount++;
 
-      if (currentCount >= 5) {
+      if (currentCount >= MAX_PHOTOS) {
         Alert.alert(
           "Maximum Limit Reached",
-          "You have captured the maximum of 5 proof photos."
+          `You have captured the maximum of ${MAX_PHOTOS} proof photos.`
         );
         break;
       }
@@ -224,12 +231,14 @@ export default function EmergencyReportScreen({
   };
 
   const theme = getEmergencyTheme();
+  const photosReady = proofPhotos.length >= MIN_PHOTOS;
+  const photosRemaining = Math.max(0, MIN_PHOTOS - proofPhotos.length);
   const isSubmitDisabled =
     loading ||
     !locationEnabled ||
     checkingLocation ||
-    proofPhotos.length < 2 ||
-    proofPhotos.length > 5;
+    proofPhotos.length < MIN_PHOTOS ||
+    proofPhotos.length > MAX_PHOTOS;
 
   const handleSubmit = async () => {
     if (!locationEnabled) {
@@ -244,15 +253,16 @@ export default function EmergencyReportScreen({
       return;
     }
 
-    if (proofPhotos.length < 2) {
+    if (proofPhotos.length < MIN_PHOTOS) {
       Alert.alert(
         "📷 Proof Required",
-        "Please take at least 2 photos of the scene using your camera before submitting your emergency report."
+        `Please take at least ${MIN_PHOTOS} photos of the scene using your camera before submitting your emergency report.`
       );
       return;
     }
 
     setLoading(true);
+    setUploadProgress(0);
     try {
       let location;
       try {
@@ -291,14 +301,16 @@ export default function EmergencyReportScreen({
           headers: {
             Authorization: `Bearer ${token}`,
           },
+          onUploadProgress: (event) => {
+            if (event.total) {
+              setUploadProgress(Math.round((event.loaded / event.total) * 100));
+            }
+          },
         }
       );
 
-      Alert.alert(
-        "Report Submitted ✓",
-        "Your emergency report with photo proof has been sent to responders."
-      );
-
+      // Straight to live tracking — that screen is itself the confirmation, and
+      // an extra "OK" tap is the last thing anyone needs mid-emergency.
       navigation.navigate("LiveTracking", {
         reportId: res.data.report._id,
         latitude: location.coords.latitude,
@@ -326,163 +338,267 @@ export default function EmergencyReportScreen({
       );
     } finally {
       setLoading(false);
+      setUploadProgress(0);
     }
+  };
+
+  const submitLabel = () => {
+    if (checkingLocation) return "CHECKING LOCATION…";
+    if (!locationEnabled) return "ENABLE LOCATION TO SEND";
+    if (!photosReady)
+      return `TAKE ${photosRemaining} MORE PHOTO${photosRemaining > 1 ? "S" : ""}`;
+    return "SEND EMERGENCY REPORT";
   };
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={COLORS.background} />
+      <StatusBar barStyle="dark-content" />
 
-      {/* Top Civic Header */}
       <Header title="Report Emergency" showBack />
 
       <ScrollView
-        contentContainerStyle={[
-          styles.scrollContent,
-          { paddingBottom: Math.max(insets.bottom, 20) + 16 },
-        ]}
+        contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
-        {/* Main Clean Card */}
-        <View style={styles.mainCard}>
-          {/* Emergency Type Badge */}
-          <Text style={styles.sectionLabel}>EMERGENCY TYPE</Text>
-          <View
-            style={[
-              styles.typeBadge,
-              { backgroundColor: theme.bg, borderColor: theme.border },
-            ]}
-          >
-            <View style={styles.iconContainer}>{theme.icon}</View>
+        {/* Emergency type — the single most important fact on the screen */}
+        <View
+          style={[
+            styles.typeBanner,
+            { backgroundColor: theme.bg, borderColor: theme.border },
+          ]}
+        >
+          <View style={[styles.typeIconCircle, { backgroundColor: theme.badgeBg }]}>
+            {theme.icon}
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.typeCaption}>YOU ARE REPORTING</Text>
             <Text style={[styles.typeText, { color: theme.text }]}>
               {theme.label}
             </Text>
           </View>
+        </View>
 
-          {/* Camera Proof Section */}
-          <View style={styles.photoBoxContainer}>
-            <View style={styles.photoHeaderRow}>
-              <Text style={styles.photoTitleText}>
-                📷 Scene Proof Photos <Text style={styles.requiredAsterisk}>*</Text>
-              </Text>
-              <View style={styles.countBadge}>
-                <Text style={styles.countBadgeText}>
-                  {proofPhotos.length} / 5 photos
-                </Text>
-              </View>
-            </View>
-
-            <Text style={styles.photoInstructionsText}>
-              Please take{" "}
-              <Text style={styles.instructionHighlight}>2 to 5 clear photos</Text> of
-              the emergency scene using your camera as proof for responders.
-            </Text>
-
-            {/* Thumbnails Grid */}
-            <View style={styles.photoGrid}>
-              {proofPhotos.map((photo, index) => (
-                <View key={index} style={styles.thumbnailWrapper}>
-                  <Image source={{ uri: photo }} style={styles.thumbnailImage} />
-                  <TouchableOpacity
-                    onPress={() => handleRemovePhoto(index)}
-                    style={styles.removePhotoBtn}
-                    activeOpacity={0.8}
-                    hitSlop={{ top: 6, right: 6, bottom: 6, left: 6 }}
-                  >
-                    <Text style={styles.removePhotoIcon}>✕</Text>
-                  </TouchableOpacity>
-                </View>
-              ))}
-
-              {proofPhotos.length < 5 && (
-                <TouchableOpacity
-                  onPress={handleTakePhoto}
-                  style={styles.addPhotoCard}
-                  activeOpacity={0.7}
-                >
-                  <CameraIcon size={24} color="#0284C7" />
-                  <Text style={styles.addPhotoText}>Take Photo</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-
-            {proofPhotos.length < 2 && (
-              <Text style={styles.warningPhotoText}>
-                ⚠️ Take at least {2 - proofPhotos.length} more photo
-                {2 - proofPhotos.length > 1 ? "s" : ""} to enable submission.
-              </Text>
-            )}
-          </View>
-
-          {/* Description Section */}
-          <Text style={styles.sectionLabel}>ADDITIONAL DETAILS (OPTIONAL)</Text>
-          <View style={styles.textAreaWrapper}>
-            <TextInput
-              style={styles.textAreaInput}
-              placeholder="Describe the situation briefly (e.g. Landmark, condition)..."
-              placeholderTextColor="#94A3B8"
-              value={description}
-              onChangeText={setDescription}
-              multiline
-              numberOfLines={4}
-              textAlignVertical="top"
+        {/* Live GPS state. Previously only ever visible when broken, which left
+            residents with no confirmation their location was actually attached. */}
+        <View
+          style={[
+            styles.gpsChip,
+            checkingLocation
+              ? styles.gpsChipChecking
+              : locationEnabled
+              ? styles.gpsChipOk
+              : styles.gpsChipBad,
+          ]}
+        >
+          {checkingLocation ? (
+            <ActivityIndicator size="small" color="#64748B" />
+          ) : (
+            <View
+              style={[
+                styles.gpsDot,
+                { backgroundColor: locationEnabled ? "#10B981" : "#DC2626" },
+              ]}
             />
+          )}
+          <View style={{ flex: 1, marginLeft: 10 }}>
+            <Text
+              style={[
+                styles.gpsTitle,
+                {
+                  color: checkingLocation
+                    ? "#475569"
+                    : locationEnabled
+                    ? "#047857"
+                    : "#991B1B",
+                },
+              ]}
+            >
+              {checkingLocation
+                ? "Checking your location…"
+                : locationEnabled
+                ? "Location ready"
+                : "Location services disabled"}
+            </Text>
+            <Text style={styles.gpsSub}>
+              {checkingLocation
+                ? "Making sure responders can find you"
+                : locationEnabled
+                ? "Your exact position will be sent with this report"
+                : "Responders cannot be dispatched without it"}
+            </Text>
           </View>
-
-          {/* Location Disabled Banner */}
           {!checkingLocation && !locationEnabled && (
             <TouchableOpacity
-              style={styles.locationBanner}
               onPress={() => Linking.openSettings()}
+              style={styles.gpsFixBtn}
               activeOpacity={0.8}
             >
-              <Text style={styles.locationWarningIcon}>⚠️</Text>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.locationBannerTitle}>
-                  Location Services Disabled
-                </Text>
-                <Text style={styles.locationBannerSub}>
-                  Tap here to enable location in settings to submit a report.
-                </Text>
-              </View>
+              <Text style={styles.gpsFixText}>FIX</Text>
             </TouchableOpacity>
           )}
-
-          {/* Submit Button */}
-          <TouchableOpacity
-            style={[
-              styles.submitBtn,
-              { backgroundColor: theme.btnBg },
-              isSubmitDisabled && styles.submitBtnDisabled,
-            ]}
-            onPress={handleSubmit}
-            disabled={isSubmitDisabled}
-            activeOpacity={0.85}
-          >
-            {loading ? (
-              <ActivityIndicator color="#FFFFFF" size="small" />
-            ) : checkingLocation ? (
-              <View style={styles.btnRow}>
-                <ActivityIndicator color="#64748B" size="small" />
-                <Text style={[styles.submitBtnText, styles.submitBtnTextDisabled]}>
-                  Checking Location...
-                </Text>
-              </View>
-            ) : (
-              <Text
-                style={[
-                  styles.submitBtnText,
-                  isSubmitDisabled && styles.submitBtnTextDisabled,
-                ]}
-              >
-                {proofPhotos.length < 2
-                  ? "TAKE 2+ PHOTOS TO SUBMIT"
-                  : "SUBMIT REPORT"}
-              </Text>
-            )}
-          </TouchableOpacity>
         </View>
+
+        {/* STEP 1 — Photos */}
+        <View style={styles.stepCard}>
+          <View style={styles.stepHeader}>
+            <View
+              style={[
+                styles.stepNumber,
+                photosReady && { backgroundColor: "#10B981" },
+              ]}
+            >
+              <Text style={styles.stepNumberText}>{photosReady ? "✓" : "1"}</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.stepTitle}>Scene photos</Text>
+              <Text style={styles.stepSub}>
+                {photosReady
+                  ? `${proofPhotos.length} photo${
+                      proofPhotos.length > 1 ? "s" : ""
+                    } attached — you can add up to ${MAX_PHOTOS}`
+                  : `Take ${photosRemaining} more photo${
+                      photosRemaining > 1 ? "s" : ""
+                    } to continue`}
+              </Text>
+            </View>
+          </View>
+
+          {/* Slot dots make the 2-photo minimum obvious at a glance */}
+          <View style={styles.slotRow}>
+            {Array.from({ length: MAX_PHOTOS }).map((_, i) => (
+              <View
+                key={i}
+                style={[
+                  styles.slotPip,
+                  i < proofPhotos.length && styles.slotPipFilled,
+                  i < MIN_PHOTOS && i >= proofPhotos.length && styles.slotPipRequired,
+                ]}
+              />
+            ))}
+            <Text style={styles.slotCaption}>
+              {proofPhotos.length}/{MAX_PHOTOS} · {MIN_PHOTOS} required
+            </Text>
+          </View>
+
+          <View style={styles.photoGrid}>
+            {proofPhotos.map((photo, index) => (
+              <View key={index} style={styles.thumbnailWrapper}>
+                <Image source={{ uri: photo }} style={styles.thumbnailImage} />
+                <TouchableOpacity
+                  onPress={() => handleRemovePhoto(index)}
+                  style={styles.removePhotoBtn}
+                  activeOpacity={0.8}
+                  hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+                >
+                  <Text style={styles.removePhotoIcon}>✕</Text>
+                </TouchableOpacity>
+              </View>
+            ))}
+
+            {proofPhotos.length < MAX_PHOTOS && (
+              <TouchableOpacity
+                onPress={handleTakePhoto}
+                style={[
+                  styles.addPhotoCard,
+                  !photosReady && styles.addPhotoCardUrgent,
+                ]}
+                activeOpacity={0.7}
+              >
+                <CameraIcon size={26} color={photosReady ? "#0284C7" : "#DC2626"} />
+                <Text
+                  style={[
+                    styles.addPhotoText,
+                    !photosReady && { color: "#DC2626" },
+                  ]}
+                >
+                  Take Photo
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+
+        {/* STEP 2 — Details */}
+        <View style={styles.stepCard}>
+          <View style={styles.stepHeader}>
+            <View style={[styles.stepNumber, styles.stepNumberOptional]}>
+              <Text style={styles.stepNumberText}>2</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.stepTitle}>
+                Details <Text style={styles.optionalTag}>optional</Text>
+              </Text>
+              <Text style={styles.stepSub}>
+                A landmark or condition helps responders arrive faster
+              </Text>
+            </View>
+          </View>
+
+          <TextInput
+            style={styles.textAreaInput}
+            placeholder="e.g. Beside the barangay hall, second floor, one person trapped…"
+            placeholderTextColor="#94A3B8"
+            value={description}
+            onChangeText={setDescription}
+            multiline
+            textAlignVertical="top"
+          />
+        </View>
+
+        <Text style={styles.legalNote}>
+          False emergency reports are punishable by law. Your identity, device and
+          location are recorded with every report.
+        </Text>
       </ScrollView>
+
+      {/* Sticky action bar — the send button is never scrolled out of reach */}
+      <View
+        style={[
+          styles.footer,
+          { paddingBottom: Math.max(insets.bottom, 12) + 8 },
+        ]}
+      >
+        {loading && uploadProgress > 0 && (
+          <View style={styles.progressTrack}>
+            <View
+              style={[
+                styles.progressFill,
+                { width: `${uploadProgress}%`, backgroundColor: theme.btnBg },
+              ]}
+            />
+          </View>
+        )}
+
+        <TouchableOpacity
+          style={[
+            styles.submitBtn,
+            { backgroundColor: theme.btnBg },
+            isSubmitDisabled && styles.submitBtnDisabled,
+          ]}
+          onPress={handleSubmit}
+          disabled={isSubmitDisabled}
+          activeOpacity={0.85}
+        >
+          {loading ? (
+            <View style={styles.btnRow}>
+              <ActivityIndicator color="#FFFFFF" size="small" />
+              <Text style={[styles.submitBtnText, { marginLeft: 10 }]}>
+                {uploadProgress > 0 ? `SENDING… ${uploadProgress}%` : "SENDING…"}
+              </Text>
+            </View>
+          ) : (
+            <Text
+              style={[
+                styles.submitBtnText,
+                isSubmitDisabled && styles.submitBtnTextDisabled,
+              ]}
+            >
+              {submitLabel()}
+            </Text>
+          )}
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -493,102 +609,173 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background,
   },
   scrollContent: {
-    paddingHorizontal: 18,
-    paddingTop: 8,
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 20,
   },
-  mainCard: {
+
+  /* Emergency type banner */
+  typeBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 18,
+    borderWidth: 1,
+    padding: 14,
+    marginBottom: 12,
+  },
+  typeIconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+    backgroundColor: "#FFFFFF",
+  },
+  typeCaption: {
+    fontSize: 9.5,
+    fontWeight: "900",
+    color: COLORS.textGray,
+    letterSpacing: 1,
+    marginBottom: 2,
+  },
+  typeText: {
+    fontSize: 15,
+    fontWeight: "900",
+    letterSpacing: 0.5,
+  },
+
+  /* GPS status chip */
+  gpsChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 12,
+  },
+  gpsChipChecking: {
+    backgroundColor: "#F8FAFC",
+    borderColor: "#E2E8F0",
+  },
+  gpsChipOk: {
+    backgroundColor: "#ECFDF5",
+    borderColor: "#A7F3D0",
+  },
+  gpsChipBad: {
+    backgroundColor: "#FEF2F2",
+    borderColor: "#FECACA",
+  },
+  gpsDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  gpsTitle: {
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  gpsSub: {
+    fontSize: 11,
+    color: "#64748B",
+    marginTop: 1,
+  },
+  gpsFixBtn: {
+    backgroundColor: "#DC2626",
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  gpsFixText: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "900",
+  },
+
+  /* Step cards */
+  stepCard: {
     backgroundColor: COLORS.surface,
     borderWidth: 1,
     borderColor: COLORS.border,
-    borderRadius: 24,
-    padding: 20,
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 12,
-    elevation: 3,
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 12,
   },
-  sectionLabel: {
-    fontSize: 11,
-    fontWeight: "800",
-    color: COLORS.textGray,
-    letterSpacing: 0.8,
-    marginBottom: 8,
-  },
-  typeBadge: {
+  stepHeader: {
     flexDirection: "row",
     alignItems: "center",
-    alignSelf: "flex-start",
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    marginBottom: 14,
+  },
+  stepNumber: {
+    width: 28,
+    height: 28,
     borderRadius: 14,
-    borderWidth: 1,
-    marginBottom: 20,
+    backgroundColor: "#0EA5E9",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
   },
-  iconContainer: {
-    marginRight: 8,
+  stepNumberOptional: {
+    backgroundColor: "#94A3B8",
   },
-  typeText: {
+  stepNumberText: {
+    color: "#FFFFFF",
     fontSize: 13,
     fontWeight: "900",
-    letterSpacing: 0.8,
   },
-  photoBoxContainer: {
-    backgroundColor: "#F8FAFC",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    borderRadius: 18,
-    padding: 16,
-    marginBottom: 20,
-  },
-  photoHeaderRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  photoTitleText: {
-    fontSize: 14,
+  stepTitle: {
+    fontSize: 15,
     fontWeight: "800",
     color: COLORS.primary,
   },
-  requiredAsterisk: {
-    color: "#EF4444",
-    fontWeight: "900",
+  optionalTag: {
+    fontSize: 10.5,
+    fontWeight: "700",
+    color: COLORS.textGray,
   },
-  countBadge: {
-    backgroundColor: "rgba(59, 130, 246, 0.1)",
-    borderWidth: 1,
-    borderColor: "rgba(59, 130, 246, 0.3)",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
+  stepSub: {
+    fontSize: 11.5,
+    color: "#64748B",
+    marginTop: 2,
   },
-  countBadgeText: {
-    fontSize: 11,
-    fontWeight: "800",
-    color: "#2563EB",
+
+  /* Photo slot pips */
+  slotRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
   },
-  photoInstructionsText: {
-    fontSize: 12.5,
-    color: "#475569",
-    lineHeight: 19,
-    marginBottom: 14,
+  slotPip: {
+    width: 26,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: "#E2E8F0",
+    marginRight: 5,
   },
-  instructionHighlight: {
-    color: "#0F172A",
-    fontWeight: "800",
+  slotPipFilled: {
+    backgroundColor: "#10B981",
   },
+  slotPipRequired: {
+    backgroundColor: "#FCA5A5",
+  },
+  slotCaption: {
+    fontSize: 10.5,
+    fontWeight: "700",
+    color: COLORS.textGray,
+    marginLeft: 6,
+  },
+
+  /* Photo grid */
   photoGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 10,
-    marginBottom: 10,
   },
   thumbnailWrapper: {
     position: "relative",
-    width: 76,
-    height: 76,
+    width: 84,
+    height: 84,
     borderRadius: 16,
     overflow: "hidden",
     borderWidth: 1,
@@ -604,21 +791,21 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 4,
     right: 4,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     backgroundColor: "#EF4444",
     justifyContent: "center",
     alignItems: "center",
   },
   removePhotoIcon: {
     color: "#FFFFFF",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "900",
   },
   addPhotoCard: {
-    width: 76,
-    height: 76,
+    width: 84,
+    height: 84,
     borderRadius: 16,
     borderWidth: 1.5,
     borderStyle: "dashed",
@@ -627,63 +814,64 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+  addPhotoCardUrgent: {
+    borderColor: "rgba(220, 38, 38, 0.55)",
+    backgroundColor: "rgba(220, 38, 38, 0.06)",
+  },
   addPhotoText: {
     fontSize: 10,
     fontWeight: "800",
     color: "#0284C7",
-    marginTop: 4,
+    marginTop: 5,
   },
-  warningPhotoText: {
-    fontSize: 11.5,
-    fontWeight: "700",
-    color: "#DC2626",
-    marginTop: 6,
-  },
-  textAreaWrapper: {
+
+  /* Description */
+  textAreaInput: {
     backgroundColor: "#F8FAFC",
     borderWidth: 1,
     borderColor: "#E2E8F0",
-    borderRadius: 16,
+    borderRadius: 14,
     padding: 12,
-    marginBottom: 16,
-  },
-  textAreaInput: {
-    height: 95,
+    minHeight: 90,
     fontSize: 14,
     color: COLORS.primary,
     lineHeight: 20,
   },
-  locationBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#FEF2F2",
-    borderWidth: 1,
-    borderColor: "#FECACA",
-    borderRadius: 14,
-    padding: 12,
-    marginBottom: 18,
+
+  legalNote: {
+    fontSize: 10.5,
+    color: "#94A3B8",
+    lineHeight: 15,
+    textAlign: "center",
+    paddingHorizontal: 12,
+    marginTop: 4,
   },
-  locationWarningIcon: {
-    fontSize: 20,
-    marginRight: 10,
+
+  /* Sticky footer */
+  footer: {
+    backgroundColor: COLORS.surface,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+    paddingHorizontal: 16,
+    paddingTop: 12,
   },
-  locationBannerTitle: {
-    fontSize: 13,
-    fontWeight: "800",
-    color: "#991B1B",
+  progressTrack: {
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#E2E8F0",
+    overflow: "hidden",
+    marginBottom: 10,
   },
-  locationBannerSub: {
-    fontSize: 11,
-    color: "#B91C1C",
-    marginTop: 2,
+  progressFill: {
+    height: "100%",
+    borderRadius: 2,
   },
   submitBtn: {
     width: "100%",
-    height: 52,
-    borderRadius: 26,
+    height: 54,
+    borderRadius: 27,
     justifyContent: "center",
     alignItems: "center",
-    marginTop: 6,
     shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,

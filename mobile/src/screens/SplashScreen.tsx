@@ -23,9 +23,10 @@ export default function SplashScreen({ navigation }: Props): React.JSX.Element {
           return;
         }
 
-        // Verify session token with backend endpoint
+        // Verify session token with backend endpoint (5s timeout for Render cold start)
         const res = await api.get("/auth/me", {
           headers: { Authorization: `Bearer ${token}` },
+          timeout: 5000,
         });
 
         if (res.data && res.data.valid && res.data.user) {
