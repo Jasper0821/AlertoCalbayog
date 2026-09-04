@@ -25,28 +25,45 @@ const cleanPurok = (value = "") => {
   return name ? `Purok ${name}` : "";
 };
 
-const buildReadableLocationName = ({ barangay, purok, street, cityOrTown, userBarangay, userAddress }) => {
+const buildReadableLocationName = ({ landmark, barangay, purok, street, cityOrTown, userBarangay, userAddress, rawDisplayName }) => {
   const safeBarangay = cleanBarangay(barangay);
   const safePurok = cleanPurok(purok);
-  const isGenericBarangay = !safeBarangay || /^district$/i.test(safeBarangay);
+  const isGenericBarangay = !safeBarangay || /^(district|calbayog)$/i.test(safeBarangay);
 
   const parts = [];
+  if (landmark && landmark !== street && landmark !== safeBarangay) parts.push(landmark);
   if (street) parts.push(street);
   if (safePurok) parts.push(safePurok);
   if (!isGenericBarangay) {
     parts.push(safeBarangay.toLowerCase().startsWith("brgy") ? safeBarangay : `Brgy. ${safeBarangay}`);
-  }
-  if (cityOrTown) {
-    parts.push(cityOrTown);
-  } else if (!isGenericBarangay || street || safePurok) {
-    parts.push("Calbayog City");
+  } else if (userBarangay && !/^(district|calbayog)$/i.test(userBarangay)) {
+    const safeUserBgy = cleanBarangay(userBarangay);
+    if (safeUserBgy) {
+      parts.push(safeUserBgy.toLowerCase().startsWith("brgy") ? safeUserBgy : `Brgy. ${safeUserBgy}`);
+    }
   }
 
-  if (parts.length > 0) return parts.join(", ");
+  const cityName = cityOrTown && !/calbayog/i.test(cityOrTown) ? cityOrTown : "Calbayog City";
+
+  if (parts.length > 0) {
+    parts.push(cityName);
+    return parts.join(", ");
+  }
+
+  // If parts is empty (no landmark, no street, no specific barangay), parse rawDisplayName
+  if (rawDisplayName) {
+    const cleanedDisplay = rawDisplayName
+      .replace(/,\s*(philippines|6710|eastern visayas|samar)\b/gi, "")
+      .replace(/^[,\s]+|[,\s]+$/g, "")
+      .trim();
+    if (cleanedDisplay && !/^(calbayog|calbayog city)$/i.test(cleanedDisplay)) {
+      return cleanedDisplay;
+    }
+  }
 
   if (userAddress) return userAddress;
-  if (userBarangay && !/^district$/i.test(userBarangay)) {
-    return userBarangay.toLowerCase().startsWith("brgy") ? userBarangay : `Brgy. ${userBarangay}`;
+  if (userBarangay && !/^(district|calbayog)$/i.test(userBarangay)) {
+    return userBarangay.toLowerCase().startsWith("brgy") ? userBarangay : `Brgy. ${userBarangay}, Calbayog City`;
   }
 
   return "";
@@ -133,6 +150,7 @@ exports.createEmergencyReport = async (req, res) => {
     let street = "";
     let purok = "";
     let cityOrTown = "";
+    let landmark = "";
 
     try {
       if (typeof fetch === "function") {
@@ -152,6 +170,7 @@ exports.createEmergencyReport = async (req, res) => {
           const data = await response.json();
           if (data && data.address) {
             const addr = data.address;
+            landmark = addr.amenity || addr.building || addr.office || addr.school || addr.hospital || addr.shop || addr.tourism || addr.leisure || addr.historic || addr.emergency || addr.place || data.name || "";
             barangay = addr.suburb || addr.neighbourhood || addr.village || addr.quarter || addr.city_district || addr.hamlet || addr.subdistrict || addr.district || "";
             street = addr.road || addr.street || addr.footway || addr.path || addr.pedestrian || "";
             cityOrTown = addr.city || addr.town || addr.municipality || addr.county || addr.state_district || "";
@@ -168,12 +187,14 @@ exports.createEmergencyReport = async (req, res) => {
             purok = cleanPurok(purok);
 
             name = buildReadableLocationName({
+              landmark,
               barangay,
               purok,
               street,
               cityOrTown,
               userBarangay: resident.barangay,
-              userAddress: resident.completeAddress
+              userAddress: resident.completeAddress,
+              rawDisplayName: data.display_name
             }) || "";
           }
         }
@@ -190,6 +211,7 @@ exports.createEmergencyReport = async (req, res) => {
 
     if (!name) {
       name = buildReadableLocationName({
+        landmark,
         barangay,
         purok,
         street,

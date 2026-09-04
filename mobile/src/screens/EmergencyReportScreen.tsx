@@ -299,12 +299,22 @@ export default function EmergencyReportScreen({
       });
     } catch (error: any) {
       const isRateLimit = error.response?.status === 429;
+      const isServiceUnavailable = error.response?.status === 503;
+
+      let errorMsg = error.response?.data?.message;
+      if (!errorMsg) {
+        if (isServiceUnavailable) {
+          errorMsg = "Database connection is currently establishing. Please wait a few seconds and tap Submit Report again.";
+        } else if (error.message === "Network Error") {
+          errorMsg = `Cannot connect to server at ${backendUrl}. Please check your connection.`;
+        } else {
+          errorMsg = error.message || "Failed to send report. Please try again.";
+        }
+      }
+
       Alert.alert(
         isRateLimit ? "Spam Protection Active" : "Submission Failed",
-        error.response?.data?.message ||
-          (error.message === "Network Error"
-            ? `Cannot connect to server at ${backendUrl}.`
-            : error.message || "Failed to send report.")
+        errorMsg
       );
     } finally {
       setLoading(false);

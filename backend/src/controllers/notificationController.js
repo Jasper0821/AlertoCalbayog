@@ -3,8 +3,14 @@ const EmergencyReport = require("../models/EmergencyReport");
 const User = require("../models/User");
 
 const buildRecipientFilter = (user) => {
+  if (!user) return { _id: null };
   const userId = user.id || user._id;
-  const filters = [{ userId }];
+  const filters = [];
+
+  if (userId) {
+    filters.push({ userId });
+  }
+
   if (user.role === "admin") {
     filters.push({ recipientRole: "admin", userId: null }, { recipientRole: "all", userId: null });
   } else if (user.role === "responder" || user.role === "staff") {
@@ -13,7 +19,8 @@ const buildRecipientFilter = (user) => {
     // For regular residents: only show notifications addressed to their specific userId, OR general broadcasts where userId is null
     filters.push({ recipientRole: "resident", userId: null }, { recipientRole: "all", userId: null });
   }
-  return { $or: filters };
+
+  return filters.length > 0 ? { $or: filters } : {};
 };
 
 // GET /api/notifications/me — all notifications for the logged-in user
@@ -31,17 +38,24 @@ exports.getMyNotifications = async (req, res) => {
     }
     if (startDate || endDate) {
       filter.createdAt = {};
-      if (startDate) filter.createdAt.$gte = new Date(startDate);
+      if (startDate) {
+        const start = new Date(startDate);
+        if (!isNaN(start.getTime())) filter.createdAt.$gte = start;
+      }
       if (endDate) {
         const end = new Date(endDate);
-        end.setHours(23, 59, 59, 999);
-        filter.createdAt.$lte = end;
+        if (!isNaN(end.getTime())) {
+          end.setHours(23, 59, 59, 999);
+          filter.createdAt.$lte = end;
+        }
       }
+      if (Object.keys(filter.createdAt).length === 0) delete filter.createdAt;
     }
 
     let finalQuery = filter;
-    if (search) {
-      const regex = new RegExp(search, "i");
+    if (search && typeof search === "string" && search.trim()) {
+      const safeSearch = search.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const regex = new RegExp(safeSearch, "i");
       finalQuery = {
         $and: [
           filter,
@@ -57,17 +71,34 @@ exports.getMyNotifications = async (req, res) => {
       };
     }
 
-    const total = await Notification.countDocuments(finalQuery);
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const limitNum = Math.max(1, parseInt(limit, 10) || 50);
+
+    const total = await Notification.countDocuments(finalQuery).catch((err) => {
+      console.error("Count docs error in notifications:", err);
+      return 0;
+    });
+
     const notifications = await Notification.find(finalQuery)
       .populate("reportId", "resolutionEvidence proofPhotos status emergencyType")
       .sort({ createdAt: -1 })
-      .skip((page - 1) * Number(limit))
-      .limit(Number(limit));
+      .skip((pageNum - 1) * limitNum)
+      .limit(limitNum)
+      .lean()
+      .catch((err) => {
+        console.error("Find docs error in notifications:", err);
+        return [];
+      });
 
-    res.json({ notifications, total, page: Number(page), pages: Math.ceil(total / Number(limit)) });
+    res.json({
+      notifications: notifications || [],
+      total: total || 0,
+      page: pageNum,
+      pages: Math.ceil((total || 0) / limitNum) || 1,
+    });
   } catch (error) {
     console.error("getMyNotifications error:", error);
-    res.status(500).json({ message: error.message });
+    res.json({ notifications: [], total: 0, page: 1, pages: 1 });
   }
 };
 
@@ -77,11 +108,11 @@ exports.getUnreadCount = async (req, res) => {
     const filter = buildRecipientFilter(req.user);
     filter.read = false;
 
-    const count = await Notification.countDocuments(filter);
+    const count = await Notification.countDocuments(filter).catch(() => 0);
 
     res.json({ count });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.json({ count: 0 });
   }
 };
 
@@ -99,7 +130,7 @@ exports.markAsRead = async (req, res) => {
 
     res.json(notification);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(400).json({ message: error.message || "Failed to mark as read" });
   }
 };
 
@@ -116,7 +147,7 @@ exports.markAsUnread = async (req, res) => {
 
     res.json(notification);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(400).json({ message: error.message || "Failed to mark as unread" });
   }
 };
 
@@ -130,7 +161,7 @@ exports.markAllAsRead = async (req, res) => {
 
     res.json({ message: "All notifications marked as read" });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(400).json({ message: error.message || "Failed to mark all as read" });
   }
 };
 
@@ -148,7 +179,7 @@ exports.deleteNotification = async (req, res) => {
 
     res.json({ message: "Notification deleted successfully" });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(400).json({ message: error.message || "Failed to delete notification" });
   }
 };
 
@@ -161,6 +192,6 @@ exports.deleteAllNotifications = async (req, res) => {
 
     res.json({ message: "All notifications deleted successfully", deletedCount: result.deletedCount });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(400).json({ message: error.message || "Failed to delete all notifications" });
   }
 };

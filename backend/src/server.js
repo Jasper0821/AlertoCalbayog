@@ -33,17 +33,17 @@ connectDB()
   .then(async () => {
     await backfillReportStatuses();
     startScheduler();
+
+    server.listen(PORT, HOST, () => {
+      console.log(`✅ Server running on port ${PORT}`);
+      console.log(`   Local:   http://localhost:${PORT}`);
+      console.log(`   Network: http://${lanIP}:${PORT}  ← share this with your team`);
+    });
   })
   .catch((err) => {
     console.error("Startup failed:", err.message);
     process.exit(1);
   });
-
-server.listen(PORT, HOST, () => {
-  console.log(`✅ Server running on port ${PORT}`);
-  console.log(`   Local:   http://localhost:${PORT}`);
-  console.log(`   Network: http://${lanIP}:${PORT}  ← share this with your team`);
-});
 
 server.on("error", (err) => {
   if (err.code === "EADDRINUSE") {
