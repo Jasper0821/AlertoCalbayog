@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { getIncidentId, getPriority } from "../../../utils/incidentFormatters.js";
 import api from "../../../api/axios.js";
 
@@ -55,23 +55,94 @@ function EvidenceGallery({ images }) {
 
 /**
  * Shared compact incident detail modal for all PNP dashboard sections.
- * Usage: <IncidentDetailModal report={selectedReport} onClose={() => setSelectedReport(null)} />
+ * 
+ * Photos are loaded separately from report metadata to prevent the browser
+ * main thread from freezing when massive Base64 strings arrive. The close
+ * button stays responsive at all times.
  */
 export default function IncidentDetailModal({ report: initialReport, onClose }) {
-  const [fullReport, setFullReport] = useState(initialReport);
+  // Store the report metadata (text fields) — lightweight, renders instantly
+  const report = initialReport;
 
-  useEffect(() => {
-    setFullReport(initialReport);
-    if (initialReport?._id && (!initialReport.proofPhotos || !initialReport.resolutionEvidence)) {
-      api.get(`/emergency/${initialReport._id}`)
-        .then((res) => {
-          if (res.data?._id) setFullReport(res.data);
-        })
-        .catch((err) => console.warn("Failed to load full report details:", err));
+  // Store photos in SEPARATE state so they render independently
+  const [proofPhotos, setProofPhotos] = useState([]);
+  const [evidence, setEvidence] = useState([]);
+  const [photosLoading, setPhotosLoading] = useState(false);
+
+  // Use a ref for onClose so the close handler is never stale during heavy renders
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  const handleClose = useCallback((e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
     }
-  }, [initialReport]);
+    if (typeof onCloseRef.current === "function") onCloseRef.current();
+  }, []);
 
-  const report = fullReport || initialReport;
+  // Fetch photos separately on mount — staggered so the UI stays responsive
+  useEffect(() => {
+    if (!initialReport?._id) return;
+
+    // If the report already has photos (e.g. from cache), use them directly
+    if (Array.isArray(initialReport.proofPhotos) && initialReport.proofPhotos.length > 0) {
+      setProofPhotos(initialReport.proofPhotos);
+      setEvidence(Array.isArray(initialReport.resolutionEvidence) ? initialReport.resolutionEvidence : []);
+      return;
+    }
+
+    let cancelled = false;
+    setPhotosLoading(true);
+
+    api.get(`/emergency/${initialReport._id}`)
+      .then((res) => {
+        if (cancelled) return;
+        const data = res.data;
+        if (!data?._id) return;
+
+        // Feed photos into state one-at-a-time with small delays
+        // so each image gets its own render frame and doesn't freeze the UI
+        const photos = Array.isArray(data.proofPhotos) ? data.proofPhotos : [];
+        const resEvidence = Array.isArray(data.resolutionEvidence) ? data.resolutionEvidence : [];
+
+        if (photos.length === 0 && resEvidence.length === 0) {
+          setPhotosLoading(false);
+          return;
+        }
+
+        // Render photos one by one on separate animation frames
+        let idx = 0;
+        const allPhotos = [...photos];
+
+        const feedNext = () => {
+          if (cancelled) return;
+          if (idx < allPhotos.length) {
+            idx++;
+            setProofPhotos(allPhotos.slice(0, idx));
+            requestAnimationFrame(feedNext);
+          } else {
+            // Now feed evidence photos
+            if (resEvidence.length > 0) {
+              setEvidence(resEvidence);
+            }
+            setPhotosLoading(false);
+          }
+        };
+
+        // Start feeding after a small delay so the modal is fully interactive first
+        setTimeout(() => requestAnimationFrame(feedNext), 100);
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          console.warn("Failed to load full report details:", err);
+          setPhotosLoading(false);
+        }
+      });
+
+    return () => { cancelled = true; };
+  }, [initialReport?._id]);
+
   if (!report) return null;
 
   const phone = report.userId?.phoneNumber || report.phoneNumber || null;
@@ -86,7 +157,6 @@ export default function IncidentDetailModal({ report: initialReport, onClose }) 
     ? new Date(report.createdAt).toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" })
     : "Unknown";
 
-  // Fallback: show agency name if no individual is assigned yet
   const agencyFallback = report.assignedAgency && report.assignedAgency !== "NONE"
     ? report.assignedAgency
     : (report.notifiedAgencies || []).join(", ") || "None";
@@ -107,14 +177,11 @@ export default function IncidentDetailModal({ report: initialReport, onClose }) 
     { label: "Date & Time", value: dateStr },
   ];
 
-  const proofPhotos = Array.isArray(report.proofPhotos) ? report.proofPhotos : [];
-  const evidence = Array.isArray(report.resolutionEvidence) ? report.resolutionEvidence : [];
-
   return (
     <div
       className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
       style={{ backgroundColor: "rgba(0,0,0,0.45)", backdropFilter: "blur(3px)" }}
-      onClick={onClose}
+      onClick={handleClose}
     >
       <div
         className="bg-white w-full max-w-xs rounded-xl overflow-hidden shadow-2xl"
@@ -122,17 +189,13 @@ export default function IncidentDetailModal({ report: initialReport, onClose }) 
       >
         {/* Header */}
         <div
-          className="flex items-center justify-between px-4 py-3"
+          className="flex items-center justify-between px-4 py-3 relative"
           style={{ background: BRAND }}
         >
           <span className="text-white font-bold text-sm">Incident Details</span>
           <button
             type="button"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              if (typeof onClose === "function") onClose();
-            }}
+            onClick={handleClose}
             className="p-1.5 -mr-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/10 active:scale-95 transition-all cursor-pointer z-20"
             aria-label="Close modal"
           >
@@ -166,6 +229,17 @@ export default function IncidentDetailModal({ report: initialReport, onClose }) 
             </div>
           )}
 
+          {/* Loading indicator for photos */}
+          {photosLoading && proofPhotos.length === 0 && (
+            <div className="flex items-center gap-2 py-3">
+              <svg className="w-4 h-4 text-purple-500 animate-spin" viewBox="0 0 24 24" fill="none">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+              </svg>
+              <span className="text-[10px] font-bold text-purple-500 uppercase tracking-wide">Loading proof photos…</span>
+            </div>
+          )}
+
           {/* Resident Proof Photos */}
           {proofPhotos.length > 0 && (
             <div>
@@ -191,11 +265,7 @@ export default function IncidentDetailModal({ report: initialReport, onClose }) 
         <div className="px-4 py-3 bg-slate-50 border-t border-slate-100 flex justify-end">
           <button
             type="button"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              if (typeof onClose === "function") onClose();
-            }}
+            onClick={handleClose}
             className="px-4 py-1.5 rounded-lg text-xs font-semibold text-slate-600 bg-white border border-slate-200 hover:bg-slate-100 active:scale-95 transition-colors cursor-pointer"
           >
             Close
