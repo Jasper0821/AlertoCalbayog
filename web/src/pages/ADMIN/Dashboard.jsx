@@ -1899,7 +1899,7 @@ export default function AdminDashboard() {
           <div className="grid gap-3 xl:grid-cols-[1.3fr_0.7fr]">
             <AnalyticsCard title="Monthly Incident Trend" subtitle="Reports created during the latest six-month window">
               <div style={{ height: 200 }}>
-                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} initialDimension={{ width: 100, height: 100 }}>
+                <ResponsiveContainer width="100%" height="100%" minWidth={100} minHeight={100} initialDimension={{ width: 100, height: 100 }}>
                   <LineChart data={analyticsData.trend} margin={{ top: 8, right: 18, left: -18, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                     <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 11, fontWeight: 700 }} />
@@ -1913,7 +1913,7 @@ export default function AdminDashboard() {
 
             <AnalyticsCard title="Incidents by Status" subtitle="Current operational state of all reports">
               <div style={{ height: 200 }}>
-                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} initialDimension={{ width: 100, height: 100 }}>
+                <ResponsiveContainer width="100%" height="100%" minWidth={100} minHeight={100} initialDimension={{ width: 100, height: 100 }}>
                   <PieChart>
                     <Pie
                       data={analyticsData.statuses}
@@ -1939,7 +1939,7 @@ export default function AdminDashboard() {
           <div className="grid gap-3 xl:grid-cols-2">
             <AnalyticsCard title="Incidents by Category" subtitle="Emergency type volume across all agencies">
               <div style={{ height: 200 }}>
-                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} initialDimension={{ width: 100, height: 100 }}>
+                <ResponsiveContainer width="100%" height="100%" minWidth={100} minHeight={100} initialDimension={{ width: 100, height: 100 }}>
                   <BarChart data={analyticsData.categories} margin={{ top: 8, right: 16, left: -18, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
                     <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 11, fontWeight: 700 }} />
@@ -1990,7 +1990,7 @@ export default function AdminDashboard() {
             <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm min-h-0 flex flex-col">
               <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1">Incident Analysis</p>
               <div className="flex-1 min-h-0">
-                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} initialDimension={{ width: 100, height: 100 }}>
+                <ResponsiveContainer width="100%" height="100%" minWidth={100} minHeight={100} initialDimension={{ width: 100, height: 100 }}>
                   <PieChart>
                     <Pie data={analyticsData.statuses} dataKey="value" nameKey="name" innerRadius={24} outerRadius={40} paddingAngle={3}>
                       {analyticsData.statuses.map((entry, index) => (
@@ -2008,7 +2008,7 @@ export default function AdminDashboard() {
             <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm min-h-0 flex flex-col">
               <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1">By Category</p>
               <div className="flex-1 min-h-0">
-                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} initialDimension={{ width: 100, height: 100 }}>
+                <ResponsiveContainer width="100%" height="100%" minWidth={100} minHeight={100} initialDimension={{ width: 100, height: 100 }}>
                   <BarChart data={analyticsData.categories} margin={{ top: 4, right: 4, left: -28, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
                     <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 8, fontWeight: 700 }} />
@@ -2028,7 +2028,7 @@ export default function AdminDashboard() {
             <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm min-h-0 flex flex-col">
               <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1">Incident Trend</p>
               <div className="flex-1 min-h-0">
-                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} initialDimension={{ width: 100, height: 100 }}>
+                <ResponsiveContainer width="100%" height="100%" minWidth={100} minHeight={100} initialDimension={{ width: 100, height: 100 }}>
                   <LineChart data={analyticsData.trend} margin={{ top: 4, right: 8, left: -26, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                     <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 9, fontWeight: 700 }} />

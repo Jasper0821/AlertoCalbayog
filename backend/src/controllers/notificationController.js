@@ -1,4 +1,6 @@
 const Notification = require("../models/Notification");
+const EmergencyReport = require("../models/EmergencyReport");
+const User = require("../models/User");
 
 const buildRecipientFilter = (user) => {
   const userId = user.id || user._id;
@@ -18,7 +20,8 @@ const buildRecipientFilter = (user) => {
 exports.getMyNotifications = async (req, res) => {
   try {
     const { page = 1, limit = 50, unread, search, category, startDate, endDate } = req.query;
-    const filter = buildRecipientFilter(req.user);
+    const recipientFilter = buildRecipientFilter(req.user);
+    const filter = { ...recipientFilter };
 
     if (unread === "true") {
       filter.read = false;
@@ -35,18 +38,27 @@ exports.getMyNotifications = async (req, res) => {
         filter.createdAt.$lte = end;
       }
     }
+
+    let finalQuery = filter;
     if (search) {
       const regex = new RegExp(search, "i");
-      filter.$or = [
-        { title: regex },
-        { message: regex },
-        { category: regex },
-        { type: regex },
-      ].concat(filter.$or || []);
+      finalQuery = {
+        $and: [
+          filter,
+          {
+            $or: [
+              { title: regex },
+              { message: regex },
+              { category: regex },
+              { type: regex },
+            ],
+          },
+        ],
+      };
     }
 
-    const total = await Notification.countDocuments(filter);
-    const notifications = await Notification.find(filter)
+    const total = await Notification.countDocuments(finalQuery);
+    const notifications = await Notification.find(finalQuery)
       .populate("reportId", "resolutionEvidence proofPhotos status emergencyType")
       .sort({ createdAt: -1 })
       .skip((page - 1) * Number(limit))
@@ -54,6 +66,7 @@ exports.getMyNotifications = async (req, res) => {
 
     res.json({ notifications, total, page: Number(page), pages: Math.ceil(total / Number(limit)) });
   } catch (error) {
+    console.error("getMyNotifications error:", error);
     res.status(500).json({ message: error.message });
   }
 };
