@@ -4,6 +4,7 @@ const {
   createEmergencyReport,
   getAllReports,
   getMyReports,
+  getReportById,
   deleteMyReport,
   deleteAllClosedReports,
   getReportsByAgency,
@@ -18,9 +19,10 @@ router.delete("/closed", authMiddleware, deleteAllClosedReports);
 router.get("/", authMiddleware, getAllReports);
 router.get("/me", authMiddleware, getMyReports);
 router.get("/deleted", authMiddleware, getDeletedReports);
+router.get("/agency/:agency", authMiddleware, getReportsByAgency);
+router.get("/:id", authMiddleware, getReportById);
 router.post("/:id/restore", authMiddleware, restoreReport);
 router.delete("/:id", authMiddleware, deleteMyReport);
-router.get("/agency/:agency", authMiddleware, getReportsByAgency);
 router.put("/:id", authMiddleware, updateReportStatus);
 
 module.exports = router;
