@@ -4,31 +4,49 @@ import api from "../../../api/axios.js";
 
 const BRAND = "#7c3aed";
 
+function EvidenceGalleryItem({ src, index, onOpen }) {
+  const [loaded, setLoaded] = useState(false);
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(src)}
+      className="relative aspect-square overflow-hidden rounded-lg border border-slate-200 group hover:ring-2 hover:ring-violet-400 transition-all bg-slate-100"
+    >
+      {!loaded && (
+        <div className="absolute inset-0 bg-slate-200 animate-pulse flex items-center justify-center">
+          <svg className="w-5 h-5 text-slate-400 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+        </div>
+      )}
+      <img
+        src={src}
+        alt={`Evidence ${index + 1}`}
+        loading="lazy"
+        decoding="async"
+        onLoad={() => setLoaded(true)}
+        className={`h-full w-full object-cover group-hover:scale-105 transition-all duration-300 ${loaded ? "opacity-100" : "opacity-0"}`}
+      />
+      <span className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+        <svg className="h-4 w-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+      </span>
+    </button>
+  );
+}
+
 function EvidenceGallery({ images }) {
   const [lightbox, setLightbox] = useState(null);
   return (
     <>
       <div className="mt-2 grid grid-cols-4 gap-1.5">
         {images.map((src, i) => (
-          <button
-            key={i}
-            type="button"
-            onClick={() => setLightbox(src)}
-            className="relative aspect-square overflow-hidden rounded-lg border border-slate-200 group hover:ring-2 hover:ring-violet-400 transition-all"
-          >
-            <img src={src} alt={`Evidence ${i + 1}`} className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-200" />
-            <span className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-              <svg className="h-4 w-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-            </span>
-          </button>
+          <EvidenceGalleryItem key={i} src={src} index={i} onOpen={setLightbox} />
         ))}
       </div>
       {lightbox && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/85 backdrop-blur-sm p-4" onClick={() => setLightbox(null)}>
-          <button className="absolute top-4 right-4 text-white/70 hover:text-white" onClick={() => setLightbox(null)}>
-            <svg className="h-7 w-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/85 backdrop-blur-sm p-4 animate-in fade-in duration-150" onClick={() => setLightbox(null)}>
+          <button className="absolute top-4 right-4 text-white/70 hover:text-white p-2 rounded-full bg-black/40 hover:bg-black/60 transition-colors" onClick={() => setLightbox(null)}>
+            <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>
-          <img src={lightbox} alt="Fullscreen evidence" className="max-h-[88vh] max-w-full rounded-xl shadow-2xl object-contain" onClick={e => e.stopPropagation()} />
+          <img src={lightbox} alt="Fullscreen evidence" loading="lazy" decoding="async" className="max-h-[88vh] max-w-full rounded-xl shadow-2xl object-contain animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()} />
         </div>
       )}
     </>
