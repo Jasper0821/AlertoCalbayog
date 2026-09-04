@@ -106,32 +106,10 @@ export default function IncidentDetailModal({ report: initialReport, onClose }) 
         const photos = Array.isArray(data.proofPhotos) ? data.proofPhotos : [];
         const resEvidence = Array.isArray(data.resolutionEvidence) ? data.resolutionEvidence : [];
 
-        if (photos.length === 0 && resEvidence.length === 0) {
-          setPhotosLoading(false);
-          return;
-        }
-
-        // Render photos one by one on separate animation frames
-        let idx = 0;
-        const allPhotos = [...photos];
-
-        const feedNext = () => {
-          if (cancelled) return;
-          if (idx < allPhotos.length) {
-            idx++;
-            setProofPhotos(allPhotos.slice(0, idx));
-            requestAnimationFrame(feedNext);
-          } else {
-            // Now feed evidence photos
-            if (resEvidence.length > 0) {
-              setEvidence(resEvidence);
-            }
-            setPhotosLoading(false);
-          }
-        };
-
-        // Start feeding after a small delay so the modal is fully interactive first
-        setTimeout(() => requestAnimationFrame(feedNext), 100);
+        // Set photos immediately so they render fast
+        setProofPhotos(photos);
+        setEvidence(resEvidence);
+        setPhotosLoading(false);
       })
       .catch((err) => {
         if (!cancelled) {
@@ -146,12 +124,15 @@ export default function IncidentDetailModal({ report: initialReport, onClose }) 
   if (!report) return null;
 
   const phone = report.userId?.phoneNumber || report.phoneNumber || null;
-  const location =
-    report.location?.name ||
-    [report.location?.barangay, report.location?.street, report.location?.purok]
-      .filter(Boolean)
-      .join(", ") ||
-    (typeof report.location === "string" ? report.location : "Unknown");
+
+  // Build exact location display
+  const locObj = typeof report.location === "object" && report.location ? report.location : {};
+  const lat = locObj.latitude;
+  const lng = locObj.longitude;
+  const gpsStr = (lat && lng) ? ` [GPS: ${Number(lat).toFixed(5)}, ${Number(lng).toFixed(5)}]` : "";
+
+  const baseLocation = formatLocationForTable(report.location, report);
+  const locationText = baseLocation + (baseLocation.includes("GPS:") ? "" : gpsStr);
 
   const dateStr = report.createdAt
     ? new Date(report.createdAt).toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" })
@@ -170,7 +151,7 @@ export default function IncidentDetailModal({ report: initialReport, onClose }) 
     { label: "Reporter", value: report.userId?.fullName || "Anonymous" },
     { label: "Contact No.", value: phone ?? "N/A", mono: !!phone },
     { label: "Type", value: report.emergencyType || "Others", capitalize: true },
-    { label: "Location", value: location },
+    { label: "Exact Location", value: locationText },
     { label: "Status", value: report.status || "pending", capitalize: true },
     { label: "Priority", value: getPriority(report), capitalize: true },
     { label: "Responder", value: responderVal },

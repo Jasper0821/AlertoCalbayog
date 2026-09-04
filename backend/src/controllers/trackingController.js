@@ -12,11 +12,27 @@ exports.updateTracking = async (req, res) => {
       longitude
     });
 
-    const report = await EmergencyReport.findById(reportId).select("status");
+    const report = await EmergencyReport.findById(reportId);
+    if (report && report.location) {
+      report.location.latitude = latitude;
+      report.location.longitude = longitude;
+      await report.save();
+    }
 
     const io = req.app.get("io");
     if (io) {
+      const payload = {
+        reportId,
+        latitude,
+        longitude,
+        userId: req.user.id,
+        tracking
+      };
       io.emit(`trackingUpdate-${reportId}`, tracking);
+      io.to("CDRRMO").emit("liveLocationUpdate", payload);
+      io.to("PNP").emit("liveLocationUpdate", payload);
+      io.to("BFP").emit("liveLocationUpdate", payload);
+      io.to("admin").emit("liveLocationUpdate", payload);
     }
 
     res.status(200).json({ 

@@ -20,6 +20,7 @@
     "expo-device": "^55.0.15",
     "expo-file-system": "^57.0.6",
     "expo-font": "^55.0.6",
+    "expo-image-manipulator": "~55.0.21",
     "expo-image-picker": "~55.0.22",
     "expo-linking": "^55.0.13",
     "expo-location": "~55.1.8",

@@ -16,6 +16,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Location from "expo-location";
 import * as ImagePicker from "expo-image-picker";
+import * as ImageManipulator from "expo-image-manipulator";
 import Header from "../components/Header";
 import { COLORS } from "../styles/colors";
 import {
@@ -121,7 +122,6 @@ export default function EmergencyReportScreen({
       const result = await ImagePicker.launchCameraAsync({
         allowsEditing: false,
         quality: 0.6,
-        base64: true,
       });
 
       if (result.canceled || !result.assets || result.assets.length === 0) {
@@ -129,9 +129,17 @@ export default function EmergencyReportScreen({
       }
 
       const asset = result.assets[0];
-      const imageUri = asset.base64
-        ? `data:image/jpeg;base64,${asset.base64}`
-        : asset.uri;
+
+      // Compress and resize photo for sub-second report transmission
+      const manipulated = await ImageManipulator.manipulateAsync(
+        asset.uri,
+        [{ resize: { width: 1000 } }],
+        { compress: 0.55, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+      );
+
+      const imageUri = manipulated.base64
+        ? `data:image/jpeg;base64,${manipulated.base64}`
+        : manipulated.uri;
 
       setProofPhotos((prev) => [...prev, imageUri]);
       currentCount++;

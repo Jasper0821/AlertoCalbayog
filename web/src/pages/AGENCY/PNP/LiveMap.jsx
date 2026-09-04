@@ -63,11 +63,10 @@ function MapResizeBridge() {
 export default function LiveMap({ reports = [] }) {
   const [isSatellite, setIsSatellite] = useState(false);
 
-  // Only show pending reports — marker is removed from live map once the
-  // status is changed in the queue (responding/active/resolved/closed/etc.)
+  // Show pending, responding, and active emergency incidents on live map
   const safeReports = (Array.isArray(reports) ? reports : []).filter(r => {
     const status = (r.status || "").toLowerCase();
-    return status === "pending";
+    return ["pending", "responding", "active"].includes(status);
   });
 
   // Collect present crime types for legend

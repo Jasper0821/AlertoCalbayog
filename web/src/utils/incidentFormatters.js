@@ -49,11 +49,13 @@ export function formatIncidentLocation(location) {
 }
 
 export function formatLocationForTable(location, report) {
+  const userAddress = (report?.userId?.completeAddress || "").trim();
+  const userBarangay = (report?.userId?.barangay || "").trim();
+
   if (!location) {
-    if (report?.userId?.completeAddress) return report.userId.completeAddress;
-    if (report?.userId?.barangay) {
-      const b = report.userId.barangay.trim();
-      return b.toLowerCase().startsWith("brgy") ? b : `Brgy. ${b}`;
+    if (userAddress) return userAddress;
+    if (userBarangay && !/^(district|calbayog)$/i.test(userBarangay)) {
+      return userBarangay.toLowerCase().startsWith("brgy") ? userBarangay : `Brgy. ${userBarangay}`;
     }
     return "Unknown Location";
   }
@@ -64,12 +66,15 @@ export function formatLocationForTable(location, report) {
       .replace(/,?\s*district,?/gi, "")
       .replace(/^[,\s]+|[,\s]+$/g, "")
       .trim();
+
+    if (userAddress && !cleaned.toLowerCase().includes(userAddress.toLowerCase())) {
+      return cleaned && !/^(calbayog|calbayog city)$/i.test(cleaned)
+        ? `${userAddress}, ${cleaned}`
+        : userAddress;
+    }
     if (cleaned && !/^(calbayog|calbayog city)$/i.test(cleaned)) {
       return cleaned;
     }
-    // Fall back to resident profile address if location string is generic "Calbayog"
-    const userBarangay = (report?.userId?.barangay || "").trim();
-    const userAddress = (report?.userId?.completeAddress || "").trim();
     if (userAddress) return userAddress;
     if (userBarangay && !/^(district|calbayog)$/i.test(userBarangay)) {
       return userBarangay.toLowerCase().startsWith("brgy") ? userBarangay : `Brgy. ${userBarangay}`;
@@ -84,47 +89,38 @@ export function formatLocationForTable(location, report) {
   const lng = location.longitude;
   const rawName = (location.name || location.address || "").trim();
 
-  // Check location.name / location.address first if it contains detailed landmark/street/barangay
   if (rawName) {
     const cleanedName = rawName
       .replace(/,?\s*brgy\.?\s*district,?/gi, "")
       .replace(/,?\s*district,?/gi, "")
       .replace(/^[,\s]+|[,\s]+$/g, "")
       .trim();
+
+    if (userAddress && !cleanedName.toLowerCase().includes(userAddress.toLowerCase())) {
+      return cleanedName && !/^(calbayog|calbayog city)$/i.test(cleanedName)
+        ? `${userAddress}, ${cleanedName}`
+        : userAddress;
+    }
+
     if (cleanedName && !/^(calbayog|calbayog city)$/i.test(cleanedName)) {
       return cleanedName;
     }
   }
 
-  // Check if barangay is generic
-  const isGenericBarangay = !barangay || /^(district|calbayog)$/i.test(barangay);
-
   const parts = [];
+  if (userAddress) parts.push(userAddress);
+  if (street && !parts.some(p => p.toLowerCase().includes(street.toLowerCase()))) parts.push(street);
+  if (purok && !parts.some(p => p.toLowerCase().includes(purok.toLowerCase()))) parts.push(purok);
 
-  // Always show street first if available
-  if (street) parts.push(street);
-
-  // Show purok if available
-  if (purok) parts.push(purok);
-
-  // Show barangay only if it's a real barangay name (not "District" or "Calbayog")
-  if (!isGenericBarangay) {
-    parts.push(barangay.toLowerCase().startsWith("brgy") ? barangay : `Brgy. ${barangay}`);
+  const safeBgy = barangay || userBarangay;
+  if (safeBgy && !/^(district|calbayog)$/i.test(safeBgy) && !parts.some(p => p.toLowerCase().includes(safeBgy.toLowerCase()))) {
+    parts.push(safeBgy.toLowerCase().startsWith("brgy") ? safeBgy : `Brgy. ${safeBgy}`);
   }
 
   if (parts.length > 0) return parts.join(", ");
 
-  // Fallback: check reporter resident profile completeAddress or barangay
-  const userBarangay = (report?.userId?.barangay || "").trim();
-  const userAddress = (report?.userId?.completeAddress || "").trim();
-  if (userAddress) return userAddress;
-  if (userBarangay && !/^(district|calbayog)$/i.test(userBarangay)) {
-    return userBarangay.toLowerCase().startsWith("brgy") ? userBarangay : `Brgy. ${userBarangay}`;
-  }
-
-  // Fall back to coordinates if no readable address text is found anywhere
   if (lat && lng) {
-    return `${Number(lat).toFixed(5)}, ${Number(lng).toFixed(5)}`;
+    return `[GPS: ${Number(lat).toFixed(5)}, ${Number(lng).toFixed(5)}]`;
   }
 
   return "Unknown Location";

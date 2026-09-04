@@ -57,11 +57,10 @@ export default function LiveMap({ reports = [] }) {
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [mapCenter, setMapCenter] = useState(null);
 
-  // Only show pending reports — marker is removed from live map once the
-  // status is changed in the queue (responding/active/resolved/closed/etc.)
+  // Show pending, responding, and active emergency incidents on live map
   const activeReports = (Array.isArray(reports) ? reports : []).filter(r => {
     const status = (r.status || "").toLowerCase();
-    return status === "pending";
+    return ["pending", "responding", "active"].includes(status);
   });
 
   // Deterministic coordinate distribution for active reports
