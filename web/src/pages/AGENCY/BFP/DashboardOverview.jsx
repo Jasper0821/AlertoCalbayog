@@ -254,7 +254,7 @@ export default function DashboardOverview({ reports = [], setActiveNav, onStatus
           </div>
 
           <div className="h-60 w-full">
-            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} initialDimension={{ width: 100, height: 100 }}>
+            <ResponsiveContainer width="100%" height="100%" minWidth={100} minHeight={100} initialDimension={{ width: 100, height: 100 }}>
               <LineChart data={trendData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
                 <XAxis dataKey="label" tick={{ fill: "#94a3b8", fontSize: 10, fontWeight: 600 }} axisLine={false} tickLine={false} />

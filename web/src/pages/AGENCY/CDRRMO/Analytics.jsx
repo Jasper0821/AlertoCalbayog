@@ -231,7 +231,7 @@ export default function Analytics({ reports = [] }) {
 
           <div className="relative flex-1 flex items-center justify-center my-2">
             {total > 0 ? (
-              <ResponsiveContainer width="100%" height={160} minWidth={0} minHeight={0} initialDimension={{ width: 100, height: 100 }}>
+              <ResponsiveContainer width="100%" height={160} minWidth={100} minHeight={100} initialDimension={{ width: 100, height: 100 }}>
                 <PieChart>
                   <Pie
                     data={donutData}
@@ -352,7 +352,7 @@ export default function Analytics({ reports = [] }) {
           </div>
 
           <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} initialDimension={{ width: 100, height: 100 }}>
+            <ResponsiveContainer width="100%" height="100%" minWidth={100} minHeight={100} initialDimension={{ width: 100, height: 100 }}>
               <BarChart data={stackedMonthlyData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
                 <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: "#94a3b8", fontSize: 11, fontWeight: 700 }} />
@@ -396,7 +396,7 @@ export default function Analytics({ reports = [] }) {
 
           <div className="relative flex-1 flex items-center justify-center my-1">
             {typeTotal > 0 ? (
-              <ResponsiveContainer width="100%" height={170} minWidth={0} minHeight={0} initialDimension={{ width: 100, height: 100 }}>
+              <ResponsiveContainer width="100%" height={170} minWidth={100} minHeight={100} initialDimension={{ width: 100, height: 100 }}>
                 <PieChart>
                   <Pie
                     data={typeBreakdown}
