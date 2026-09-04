@@ -461,6 +461,23 @@ function CdrrmoDashboard() {
       });
     });
 
+    socket.on("liveLocationUpdate", ({ reportId, latitude, longitude }) => {
+      setReports(prev => prev.map(r => {
+        if (r._id === reportId) {
+          const locObj = typeof r.location === "object" && r.location ? r.location : {};
+          return {
+            ...r,
+            location: {
+              ...locObj,
+              latitude,
+              longitude
+            }
+          };
+        }
+        return r;
+      }));
+    });
+
     socket.on("reportDeleted", ({ id }) => {
       setReports(prev => prev.filter(r => r._id !== id));
     });
@@ -471,6 +488,7 @@ function CdrrmoDashboard() {
       socket.off("connect", onConnect);
       socket.off("newEmergencyAlert");
       socket.off("reportStatusChanged");
+      socket.off("liveLocationUpdate");
       socket.off("reportDeleted");
       socket.disconnect();
     };
