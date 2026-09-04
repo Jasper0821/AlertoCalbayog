@@ -30,4 +30,31 @@ const api = axios.create({
     },
 });
 
+// Root of the server, without the trailing "/api" the axios instance uses.
+const serverRoot = backendUrl.replace(/\/api\/?$/, "");
+
+let warmUpStartedAt = 0;
+
+/**
+ * The backend sleeps on Render's free tier and takes ~20s to answer its first
+ * request. A resident who opens the app during an emergency should not pay that
+ * cost at the moment they press Register, so we start waking the server as soon
+ * as any auth screen mounts and let it boot while they are still typing.
+ *
+ * Fire-and-forget by design: the caller never awaits this and a failure here
+ * must never surface to the user or block the real request that follows.
+ */
+export const warmUpServer = (): void => {
+  const now = Date.now();
+  // One wake-up per minute is plenty; repeated mounts should not spam the server.
+  if (now - warmUpStartedAt < 60_000) return;
+  warmUpStartedAt = now;
+
+  axios
+    .get(`${serverRoot}/health`, { timeout: 30000 })
+    .catch(() => {
+      // Server may still be booting. The real request will retry on its own.
+    });
+};
+
 export default api;

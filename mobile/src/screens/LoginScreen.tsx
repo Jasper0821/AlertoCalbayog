@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -14,8 +14,10 @@ import {
   TextInput,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import api, { backendUrl } from "../api/axios";
+import api, { backendUrl, warmUpServer } from "../api/axios";
 import { saveToken, saveUser } from "../utils/Storage";
+import { runGoogleSignInFlow, isGoogleSignInAvailable } from "../api/googleAuth";
+import { GoogleIcon } from "../components/SvgIcons";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../navigation/AppNavigator";
 
@@ -36,6 +38,23 @@ export default function LoginScreen({
   const [password, setPassword] = useState<string>("");
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
+  const [googleLoading, setGoogleLoading] = useState<boolean>(false);
+
+  const googleAvailable = isGoogleSignInAvailable();
+
+  // Wake the sleeping backend while the resident is still typing.
+  useEffect(() => {
+    warmUpServer();
+  }, []);
+
+  const handleGoogleSignIn = async (): Promise<void> => {
+    setGoogleLoading(true);
+    try {
+      await runGoogleSignInFlow(navigation);
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
 
   const handleLogin = async (): Promise<void> => {
     const cleanMobile = mobileNumber.trim().replace(/[\s-]/g, "");
@@ -176,6 +195,30 @@ export default function LoginScreen({
               <Text style={styles.dividerText}>OR</Text>
               <View style={styles.dividerLine} />
             </View>
+
+            {/* Always rendered. In Expo Go the native module is missing, so the
+                flow explains that on tap rather than the button silently
+                vanishing and looking unimplemented. */}
+            <TouchableOpacity
+              style={[styles.googleBtn, googleLoading && styles.disabledBtn]}
+              onPress={handleGoogleSignIn}
+              disabled={googleLoading}
+              activeOpacity={0.8}
+            >
+              {googleLoading ? (
+                <ActivityIndicator color="#0A1E3F" size="small" />
+              ) : (
+                <>
+                  <GoogleIcon size={18} />
+                  <Text style={styles.googleBtnText}>CONTINUE WITH GOOGLE</Text>
+                </>
+              )}
+            </TouchableOpacity>
+            {!googleAvailable && (
+              <Text style={styles.googleNote}>
+                Google Sign-In requires a development build (not Expo Go)
+              </Text>
+            )}
 
             {/* Register Action */}
             <TouchableOpacity
@@ -343,6 +386,30 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: "800",
     marginHorizontal: 12,
+  },
+  googleBtn: {
+    flexDirection: "row",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 14,
+    height: 48,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  googleBtnText: {
+    color: "#0A1E3F",
+    fontSize: 12,
+    fontWeight: "900",
+    letterSpacing: 0.8,
+    marginLeft: 10,
+  },
+  googleNote: {
+    color: "#64748B",
+    fontSize: 10.5,
+    fontWeight: "600",
+    textAlign: "center",
+    marginTop: -4,
+    marginBottom: 12,
   },
   registerBtn: {
     backgroundColor: "transparent",

@@ -17,6 +17,7 @@ import CustomInput from "../components/CustomInput";
 import { ArrowLeftIcon, LockIcon, GoogleIcon } from "../components/SvgIcons";
 import api, { backendUrl } from "../api/axios";
 import { saveToken, saveUser } from "../utils/Storage";
+import { runGoogleSignInFlow } from "../api/googleAuth";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../navigation/AppNavigator";
 import { COLORS } from "../styles/colors";
@@ -37,6 +38,16 @@ export default function PasswordLoginScreen({
   const [email, setEmail] = useState<string>("");
   const [password, setPassword] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
+  const [googleLoading, setGoogleLoading] = useState<boolean>(false);
+
+  const handleGoogleSignIn = async (): Promise<void> => {
+    setGoogleLoading(true);
+    try {
+      await runGoogleSignInFlow(navigation);
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
 
   const handlePasswordLogin = async (): Promise<void> => {
     if (!email.trim() || !password) {
@@ -184,12 +195,19 @@ export default function PasswordLoginScreen({
             </View>
 
             <TouchableOpacity
-              style={styles.googleOptionBtn}
-              onPress={() => navigation.goBack()}
+              style={[styles.googleOptionBtn, googleLoading && { opacity: 0.6 }]}
+              onPress={handleGoogleSignIn}
+              disabled={googleLoading}
               activeOpacity={0.8}
             >
-              <GoogleIcon size={18} />
-              <Text style={styles.googleOptionText}>Continue with Google</Text>
+              {googleLoading ? (
+                <ActivityIndicator color={COLORS.text} size="small" />
+              ) : (
+                <>
+                  <GoogleIcon size={18} />
+                  <Text style={styles.googleOptionText}>Continue with Google</Text>
+                </>
+              )}
             </TouchableOpacity>
 
             {/* Register Link */}

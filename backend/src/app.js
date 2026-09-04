@@ -14,6 +14,11 @@ const backupRoutes = require("./routes/backupRoutes");
 
 const app = express();
 
+// Render terminates TLS at its edge, so the real client IP only exists in
+// X-Forwarded-For. Without this the rate limiters would key every request in
+// production to the same proxy address and throttle all residents as one client.
+app.set("trust proxy", 1);
+
 app.use(cors());
 
 app.use(express.json({ limit: '30mb' }));
@@ -41,6 +46,17 @@ app.use("/api/backup", backupRoutes);
 
 app.get("/", (req, res) => {
   res.send("AlertoCalbayog API is running");
+});
+
+// Cheap wake-up target for the mobile app. Deliberately skips the database guard
+// above so a cold Render instance can answer while Mongo is still connecting.
+app.get("/health", (req, res) => {
+  res.json({
+    status: "ok",
+    database: mongoose.connection.readyState === 1 ? "connected" : "connecting",
+    mailer: Boolean(process.env.GMAIL_USER && process.env.GMAIL_APP_PASS),
+    time: new Date().toISOString(),
+  });
 });
 
 module.exports = app;

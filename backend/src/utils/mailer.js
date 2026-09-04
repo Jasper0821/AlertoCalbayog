@@ -66,8 +66,14 @@ async function sendOtpEmail(toEmail, otpCode, expiryMinutes = 7) {
   const fromAddress = process.env.GMAIL_USER?.trim() || "noreply@alertocalbayog.local";
 
   if (!transporter) {
-    console.log(`\n🔑 [Password Reset OTP Fallback Code for ${recipient}]: ${otpCode}\n`);
-    return { fallback: true, otpCode };
+    console.error(
+      "\n❌  [Mailer] GMAIL_USER / GMAIL_APP_PASS are not configured — no password reset email was sent.\n" +
+      "    Set both in your hosting provider's environment settings (Render → Environment).\n"
+    );
+    if (process.env.NODE_ENV !== "production") {
+      console.log(`\n🔑 [Dev-only Password Reset Code for ${recipient}]: ${otpCode}\n`);
+    }
+    return { fallback: true, reason: "mailer_not_configured" };
   }
 
   const mailOptions = {
@@ -118,8 +124,10 @@ async function sendOtpEmail(toEmail, otpCode, expiryMinutes = 7) {
     return info;
   } catch (err) {
     console.error("\n⚠️  [Mailer Error] Failed to send OTP email to", recipient, "-", err.message || err);
-    console.log(`\n🔑 [Password Reset OTP Fallback Code for ${recipient}]: ${otpCode}\n`);
-    return { fallback: true, otpCode };
+    if (process.env.NODE_ENV !== "production") {
+      console.log(`\n🔑 [Dev-only Password Reset Code for ${recipient}]: ${otpCode}\n`);
+    }
+    return { fallback: true, reason: err.message || "smtp_send_failed" };
   }
 }
 
@@ -131,8 +139,14 @@ async function sendRegistrationOtpEmail(toEmail, otpCode, expiryMinutes = 7) {
   const fromAddress = process.env.GMAIL_USER?.trim() || "noreply@alertocalbayog.local";
 
   if (!transporter) {
-    console.log(`\n🔑 [Registration OTP Fallback Code for ${recipient}]: ${otpCode}\n`);
-    return { fallback: true, otpCode };
+    console.error(
+      "\n❌  [Mailer] GMAIL_USER / GMAIL_APP_PASS are not configured — no registration OTP was sent.\n" +
+      "    Set both in your hosting provider's environment settings (Render → Environment).\n"
+    );
+    if (process.env.NODE_ENV !== "production") {
+      console.log(`\n🔑 [Dev-only Registration Code for ${recipient}]: ${otpCode}\n`);
+    }
+    return { fallback: true, reason: "mailer_not_configured" };
   }
 
   try {
@@ -147,8 +161,10 @@ async function sendRegistrationOtpEmail(toEmail, otpCode, expiryMinutes = 7) {
     return info;
   } catch (error) {
     console.error("[Registration OTP] Mailer error:", error.message || error);
-    console.log(`\n🔑 [Registration OTP Fallback Code for ${recipient}]: ${otpCode}\n`);
-    return { fallback: true, otpCode };
+    if (process.env.NODE_ENV !== "production") {
+      console.log(`\n🔑 [Dev-only Registration Code for ${recipient}]: ${otpCode}\n`);
+    }
+    return { fallback: true, reason: error.message || "smtp_send_failed" };
   }
 }
 

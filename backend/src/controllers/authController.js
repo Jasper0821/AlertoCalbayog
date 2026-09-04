@@ -85,7 +85,7 @@ const generateToken = (id, role) => {
 exports.register = async (req, res) => {
   console.log("Registration request received:", req.body);
   try {
-    const { fullName, email, password, role, agency, phoneNumber, mobileNumber, emergencyContactNumber, completeAddress, barangay } = req.body;
+    const { fullName, email, password, role, agency, phoneNumber, mobileNumber, emergencyContactNumber, completeAddress, barangay, termsAccepted } = req.body;
 
     // Mobile Registration Flow (Mobile App)
     if (mobileNumber && !email) {
@@ -119,6 +119,26 @@ exports.register = async (req, res) => {
       });
 
       const token = generateToken(user._id, user.role);
+
+      // The mobile form carries its own "I agree" checkbox, so record the acceptance here.
+      // Without this the resident is bounced back to the User Agreement screen on their
+      // next launch — an extra blocking step in the middle of an emergency.
+      if (termsAccepted) {
+        try {
+          await TermsAcceptance.create({
+            userId: user._id,
+            termsAccepted: true,
+            termsVersion: CURRENT_TERMS_VERSION,
+            privacyPolicyAccepted: true,
+            privacyPolicyVersion: CURRENT_PRIVACY_VERSION,
+            acceptedAt: new Date(),
+            ipAddress: getIp(req),
+            userAgent: getUserAgent(req),
+          });
+        } catch (termsErr) {
+          console.warn("Mobile registration terms acceptance error:", termsErr);
+        }
+      }
 
       try {
         await AuditLog.create({
@@ -274,8 +294,20 @@ exports.requestRegistrationOtp = async (req, res) => {
       purpose: "registration",
       expiresAt: new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000),
     });
-    await sendRegistrationOtpEmail(normalizedEmail, code, OTP_EXPIRY_MINUTES);
-    return res.status(200).json({ message: "Verification code sent to your email address." });
+
+    // Never report success when the email did not actually leave the server:
+    // a silent fallback here leaves the user waiting for a code that does not exist.
+    const delivery = await sendRegistrationOtpEmail(normalizedEmail, code, OTP_EXPIRY_MINUTES);
+    if (delivery?.fallback) {
+      await Otp.deleteMany({ email: normalizedEmail, purpose: "registration" });
+      return res.status(503).json({
+        message:
+          "We could not send the verification email right now. Please try another sign-up method or contact the Alerto Calbayog administrator.",
+        emailDelivered: false,
+      });
+    }
+
+    return res.status(200).json({ message: "Verification code sent to your email address.", emailDelivered: true });
   } catch (error) {
     console.error("requestRegistrationOtp error:", error);
     return res.status(500).json({ message: error.message || "Failed to send verification code. Please try again." });
@@ -610,7 +642,15 @@ exports.forgotPassword = async (req, res) => {
       expiresAt: new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000),
     });
 
-    await sendOtpEmail(recipientEmail, code, OTP_EXPIRY_MINUTES);
+    const delivery = await sendOtpEmail(recipientEmail, code, OTP_EXPIRY_MINUTES);
+    if (delivery?.fallback) {
+      await Otp.deleteMany({ email: recipientEmail });
+      return res.status(503).json({
+        message:
+          "We could not send the reset email right now. Please contact the Alerto Calbayog administrator.",
+        emailDelivered: false,
+      });
+    }
 
     await AuditLog.create({
       category: "password_security",
@@ -965,7 +1005,7 @@ exports.googleLogin = async (req, res) => {
 
 exports.googleRegister = async (req, res) => {
   try {
-    const { googleRegistrationToken, phoneNumber, barangay, completeAddress } = req.body;
+    const { googleRegistrationToken, phoneNumber, barangay, completeAddress, termsAccepted } = req.body;
 
     if (!googleRegistrationToken) {
       return res.status(400).json({ message: "Google authentication session expired or missing. Please sign in with Google again." });
@@ -987,15 +1027,12 @@ exports.googleRegister = async (req, res) => {
       return res.status(400).json({ message: "Please provide a valid 11-digit mobile number starting with 09 (e.g. 09XXXXXXXXX)." });
     }
 
+    // Barangay and address are optional: reports carry live GPS coordinates, so a
+    // missing typed address never blocks dispatch. Requiring them here would make
+    // signing up with Google slower than the plain mobile form, which defeats the
+    // point of offering it during an emergency.
     const cleanBarangay = (barangay || "").trim();
-    if (!cleanBarangay) {
-      return res.status(400).json({ message: "Please select your Barangay." });
-    }
-
     const cleanAddress = (completeAddress || "").trim();
-    if (!cleanAddress) {
-      return res.status(400).json({ message: "Please enter your complete address." });
-    }
 
     // Check if googleId or email was already registered while user was on completion form
     let existingUser = await User.findOne({ googleId: payload.googleSub });
@@ -1030,6 +1067,26 @@ exports.googleRegister = async (req, res) => {
       lastSeen: new Date(),
       lastIpAddress: getIp(req),
     });
+
+    // Same reasoning as the mobile form: record consent now so the resident is not
+    // stopped by the User Agreement screen the next time they open the app.
+    if (termsAccepted) {
+      try {
+        await TermsAcceptance.create({
+          userId: user._id,
+          googleId: user.googleId || "",
+          termsAccepted: true,
+          termsVersion: CURRENT_TERMS_VERSION,
+          privacyPolicyAccepted: true,
+          privacyPolicyVersion: CURRENT_PRIVACY_VERSION,
+          acceptedAt: new Date(),
+          ipAddress: getIp(req),
+          userAgent: getUserAgent(req),
+        });
+      } catch (termsErr) {
+        console.warn("Google registration terms acceptance error:", termsErr);
+      }
+    }
 
     await AuditLog.create({
       category: "user_activity",
