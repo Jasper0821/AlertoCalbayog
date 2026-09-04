@@ -385,16 +385,29 @@ export default function AdminDashboard() {
   })();
 
   const fetchReports = async () => {
-    const response = await api.get("/emergency");
-    const data = Array.isArray(response.data) ? response.data : [];
-    setReports(data);
+    try {
+      const response = await api.get("/emergency");
+      const data = Array.isArray(response.data) ? response.data : [];
+      setReports(data);
+    } catch (err) {
+      console.error("fetchReports error:", err);
+      if (err.response?.status === 401) {
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+        window.location.href = "/login";
+      }
+    }
   };
 
   const fetchUsers = async () => {
-    const response = await api.get("/users");
-    const data = Array.isArray(response.data) ? response.data : [];
-    setUsers(data);
-    safeSetItem("adminUsers", JSON.stringify(data));
+    try {
+      const response = await api.get("/users");
+      const data = Array.isArray(response.data) ? response.data : [];
+      setUsers(data);
+      safeSetItem("adminUsers", JSON.stringify(data));
+    } catch (err) {
+      console.error("fetchUsers error:", err);
+    }
   };
 
   const fetchNotifications = async () => {
