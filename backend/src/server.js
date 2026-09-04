@@ -31,18 +31,23 @@ const lanIP = Object.values(networkInterfaces)
 
 connectDB()
   .then(async () => {
-    await backfillReportStatuses();
+    try {
+      await backfillReportStatuses();
+    } catch (err) {
+      console.warn("Backfill warning:", err.message);
+    }
     startScheduler();
-
+  })
+  .catch((err) => {
+    console.error("DB startup warning:", err.message);
+    console.log("⚠️ Server will start without DB. Routes return 503 until MongoDB reconnects.");
+  })
+  .finally(() => {
     server.listen(PORT, HOST, () => {
       console.log(`✅ Server running on port ${PORT}`);
       console.log(`   Local:   http://localhost:${PORT}`);
       console.log(`   Network: http://${lanIP}:${PORT}  ← share this with your team`);
     });
-  })
-  .catch((err) => {
-    console.error("Startup failed:", err.message);
-    process.exit(1);
   });
 
 server.on("error", (err) => {
