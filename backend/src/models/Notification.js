@@ -54,4 +54,11 @@ const notificationSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Compound indexes to prevent "Sort exceeded memory limit" on MongoDB Atlas Free Tier (M0).
+// These let MongoDB use index-based sorting instead of loading all documents into 32MB RAM.
+notificationSchema.index({ recipientRole: 1, userId: 1, createdAt: -1 });
+notificationSchema.index({ userId: 1, createdAt: -1 });
+notificationSchema.index({ recipientRole: 1, createdAt: -1 });
+notificationSchema.index({ read: 1, createdAt: -1 });
+
 module.exports = mongoose.model("Notification", notificationSchema);

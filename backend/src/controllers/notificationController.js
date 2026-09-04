@@ -84,6 +84,7 @@ exports.getMyNotifications = async (req, res) => {
       .sort({ createdAt: -1 })
       .skip((pageNum - 1) * limitNum)
       .limit(limitNum)
+      .allowDiskUse(true)
       .lean()
       .catch((err) => {
         console.error("Find docs error in notifications:", err);
