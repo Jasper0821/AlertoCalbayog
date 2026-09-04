@@ -64,6 +64,16 @@ export function formatLocationForTable(location, report) {
       .replace(/,?\s*district,?/gi, "")
       .replace(/^[,\s]+|[,\s]+$/g, "")
       .trim();
+    if (cleaned && !/^(calbayog|calbayog city)$/i.test(cleaned)) {
+      return cleaned;
+    }
+    // Fall back to resident profile address if location string is generic "Calbayog"
+    const userBarangay = (report?.userId?.barangay || "").trim();
+    const userAddress = (report?.userId?.completeAddress || "").trim();
+    if (userAddress) return userAddress;
+    if (userBarangay && !/^(district|calbayog)$/i.test(userBarangay)) {
+      return userBarangay.toLowerCase().startsWith("brgy") ? userBarangay : `Brgy. ${userBarangay}`;
+    }
     return cleaned || location;
   }
 
@@ -74,8 +84,20 @@ export function formatLocationForTable(location, report) {
   const lng = location.longitude;
   const rawName = (location.name || location.address || "").trim();
 
+  // Check location.name / location.address first if it contains detailed landmark/street/barangay
+  if (rawName) {
+    const cleanedName = rawName
+      .replace(/,?\s*brgy\.?\s*district,?/gi, "")
+      .replace(/,?\s*district,?/gi, "")
+      .replace(/^[,\s]+|[,\s]+$/g, "")
+      .trim();
+    if (cleanedName && !/^(calbayog|calbayog city)$/i.test(cleanedName)) {
+      return cleanedName;
+    }
+  }
+
   // Check if barangay is generic
-  const isGenericBarangay = !barangay || /^district$/i.test(barangay);
+  const isGenericBarangay = !barangay || /^(district|calbayog)$/i.test(barangay);
 
   const parts = [];
 
@@ -85,28 +107,18 @@ export function formatLocationForTable(location, report) {
   // Show purok if available
   if (purok) parts.push(purok);
 
-  // Show barangay only if it's a real barangay name (not "District")
+  // Show barangay only if it's a real barangay name (not "District" or "Calbayog")
   if (!isGenericBarangay) {
     parts.push(barangay.toLowerCase().startsWith("brgy") ? barangay : `Brgy. ${barangay}`);
   }
 
   if (parts.length > 0) return parts.join(", ");
 
-  // Check location.name / location.address if valid and readable
-  if (rawName) {
-    const cleanedName = rawName
-      .replace(/,?\s*brgy\.?\s*district,?/gi, "")
-      .replace(/,?\s*district,?/gi, "")
-      .replace(/^[,\s]+|[,\s]+$/g, "")
-      .trim();
-    if (cleanedName) return cleanedName;
-  }
-
   // Fallback: check reporter resident profile completeAddress or barangay
   const userBarangay = (report?.userId?.barangay || "").trim();
   const userAddress = (report?.userId?.completeAddress || "").trim();
   if (userAddress) return userAddress;
-  if (userBarangay && !/^district$/i.test(userBarangay)) {
+  if (userBarangay && !/^(district|calbayog)$/i.test(userBarangay)) {
     return userBarangay.toLowerCase().startsWith("brgy") ? userBarangay : `Brgy. ${userBarangay}`;
   }
 

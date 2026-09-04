@@ -1,5 +1,6 @@
 const express = require("express");
 const cors = require("cors");
+const mongoose = require("mongoose");
 
 const authRoutes = require("./routes/authRoutes");
 const emergencyRoutes = require("./routes/emergencyRoutes");
@@ -17,6 +18,16 @@ app.use(cors());
 
 app.use(express.json({ limit: '30mb' }));
 
+// Database connection health check middleware
+app.use((req, res, next) => {
+  if (req.path === "/" || req.path.startsWith("/health")) return next();
+  if (mongoose.connection.readyState !== 1) {
+    return res.status(503).json({
+      message: "Database connection is currently unavailable. Please check your internet connection or MongoDB Atlas network access and try again."
+    });
+  }
+  next();
+});
 
 app.use("/api/auth", authRoutes);
 app.use("/api/emergency", emergencyRoutes);
