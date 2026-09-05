@@ -35,6 +35,10 @@ export default function IncidentHistory({ reports = [] }) {
 
   const handleDownloadPDF = () => {
     const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      alert("Please allow pop-ups for this site to download the PDF report.");
+      return;
+    }
 
     // Build incident rows
     const rowsHtml = filtered.map((r, i) => {

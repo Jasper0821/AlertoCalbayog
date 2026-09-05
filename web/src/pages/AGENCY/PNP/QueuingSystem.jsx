@@ -40,6 +40,17 @@ export default function QueuingSystem({ reports = [], onStatusChange }) {
     }
   };
 
+  /**
+   * "active" is an alias the server rewrites to "responding" and matches no <option>
+   * below. A controlled <select> with an unmatched value renders the first option
+   * while holding the old value, so selecting it fires no change and the control
+   * appears frozen. Normalise before binding.
+   */
+  const toSelectValue = (status) => {
+    const current = (status || "pending").toLowerCase();
+    return current === "active" ? "responding" : current;
+  };
+
   const statusOptions = (status) => {
     const current = (status || "pending").toLowerCase();
     if (current === "responding" || current === "active") {
@@ -116,7 +127,7 @@ export default function QueuingSystem({ reports = [], onStatusChange }) {
                     <td className="px-5 py-4 text-slate-500 font-medium">{timeStr}</td>
                     <td className="px-5 py-4">
                       <select
-                        value={report.status || "pending"}
+                        value={toSelectValue(report.status)}
                         onChange={(e) => handleStatusSelect(report._id, e.target.value)}
                         disabled={["resolved", "responded"].includes((report.status || "").toLowerCase())}
                         className="text-xs font-bold border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-700 outline-none cursor-pointer hover:border-[#0a1e3f] focus:border-[#0a1e3f] focus:ring-1 focus:ring-[#0a1e3f]/30 transition-all shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
@@ -186,7 +197,7 @@ export default function QueuingSystem({ reports = [], onStatusChange }) {
                 <div>
                   <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-1">Update Status</p>
                   <select
-                    value={report.status || "pending"}
+                    value={toSelectValue(report.status)}
                     onChange={(e) => handleStatusSelect(report._id, e.target.value)}
                     disabled={["resolved", "responded"].includes((report.status || "").toLowerCase())}
                     className="w-full text-xs font-bold border border-slate-200 rounded-lg px-3 py-2 bg-white text-slate-700 outline-none disabled:cursor-not-allowed disabled:opacity-60"

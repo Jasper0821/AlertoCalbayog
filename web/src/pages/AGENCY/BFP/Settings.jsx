@@ -65,6 +65,39 @@ export default function Settings({ user = {}, onUserUpdate }) {
     }
   }, [user]);
 
+  // Restores every field to the values currently on `user`, mirroring the load effect
+  // above. Previously "Discard changes" only showed a success modal and reverted
+  // nothing, so unsaved edits silently survived.
+  const executeDiscard = () => {
+    setFullName(user?.fullName || "BFP Marshal");
+    setEmployeeId(user?.employeeId || "BFP-2024-001");
+    setEmail(user?.email || "bfp@calbayog.gov.ph");
+    setPhoneNumber(user?.phoneNumber || "0917-000-0000");
+    setRank(user?.rank || "Fire Marshal");
+    setDepartment(user?.department || user?.agency || "BFP");
+    setBio(user?.bio || "");
+    setAvatar(user?.avatar || "");
+    setUsername(user?.username || user?.email || "bfp@calbayog.gov.ph");
+    setCurrentPassword("");
+    setNewPassword("");
+    setConfirmNewPassword("");
+    setSoundAlerts(user?.soundAlerts !== false);
+    setLoopAlarm(user?.loopAlarm !== false);
+  };
+
+  const handleDiscard = () => {
+    setModalConfig({
+      type: "confirm",
+      title: "Discard Changes?",
+      message: "Are you sure you want to revert all unsaved adjustments?",
+      confirmText: "Yes, revert",
+      onConfirm: () => {
+        setModalConfig(null);
+        executeDiscard();
+      },
+    });
+  };
+
   const handleAvatarChange = (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -354,7 +387,7 @@ export default function Settings({ user = {}, onUserUpdate }) {
             {/* Save footer */}
             <div className="flex items-center justify-between px-6 py-4 bg-slate-50 border-t border-slate-100">
               <button
-                onClick={() => setModalConfig({ type: "success", title: "Reverted", message: "Values restored." })}
+                onClick={handleDiscard}
                 className="text-sm text-slate-500 hover:text-slate-700 font-medium transition-colors"
               >
                 Discard changes

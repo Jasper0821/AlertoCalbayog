@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { formatLocationForTable } from "../../../utils/incidentFormatters.js";
+import { formatLocationForTable, getIncidentId } from "../../../utils/incidentFormatters.js";
 import IncidentDetailModal from "../PNP/IncidentDetailModal.jsx";
 import ResolutionEvidenceModal from "../ResolutionEvidenceModal.jsx";
 
@@ -94,7 +94,9 @@ export default function QueuingSystem({ reports = [], onStatusChange }) {
                   const status = (report.status || "pending").toLowerCase();
                   const statusStyle = STATUS_STYLES[status] || STATUS_STYLES.pending;
 
-                  const incId = report._id ? `INC-${report._id.slice(-6).toUpperCase()}` : `INC-${1000 + idx}`;
+                  // Shared helper so this matches the id shown in the detail modal,
+                  // history table and PDF exports instead of inventing a third scheme.
+                  const incId = getIncidentId(report, idx);
                   const locationText = formatLocationForTable(report.location, report);
                   const date = report.createdAt ? new Date(report.createdAt) : new Date();
 

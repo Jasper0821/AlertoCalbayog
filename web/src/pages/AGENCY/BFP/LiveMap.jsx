@@ -195,18 +195,13 @@ export default function LiveMap({ reports = [] }) {
 
       {/* Top Floating Control Bar */}
       <div className="absolute top-4 left-16 right-4 z-10 flex flex-wrap items-center justify-between gap-3 pointer-events-none">
-        {/* Category Filter Pills */}
+        {/* Incident counter. This was a "filter" button whose only handler set the
+            category to the value it already held — a no-op that looked clickable.
+            BFP only ever receives fire incidents, so there is nothing to filter by. */}
         <div className="flex items-center gap-1.5 p-1.5 rounded-2xl bg-white/90 backdrop-blur-md shadow-lg border border-slate-200/80 pointer-events-auto">
-          <button
-            onClick={() => setSelectedCategory("all")}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-              selectedCategory === "all"
-                ? "bg-[#7f1d1d] text-white shadow-sm"
-                : "text-slate-600 hover:bg-slate-100"
-            }`}
-          >
+          <span className="px-3 py-1.5 rounded-xl text-xs font-bold bg-[#7f1d1d] text-white shadow-sm">
             Active Fire Incidents ({filteredReports.length})
-          </button>
+          </span>
         </div>
 
         {/* Live Incident Counter */}

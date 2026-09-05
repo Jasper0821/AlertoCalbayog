@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 import { formatLocationForTable } from "../../utils/incidentFormatters.js";
 
 const TYPE_LABELS = { fire: "Fire", flood: "Flood", crime: "Crime", medical: "Medical", emergency: "Others", others: "Others" };
@@ -19,9 +19,28 @@ const STATUS_STYLES = {
   closed:     { dot: "bg-slate-500",   text: "text-slate-700",   bg: "bg-slate-100", border: "border-slate-200",   label: "Closed" },
 };
 
-export default function AdminQueuingSystem({ reports = [], onStatusChange, onViewReport }) {
-  const [resolvingIncidentId, setResolvingIncidentId] = useState(null);
+/**
+ * The backend state machine (backend/src/controllers/reportController.js:9-20) grants
+ * an admin exactly two moves: pending -> responding|rejected, and resolved -> closed.
+ * Resolving belongs to the responding agency, which collects the proof images the
+ * server requires. Offering anything else here guarantees a 400 and a <select> that
+ * snaps back to its old value — which is what "the button does nothing" looked like.
+ */
+const PENDING_STATUS_OPTIONS = [
+  { value: "pending", label: "Pending" },
+  { value: "responding", label: "Responding" },
+  { value: "rejected", label: "Rejected" },
+];
 
+const isAwaitingClosureStatus = (status) =>
+  ["resolved", "responded"].includes((status || "").toLowerCase());
+
+export default function AdminQueuingSystem({
+  reports = [],
+  onStatusChange,
+  onViewReport,
+  savingReportId = null,
+}) {
   const activeReports = reports.filter(r =>
     !["resolved", "responded", "closed", "rejected"].includes((r.status || "").toLowerCase())
   );
@@ -30,14 +49,6 @@ export default function AdminQueuingSystem({ reports = [], onStatusChange, onVie
   const respondingCount = activeReports.filter(r => ["active", "responding"].includes((r.status || "").toLowerCase())).length;
   const closureReports = reports.filter(r => ["resolved", "responded"].includes((r.status || "").toLowerCase()));
   const queueReports = [...closureReports, ...activeReports];
-
-  const handleStatusSelect = (id, newStatus) => {
-    if (newStatus === "resolved") {
-      setResolvingIncidentId(id);
-    } else {
-      onStatusChange(id, newStatus);
-    }
-  };
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col font-sans p-4">
@@ -86,7 +97,9 @@ export default function AdminQueuingSystem({ reports = [], onStatusChange, onVie
                 const timeStr = report.createdAt
                   ? new Date(report.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })
                   : "--:--";
-                const isAwaitingClosure = ["resolved", "responded"].includes((report.status || "").toLowerCase());
+                const isAwaitingClosure = isAwaitingClosureStatus(report.status);
+                const isPending = (report.status || "").toLowerCase() === "pending";
+                const isSaving = savingReportId === report._id;
                 return (
                   <tr key={report._id || idx} className="hover:bg-slate-50/50 transition-colors text-xs text-slate-700">
                     <td className="px-4 py-2.5">
@@ -112,18 +125,19 @@ export default function AdminQueuingSystem({ reports = [], onStatusChange, onVie
                     <td className="px-4 py-2.5">
                       {isAwaitingClosure ? (
                         <span className="text-[11px] font-bold text-emerald-700">Admin approval required</span>
-                      ) : (
+                      ) : isPending ? (
                         <select
-                          value={report.status || "pending"}
-                          onChange={(e) => handleStatusSelect(report._id, e.target.value)}
-                          className="text-[11px] font-bold border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-700 outline-none cursor-pointer hover:border-slate-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 transition-all shadow-sm"
+                          value="pending"
+                          disabled={isSaving}
+                          onChange={(e) => onStatusChange(report._id, e.target.value)}
+                          className="text-[11px] font-bold border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-700 outline-none cursor-pointer hover:border-slate-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 transition-all shadow-sm disabled:opacity-50 disabled:cursor-wait"
                         >
-                          <option value="pending">Pending</option>
-                          <option value="rejected">Rejected</option>
-                          <option value="responding">Responding</option>
-                          <option value="resolved">Resolved</option>
-                          <option value="closed">Closed</option>
+                          {PENDING_STATUS_OPTIONS.map((opt) => (
+                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                          ))}
                         </select>
+                      ) : (
+                        <span className="text-[11px] font-bold text-indigo-700">Agency responding</span>
                       )}
                     </td>
                     <td className="px-4 py-2.5 text-right whitespace-nowrap">
@@ -137,25 +151,23 @@ export default function AdminQueuingSystem({ reports = [], onStatusChange, onVie
                         </svg>
                         VIEW
                       </button>
-                      {isAwaitingClosure ? (
-                        <>
-                          <button
-                            onClick={() => onStatusChange(report._id, "closed")}
-                            className="ml-1 inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-600 px-2 py-1 text-[9px] font-black text-white transition hover:bg-emerald-700 active:scale-[0.98]"
-                          >
-                            CLOSE CASE
-                          </button>
-                          <button
-                            onClick={() => onStatusChange(report._id, "rejected")}
-                            className="ml-1 inline-flex items-center gap-1 rounded-md border border-red-200 bg-red-600 px-2 py-1 text-[9px] font-black text-white transition hover:bg-red-700 active:scale-[0.98]"
-                          >
-                            REJECT
-                          </button>
-                        </>
-                      ) : (
+                      {/* resolved -> closed is the only admin move here; resolved -> rejected
+                          is refused by the server, so that button is gone. */}
+                      {isAwaitingClosure && (
+                        <button
+                          onClick={() => onStatusChange(report._id, "closed")}
+                          disabled={isSaving}
+                          className="ml-1 inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-600 px-2 py-1 text-[9px] font-black text-white transition hover:bg-emerald-700 active:scale-[0.98] disabled:opacity-50 disabled:cursor-wait"
+                        >
+                          {isSaving ? "SAVING…" : "CLOSE CASE"}
+                        </button>
+                      )}
+                      {/* Rejection is only legal while the report is still pending. */}
+                      {isPending && (
                         <button
                           onClick={() => onStatusChange(report._id, "rejected")}
-                          className="ml-1 inline-flex items-center gap-1 rounded-md border border-red-200 bg-red-50 px-2 py-1 text-[9px] font-black text-red-700 transition hover:bg-red-100 active:scale-[0.98]"
+                          disabled={isSaving}
+                          className="ml-1 inline-flex items-center gap-1 rounded-md border border-red-200 bg-red-50 px-2 py-1 text-[9px] font-black text-red-700 transition hover:bg-red-100 active:scale-[0.98] disabled:opacity-50 disabled:cursor-wait"
                         >
                           REJECT
                         </button>
@@ -187,7 +199,9 @@ export default function AdminQueuingSystem({ reports = [], onStatusChange, onVie
             const type = (report.emergencyType || report.type || report.incidentType || "others").toLowerCase();
             const tc = TYPE_COLORS[type] || TYPE_COLORS.others;
             const sc = STATUS_STYLES[(report.status || "pending").toLowerCase()] || STATUS_STYLES.pending;
-            const isAwaitingClosure = ["resolved", "responded"].includes((report.status || "").toLowerCase());
+            const isAwaitingClosure = isAwaitingClosureStatus(report.status);
+            const isPending = (report.status || "").toLowerCase() === "pending";
+            const isSaving = savingReportId === report._id;
             return (
               <article key={report._id || idx} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm space-y-3">
                 <div className="flex items-start justify-between gap-3">
@@ -229,26 +243,26 @@ export default function AdminQueuingSystem({ reports = [], onStatusChange, onVie
                 <div>
                   <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5">Update Status</p>
                   {isAwaitingClosure ? (
-                    <div className="flex gap-2">
-                      <button onClick={() => onStatusChange(report._id, "closed")} className="flex-1 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-black text-white hover:bg-emerald-700">
-                        CLOSE CASE
-                      </button>
-                      <button onClick={() => onStatusChange(report._id, "rejected")} className="rounded-lg bg-red-600 px-3 py-2 text-xs font-black text-white hover:bg-red-700">
-                        REJECT
-                      </button>
-                    </div>
-                  ) : (
-                    <select
-                      value={report.status || "pending"}
-                      onChange={(e) => handleStatusSelect(report._id, e.target.value)}
-                      className="w-full text-xs font-bold border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-700 outline-none"
+                    <button
+                      onClick={() => onStatusChange(report._id, "closed")}
+                      disabled={isSaving}
+                      className="w-full rounded-lg bg-emerald-600 px-3 py-2 text-xs font-black text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-wait"
                     >
-                      <option value="pending">Pending</option>
-                      <option value="rejected">Rejected</option>
-                      <option value="responding">Responding</option>
-                      <option value="resolved">Resolved</option>
-                      <option value="closed">Closed</option>
+                      {isSaving ? "SAVING…" : "CLOSE CASE"}
+                    </button>
+                  ) : isPending ? (
+                    <select
+                      value="pending"
+                      disabled={isSaving}
+                      onChange={(e) => onStatusChange(report._id, e.target.value)}
+                      className="w-full text-xs font-bold border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-700 outline-none disabled:opacity-50 disabled:cursor-wait"
+                    >
+                      {PENDING_STATUS_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
                     </select>
+                  ) : (
+                    <p className="text-xs font-bold text-indigo-700">Agency responding</p>
                   )}
                 </div>
               </article>
@@ -262,38 +276,6 @@ export default function AdminQueuingSystem({ reports = [], onStatusChange, onVie
         </div>
       </div>
 
-      {resolvingIncidentId && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm" onClick={() => setResolvingIncidentId(null)} />
-          <div className="relative z-10 w-full max-w-sm overflow-hidden rounded-2xl bg-white shadow-2xl animate-in zoom-in-95 duration-200">
-            <div className="p-6">
-              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 mb-4">
-                <svg className="h-6 w-6 text-emerald-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                </svg>
-              </div>
-              <h3 className="text-center text-lg font-black text-slate-900 mb-2">Resolve Incident</h3>
-              <p className="text-center text-sm text-slate-500">
-                Are you sure you want to mark this incident as resolved? It will be moved to the Incident History.
-              </p>
-            </div>
-            <div className="flex items-center gap-3 bg-slate-50 px-6 py-4 border-t border-slate-100">
-              <button
-                onClick={() => setResolvingIncidentId(null)}
-                className="flex-1 rounded-xl px-4 py-2.5 text-xs font-black text-slate-600 transition hover:bg-slate-200 active:scale-95"
-              >
-                CANCEL
-              </button>
-              <button
-                onClick={() => { onStatusChange(resolvingIncidentId, "resolved"); setResolvingIncidentId(null); }}
-                className="flex-1 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-black text-white shadow-md shadow-emerald-500/20 transition hover:bg-emerald-700 active:scale-95"
-              >
-                RESOLVE NOW
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
