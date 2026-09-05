@@ -1,5 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { getIncidentId, getPriority } from "../../../utils/incidentFormatters.js";
+import {
+  getIncidentId,
+  getPriority,
+  formatLocationForTable,
+  directionsUrl,
+  accuracyLabel,
+  reporterAddress,
+} from "../../../utils/incidentFormatters.js";
 import api from "../../../api/axios.js";
 
 const BRAND = "#7c3aed";
@@ -69,9 +76,13 @@ export default function IncidentDetailModal({ report: initialReport, onClose }) 
   const [evidence, setEvidence] = useState([]);
   const [photosLoading, setPhotosLoading] = useState(false);
 
-  // Use a ref for onClose so the close handler is never stale during heavy renders
+  // Use a ref for onClose so the close handler is never stale during heavy renders.
+  // Assigned in an effect rather than during render — mutating a ref in the render
+  // body is a side effect that misbehaves under StrictMode/concurrent rendering.
   const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   const handleClose = useCallback((e) => {
     if (e) {
@@ -83,6 +94,13 @@ export default function IncidentDetailModal({ report: initialReport, onClose }) 
 
   // Fetch photos separately on mount — staggered so the UI stays responsive
   useEffect(() => {
+    // Clear first. The queue screens keep this modal permanently mounted and only swap
+    // the report, so without a reset the previous incident's photos stayed on screen
+    // for the next one — and persisted indefinitely if the new fetch failed.
+    setProofPhotos([]);
+    setEvidence([]);
+    setPhotosLoading(false);
+
     if (!initialReport?._id) return;
 
     // If the report already has photos (e.g. from cache), use them directly
@@ -131,8 +149,12 @@ export default function IncidentDetailModal({ report: initialReport, onClose }) 
   const lng = locObj.longitude;
   const gpsStr = (lat && lng) ? ` [GPS: ${Number(lat).toFixed(5)}, ${Number(lng).toFixed(5)}]` : "";
 
-  const baseLocation = formatLocationForTable(report.location, report);
+  const baseLocation = formatLocationForTable(report.location);
   const locationText = baseLocation + (baseLocation.includes("GPS:") ? "" : gpsStr);
+
+  const mapsUrl = directionsUrl(report);
+  const accuracy = accuracyLabel(report);
+  const homeAddress = reporterAddress(report);
 
   const dateStr = report.createdAt
     ? new Date(report.createdAt).toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" })
@@ -151,7 +173,10 @@ export default function IncidentDetailModal({ report: initialReport, onClose }) 
     { label: "Reporter", value: report.userId?.fullName || "Anonymous" },
     { label: "Contact No.", value: phone ?? "N/A", mono: !!phone },
     { label: "Type", value: report.emergencyType || "Others", capitalize: true },
-    { label: "Exact Location", value: locationText },
+    { label: "Exact Location", value: accuracy ? `${locationText} (${accuracy})` : locationText },
+    // The reporter's registered address, clearly separated. It is NOT where the
+    // incident is — only useful as corroborating context.
+    ...(homeAddress ? [{ label: "Reporter's Address", value: homeAddress }] : []),
     { label: "Status", value: report.status || "pending", capitalize: true },
     { label: "Priority", value: getPriority(report), capitalize: true },
     { label: "Responder", value: responderVal },
@@ -188,6 +213,35 @@ export default function IncidentDetailModal({ report: initialReport, onClose }) 
 
         {/* Body */}
         <div className="p-4 space-y-3 max-h-[75vh] overflow-y-auto">
+          {/* Hands the coordinates straight to a navigation app. Responders
+              previously had to read the GPS string off the screen and retype it. */}
+          {mapsUrl && (
+            <div className="flex gap-2">
+              <a
+                href={mapsUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-slate-900 px-3 py-2.5 text-xs font-black text-white transition hover:bg-slate-700"
+              >
+                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a2 2 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                  <circle cx="12" cy="11" r="3" />
+                </svg>
+                NAVIGATE
+              </a>
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard?.writeText(`${lat}, ${lng}`);
+                }}
+                className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-xs font-black text-slate-600 transition hover:bg-slate-50"
+                title="Copy coordinates"
+              >
+                COPY
+              </button>
+            </div>
+          )}
+
           {rows.map(({ label, value, mono, capitalize }) => (
             <div key={label} className="flex justify-between gap-3">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide shrink-0 mt-0.5">

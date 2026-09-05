@@ -46,6 +46,10 @@ export default function RejectedReports({ reports = [] }) {
 
   const handleDownloadPDF = () => {
     const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      alert("Please allow pop-ups for this site to download the PDF report.");
+      return;
+    }
 
     const rowsHtml = filtered.map((r, i) => {
       const type = (r.emergencyType || "fire").toUpperCase();

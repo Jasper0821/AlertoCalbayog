@@ -1,4 +1,5 @@
 const EmergencyReport = require("../models/EmergencyReport");
+const { isValidEvidenceImage } = require("../utils/evidenceImages");
 const Notification = require("../models/Notification");
 const mapAgencies = require("../utils/agencyMapper");
 const { getSettingValue } = require("./settingsController");
@@ -25,7 +26,10 @@ const cleanPurok = (value = "") => {
   return name ? `Purok ${name}` : "";
 };
 
-const buildReadableLocationName = ({ landmark, barangay, purok, street, cityOrTown, userBarangay, userAddress, rawDisplayName }) => {
+// Builds a name for the INCIDENT's position. It intentionally takes no reporter
+// profile data: falling back to the reporter's home barangay or address produced
+// confident, wrong locations for any emergency reported away from home.
+const buildReadableLocationName = ({ landmark, barangay, purok, street, cityOrTown, rawDisplayName }) => {
   const safeBarangay = cleanBarangay(barangay);
   const safePurok = cleanPurok(purok);
   const isGenericBarangay = !safeBarangay || /^(district|calbayog)$/i.test(safeBarangay);
@@ -36,11 +40,6 @@ const buildReadableLocationName = ({ landmark, barangay, purok, street, cityOrTo
   if (safePurok) parts.push(safePurok);
   if (!isGenericBarangay) {
     parts.push(safeBarangay.toLowerCase().startsWith("brgy") ? safeBarangay : `Brgy. ${safeBarangay}`);
-  } else if (userBarangay && !/^(district|calbayog)$/i.test(userBarangay)) {
-    const safeUserBgy = cleanBarangay(userBarangay);
-    if (safeUserBgy) {
-      parts.push(safeUserBgy.toLowerCase().startsWith("brgy") ? safeUserBgy : `Brgy. ${safeUserBgy}`);
-    }
   }
 
   const cityName = cityOrTown && !/calbayog/i.test(cityOrTown) ? cityOrTown : "Calbayog City";
@@ -61,11 +60,8 @@ const buildReadableLocationName = ({ landmark, barangay, purok, street, cityOrTo
     }
   }
 
-  if (userAddress) return userAddress;
-  if (userBarangay && !/^(district|calbayog)$/i.test(userBarangay)) {
-    return userBarangay.toLowerCase().startsWith("brgy") ? userBarangay : `Brgy. ${userBarangay}, Calbayog City`;
-  }
-
+  // Nothing resolved. Return empty and let the caller surface coordinates rather
+  // than substituting the reporter's home address for the incident's position.
   return "";
 };
 
@@ -81,6 +77,13 @@ exports.createEmergencyReport = async (req, res) => {
     if (proofPhotos.length < 2 || proofPhotos.length > 5) {
       return res.status(400).json({
         message: "Proof Photo Validation Error: Emergency reports require a minimum of 2 pictures and a maximum of 5 pictures as proof."
+      });
+    }
+
+    // Accepts uploaded Cloudinary URLs and legacy inline base64 alike.
+    if (!proofPhotos.every(isValidEvidenceImage)) {
+      return res.status(400).json({
+        message: "Proof Photo Validation Error: each photo must be an uploaded photo URL or an inline image."
       });
     }
 
@@ -145,17 +148,29 @@ exports.createEmergencyReport = async (req, res) => {
       return res.status(400).json({ message: "Invalid emergency type" });
     }
 
-    let name = req.body.address || req.body.locationName || req.body.landmark || "";
-    let barangay = req.body.barangay || "";
-    let street = req.body.street || "";
-    let purok = req.body.purok || "";
+    // Address describing THE INCIDENT. The reporting device geocodes on-site and
+    // sends these; anything it could not determine is filled in below.
+    let name = req.body.address || req.body.locationName || "";
+    let barangay = (req.body.barangay || "").trim();
+    let street = (req.body.street || "").trim();
+    let purok = (req.body.purok || "").trim();
     let cityOrTown = "Calbayog City";
-    let landmark = req.body.landmark || "";
+    let landmark = (req.body.landmark || "").trim();
+
+    const accuracy = Number.isFinite(Number(req.body.accuracy))
+      ? Number(req.body.accuracy)
+      : null;
+
+    // The phone geocodes with the OS geocoder while the reporter is standing at the
+    // scene, so Nominatim is only a fallback for whatever it could not resolve.
+    const needsServerGeocode = !barangay || !street;
 
     try {
-      if (typeof fetch === "function") {
+      if (needsServerGeocode && typeof fetch === "function") {
         const controller = new AbortController();
-        const geoTimeout = setTimeout(() => controller.abort(), 350);
+        // 350ms was not enough to complete a TLS handshake to nominatim.openstreetmap.org
+        // from this region, so the lookup aborted on essentially every report.
+        const geoTimeout = setTimeout(() => controller.abort(), 3000);
 
         const response = await fetch(
           `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&accept-language=en`,
@@ -195,8 +210,6 @@ exports.createEmergencyReport = async (req, res) => {
                 purok,
                 street,
                 cityOrTown,
-                userBarangay: resident.barangay,
-                userAddress: resident.completeAddress,
                 rawDisplayName: data.display_name
               }) || "";
             }
@@ -204,24 +217,27 @@ exports.createEmergencyReport = async (req, res) => {
         }
       }
     } catch (err) {
-      if (err.name !== "AbortError") {
-        console.error("Reverse geocoding failed:", err.message);
-      }
+      // Previously an AbortError was swallowed entirely, so a lookup that timed out
+      // on every single report left no trace anywhere in the logs.
+      console.warn(
+        `[Geocode] Reverse lookup failed for ${latitude},${longitude}:`,
+        err.name === "AbortError" ? "timed out after 3000ms" : err.message
+      );
     }
 
-    if (!barangay && resident.barangay) {
-      barangay = resident.barangay;
-    }
-
-    // Build exact resident location string prioritizing complete resident address / landmark:
+    // Build a location string that describes THE INCIDENT.
+    //
+    // This deliberately does NOT fall back to the reporter's registered home address
+    // or home barangay. Doing so produced a confident, readable, WRONG address for any
+    // emergency reported away from home, and a responder navigating to that text would
+    // go to the wrong place. The reporter's own address is still returned separately on
+    // userId.completeAddress, clearly labelled as their registered address.
     const finalParts = [];
-    const userAddr = (resident.completeAddress || "").trim();
-    const safeBgy = (barangay || resident.barangay || "").trim();
-    const bgyFormatted = safeBgy ? (safeBgy.toLowerCase().startsWith("brgy") ? safeBgy : `Brgy. ${safeBgy}`) : "";
+    const bgyFormatted = barangay
+      ? (barangay.toLowerCase().startsWith("brgy") ? barangay : `Brgy. ${barangay}`)
+      : "";
 
-    if (userAddr) {
-      finalParts.push(userAddr);
-    } else if (landmark) {
+    if (landmark) {
       finalParts.push(landmark);
     } else if (name && !/^(calbayog|calbayog city)$/i.test(name)) {
       finalParts.push(name);
@@ -235,15 +251,15 @@ exports.createEmergencyReport = async (req, res) => {
       finalParts.push(purok);
     }
 
-    if (bgyFormatted && !finalParts.some(p => p.toLowerCase().includes(safeBgy.toLowerCase()))) {
+    if (bgyFormatted && !finalParts.some(p => p.toLowerCase().includes(barangay.toLowerCase()))) {
       finalParts.push(bgyFormatted);
     }
 
-    if (!finalParts.some(p => /calbayog/i.test(p))) {
-      finalParts.push("Calbayog City");
-    }
-
-    const exactLocationName = Array.from(new Set(finalParts)).join(", ");
+    // Left empty rather than emitting a bare "Calbayog City", which carries no
+    // information and only masked the fact that no address was resolved.
+    const exactLocationName = finalParts.length > 0
+      ? Array.from(new Set(finalParts)).join(", ")
+      : "";
 
     const report = await EmergencyReport.create({
       userId: req.user.id,
@@ -257,7 +273,9 @@ exports.createEmergencyReport = async (req, res) => {
         name: exactLocationName,
         barangay,
         street,
-        purok
+        purok,
+        landmark,
+        accuracy
       }
     });
 
@@ -333,7 +351,9 @@ exports.getAllReports = async (req, res) => {
   try {
     const reports = await EmergencyReport.find({ isDeleted: { $ne: true } })
       .select("-proofPhotos -resolutionEvidence")
-      .populate("userId", "fullName email role")
+      // barangay/completeAddress are the reporter's REGISTERED address, shown to
+      // dispatchers as labelled context. They are never the incident's location.
+      .populate("userId", "fullName email role phoneNumber barangay completeAddress")
       .populate("assignedResponder", "fullName email role agency phoneNumber")
       .sort({ createdAt: -1 });
 
@@ -449,7 +469,7 @@ exports.getReportsByAgency = async (req, res) => {
       ]
     })
       .select("-proofPhotos -resolutionEvidence")
-      .populate("userId", "fullName email role phoneNumber")
+      .populate("userId", "fullName email role phoneNumber barangay completeAddress")
       .populate("assignedResponder", "fullName email role agency phoneNumber")
       .sort({ createdAt: -1 });
 

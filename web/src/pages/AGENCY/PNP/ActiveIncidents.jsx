@@ -42,7 +42,7 @@ export default function ActiveIncidents({ reports = [] }) {
                 : "--:--";
               const phone = report.userId?.phoneNumber || report.phoneNumber || "N/A";
               const reporter = report.userId?.fullName || "Anonymous";
-              const locationText = formatLocationForTable(report.location);
+              const locationText = formatLocationForTable(report.location, report);
 
               return (
                 <tr key={report._id || idx} className="hover:bg-slate-50/40 transition-colors text-sm text-slate-700">

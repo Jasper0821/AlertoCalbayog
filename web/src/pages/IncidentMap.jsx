@@ -122,8 +122,15 @@ function IncidentMap() {
    <span style={{ width: 8, height: 8, borderRadius: "50%", background: cfg.color, display: "inline-block" }} />
    {cfg.label}
  </div>
- <p className="text-[11px] font-semibold text-slate-600">📍 {typeof pin.location === 'string' ? pin.location : (pin.location?.name || `Coordinates: ${pin.location?.latitude?.toFixed(4)}, ${pin.location?.longitude?.toFixed(4)}`)}</p>
- <p className="text-sm font-semibold text-slate-900">{pin.description ||"No description"}</p>
+ {/* This map is public and unauthenticated (route "/map", no PrivateRoute), so it
+     shows barangay only. It previously rendered location.name — frequently a
+     specific street address, and historically the reporter's own home address —
+     next to their incident type and free-text description. */}
+ <p className="text-[11px] font-semibold text-slate-600">
+   📍 {(typeof pin.location === "object" && pin.location?.barangay)
+     ? `Brgy. ${String(pin.location.barangay).replace(/^brgy\.?\s*/i, "")}`
+     : "Calbayog City"}
+ </p>
  <div className="flex flex-wrap gap-2 pt-1">
  <span className={`${pillBase} ${pin.status ==="pending" || pin.status ==="responding" ? statusChip.danger : statusChip.success}`}>
  {pin.status ||"Ongoing"}

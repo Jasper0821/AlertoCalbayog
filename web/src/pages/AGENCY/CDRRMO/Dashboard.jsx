@@ -6,6 +6,7 @@ import { useEffect, useState, useRef } from "react";
 import api from "../../../api/axios.js";
 import socket from "../../../api/socket.js";
 import Swal from "sweetalert2";
+import { formatLocationForTable } from "../../../utils/incidentFormatters.js";
 import { clearDashboardNavigationState } from "../../../utils/dashboardSession.js";
 
 // Components
@@ -17,6 +18,7 @@ import IncidentHistory from "./IncidentHistory.jsx";
 import RejectedReports from "./RejectedReports.jsx";
 import Analytics from "./Analytics.jsx";
 import Settings from "./Settings.jsx";
+import ClosedIncidents from "./ClosedIncidents.jsx";
 
 
 const NAV = [
@@ -79,6 +81,18 @@ const NAV = [
     ),
   },
   {
+    // Once an admin closes a resolved report it disappeared from every agency screen:
+    // the queue excludes "closed" and Incident History only keeps resolved/responded.
+    id: "closed-incidents",
+    label: "Closed Cases",
+    icon: (
+      <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+        <rect x="3" y="4" width="18" height="4" rx="1" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8M10 12h4" />
+      </svg>
+    ),
+  },
+  {
     id: "analytics",
     label: "Analytics",
     icon: (
@@ -102,7 +116,8 @@ function CdrrmoDashboard() {
   const [isOffline, setIsOffline] = useState(false);
   const [activeNav, setActiveNav] = useState(() => {
     const savedNav = localStorage.getItem("cdrrmoActiveNav");
-    return savedNav === "closed-incidents" ? "dashboard" : (savedNav || "dashboard");
+    // Only restore a nav id that still exists.
+    return NAV.some((item) => item.id === savedNav) ? savedNav : "dashboard";
   });
 
   useEffect(() => {
@@ -116,8 +131,6 @@ function CdrrmoDashboard() {
   // Real-time dispatch modal states
   const [activeAlert, setActiveAlert] = useState(null);
   const [alertQueue, setAlertQueue] = useState([]);
-  const [selectedUnit, setSelectedUnit] = useState("Mobile Patrol 1");
-  const [dispatchNote, setDispatchNote] = useState("");
 
   // Real-time dynamic clock state
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -422,7 +435,7 @@ function CdrrmoDashboard() {
     }
     socket.on("connect", onConnect);
 
-    socket.on("newEmergencyAlert", (newReport) => {
+    const onNewEmergencyAlert = (newReport) => {
       // Ensure we only process CDRRMO reports (block PNP/crime reports)
       if (!isCdrrmoReport(newReport)) return;
 
@@ -443,9 +456,9 @@ function CdrrmoDashboard() {
       });
 
       enqueueIncomingAlert(newReport);
-    });
+    };
 
-    socket.on("reportStatusChanged", (updatedReport) => {
+    const onReportStatusChanged = (updatedReport) => {
       // Ensure we only process CDRRMO reports (block PNP/crime reports)
       if (!isCdrrmoReport(updatedReport)) return;
 
@@ -459,9 +472,9 @@ function CdrrmoDashboard() {
         delete next[updatedReport._id];
         return next;
       });
-    });
+    };
 
-    socket.on("liveLocationUpdate", ({ reportId, latitude, longitude }) => {
+    const onLiveLocationUpdate = ({ reportId, latitude, longitude }) => {
       setReports(prev => prev.map(r => {
         if (r._id === reportId) {
           const locObj = typeof r.location === "object" && r.location ? r.location : {};
@@ -476,21 +489,29 @@ function CdrrmoDashboard() {
         }
         return r;
       }));
-    });
+    };
 
-    socket.on("reportDeleted", ({ id }) => {
+    const onReportDeleted = ({ id }) => {
       setReports(prev => prev.filter(r => r._id !== id));
-    });
+    };
+
+    socket.on("newEmergencyAlert", onNewEmergencyAlert);
+    socket.on("reportStatusChanged", onReportStatusChanged);
+    socket.on("liveLocationUpdate", onLiveLocationUpdate);
+    socket.on("reportDeleted", onReportDeleted);
 
     return () => {
       socket.emit("leaveRoom", room);
       socket.emit("leaveRoom", "admin");
+      // Each .off() must name its handler. Calling socket.off("event") with no
+      // reference removes EVERY listener for that event on the shared singleton,
+      // including ones registered by other mounted components. Likewise the socket
+      // is app-wide, so disconnecting it here tore down other screens' live updates.
       socket.off("connect", onConnect);
-      socket.off("newEmergencyAlert");
-      socket.off("reportStatusChanged");
-      socket.off("liveLocationUpdate");
-      socket.off("reportDeleted");
-      socket.disconnect();
+      socket.off("newEmergencyAlert", onNewEmergencyAlert);
+      socket.off("reportStatusChanged", onReportStatusChanged);
+      socket.off("liveLocationUpdate", onLiveLocationUpdate);
+      socket.off("reportDeleted", onReportDeleted);
     };
   }, [user.agency, user.soundAlerts, user.loopAlarm]);
 
@@ -506,18 +527,37 @@ function CdrrmoDashboard() {
     };
   }, [user.soundAlerts, user.loopAlarm]);
 
+  /**
+   * Opens the alert modal with the resident's proof photos present.
+   *
+   * Reports from list state come from /emergency/agency/:agency, which strips
+   * proofPhotos, so opening an alert from the notification bell used to show no
+   * photos at all — silently, and indistinguishably from "the resident sent none".
+   * Only a socket-delivered report arrives with them attached.
+   */
+  const openAlertWithPhotos = async (report) => {
+    setActiveAlert(report);
+    if (Array.isArray(report?.proofPhotos) && report.proofPhotos.length > 0) return;
+    try {
+      const res = await api.get(`/emergency/${report._id}`);
+      if (res.data?._id) setActiveAlert(res.data);
+    } catch {
+      // Keep the metadata-only view rather than closing the alert.
+    }
+  };
+
   // Handle active dispatch submission
-  const handleDispatchSubmit = () => {
+  const handleDispatchSubmit = async () => {
     if (!activeAlert) return;
 
-    // Update local and backend status
-    handleStatusChange(activeAlert._id, "active");
+    // "responding" is the enum value the server stores. Sending "active" only worked
+    // because reportController.js:120 silently rewrites it, and it left the queue's
+    // <select> holding a value matching none of its options.
+    await handleStatusChange(activeAlert._id, "responding");
 
     // Close modal silently — no secondary popup
     setActiveAlert(null);
     stopSiren();
-    setSelectedUnit("Ambulance 1");
-    setDispatchNote("");
     setActiveNav("queuing");
   };
 
@@ -536,13 +576,18 @@ function CdrrmoDashboard() {
     window.location.href = "/";
   };
 
+  // Filters on the fields EmergencyReport actually has. The previous version matched
+  // r.type / r.crimeType / r.incidentType / r.reporterName / r.details — none of which
+  // exist on the model — so any keystroke emptied Queuing, Active, Map and Analytics
+  // at once. Location reuses the same formatter the tables render, so what you see is
+  // what you can search.
   const filteredReports = safeReports.filter(r => {
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase();
-    const type = (r.type || r.crimeType || r.incidentType || "").toLowerCase();
-    const location = (r.location?.barangay || (typeof r.location === "string" ? r.location : "")).toLowerCase();
-    const reporter = (r.reporterName || "").toLowerCase();
-    const details = (r.details || "").toLowerCase();
+    const type = (r.emergencyType || r.type || "").toLowerCase();
+    const location = formatLocationForTable(r.location, r).toLowerCase();
+    const reporter = (r.userId?.fullName || r.reporterName || "").toLowerCase();
+    const details = (r.description || "").toLowerCase();
     return type.includes(q) || location.includes(q) || reporter.includes(q) || details.includes(q);
   });
 
@@ -555,6 +600,7 @@ function CdrrmoDashboard() {
       // Incident History must always receive the complete CDRRMO report set.
       // Its own filters control which resolved records are shown or exported.
       case "incident-history": return <IncidentHistory reports={safeReports} />;
+      case "closed-incidents": return <ClosedIncidents reports={safeReports} />;
       case "rejected-incidents": return <RejectedReports reports={filteredReports} />;
       case "analytics": return <Analytics reports={filteredReports} />;
       case "settings": return <Settings user={user} onUserUpdate={setUser} />;
@@ -840,7 +886,7 @@ function CdrrmoDashboard() {
                   </div>
                   <div className="max-h-64 overflow-y-auto divide-y divide-slate-50">
                     {safeReports.filter(r => r.status === "pending").slice(0, 4).map((r, i) => (
-                      <div key={i} className="flex items-start gap-3 px-4 py-3 hover:bg-slate-50 transition-colors cursor-pointer" onClick={() => { setActiveAlert(r); setShowNotifDropdown(false); stopSiren(); }}>
+                      <div key={i} className="flex items-start gap-3 px-4 py-3 hover:bg-slate-50 transition-colors cursor-pointer" onClick={() => { openAlertWithPhotos(r); setShowNotifDropdown(false); stopSiren(); }}>
                         <div className="w-2 h-2 rounded-full bg-amber-400 mt-1.5 shrink-0"></div>
                         <div className="min-w-0">
                           <p className="text-xs font-semibold text-slate-800 truncate">{r.userId?.fullName || "Anonymous"}</p>

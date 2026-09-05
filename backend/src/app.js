@@ -11,6 +11,7 @@ const notificationRoutes = require("./routes/notificationRoutes");
 const auditRoutes = require("./routes/auditRoutes");
 const settingsRoutes = require("./routes/settingsRoutes");
 const backupRoutes = require("./routes/backupRoutes");
+const uploadRoutes = require("./routes/uploadRoutes");
 
 const app = express();
 
@@ -26,6 +27,10 @@ app.use(express.json({ limit: '30mb' }));
 // Database connection health check middleware
 app.use((req, res, next) => {
   if (req.path === "/" || req.path.startsWith("/health")) return next();
+  // Signing an upload touches no collection. Letting it through while Mongo is
+  // still connecting means a resident's photos upload during the ~20s cold start
+  // instead of after it, so only the small report POST waits on the database.
+  if (req.path.startsWith("/api/uploads/")) return next();
   if (mongoose.connection.readyState !== 1) {
     return res.status(503).json({
       message: "Database connection is currently unavailable. Please check your internet connection or MongoDB Atlas network access and try again."
@@ -43,6 +48,7 @@ app.use("/api/notifications", notificationRoutes);
 app.use("/api/audit", auditRoutes);
 app.use("/api/settings", settingsRoutes);
 app.use("/api/backup", backupRoutes);
+app.use("/api/uploads", uploadRoutes);
 
 app.get("/", (req, res) => {
   res.send("AlertoCalbayog API is running");

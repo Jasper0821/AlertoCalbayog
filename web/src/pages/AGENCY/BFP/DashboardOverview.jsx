@@ -340,6 +340,7 @@ export default function DashboardOverview({ reports = [], setActiveNav, onStatus
                   const locText = typeof r.location === "string" ? r.location : (r.location?.name || "Unknown");
                   const date = r.createdAt ? new Date(r.createdAt) : new Date();
                   const isPending = ["pending","verified"].includes((r.status || "").toLowerCase());
+                  const isResponding = ["responding","active"].includes((r.status || "").toLowerCase());
 
                   return (
                     <tr key={r._id || i} className="hover:bg-slate-50 transition-colors">
@@ -374,13 +375,16 @@ export default function DashboardOverview({ reports = [], setActiveNav, onStatus
                           </button>
                           {isPending && onStatusChange && (
                             <button
-                              onClick={() => onStatusChange(r._id, "active")}
+                              onClick={() => onStatusChange(r._id, "responding")}
                               className="px-3 py-1 rounded-lg text-xs font-bold text-white bg-red-600 hover:bg-red-700 transition-colors shadow-xs"
                             >
                               Dispatch
                             </button>
                           )}
-                          {!isPending && onStatusChange && (
+                          {/* Only a responding incident can be resolved (reportController.js:18).
+                              This previously rendered for resolved/closed/rejected rows too,
+                              where submitting could only ever return 400. */}
+                          {isResponding && onStatusChange && (
                             <button
                               onClick={() => setEvidenceModalReport(r)}
                               className="px-3 py-1 rounded-lg text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 transition-colors shadow-xs"

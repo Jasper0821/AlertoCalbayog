@@ -1,6 +1,7 @@
 const EmergencyReport = require("../models/EmergencyReport");
 const User = require("../models/User");
 const Notification = require("../models/Notification");
+const { isValidEvidenceImage } = require("../utils/evidenceImages");
 
 const ALLOWED_STATUS_UPDATES = new Set(["pending", "responding", "resolved", "closed", "cancelled", "rejected"]);
 const TERMINAL_REPORT_STATUSES = new Set(["resolved", "closed", "cancelled", "rejected"]);
@@ -157,13 +158,25 @@ exports.updateReportStatus = async (req, res) => {
       if (evidenceImages.length === 0) {
         return res.status(400).json({ message: "At least one incident proof image is required before resolving." });
       }
-      if (evidenceImages.length > MAX_RESOLUTION_EVIDENCE_IMAGES || evidenceImages.some(image => typeof image !== "string" || !image.startsWith("data:image/"))) {
+      // Accepts uploaded Cloudinary URLs and legacy inline base64 alike.
+      if (
+        evidenceImages.length > MAX_RESOLUTION_EVIDENCE_IMAGES ||
+        !evidenceImages.every(isValidEvidenceImage)
+      ) {
         return res.status(400).json({ message: "Submit between 1 and 10 valid incident proof images." });
       }
       report.resolutionEvidence = evidenceImages;
     }
 
     report.status = status;
+
+    // Record which agency actually took the incident. `assignedAgency` previously
+    // stayed "NONE" forever because the only writer (PUT /reports/:id/assign) has no
+    // UI, so the admin console could show who was *alerted* but never who *responded*.
+    if (status === "responding" && isAgencyUser && currentUser.agency) {
+      report.assignedAgency = currentUser.agency;
+    }
+
     if (status === "resolved" && previousStatus !== "resolved") {
       report.resolvedAt = new Date();
       report.closedAt = null;
@@ -180,6 +193,7 @@ exports.updateReportStatus = async (req, res) => {
       actorId: currentUser._id,
       actorName: currentUser.fullName,
       actorRole: currentUser.role,
+      actorAgency: currentUser.agency || "",
       action: "status_update",
       fromStatus: previousStatus,
       toStatus: status,

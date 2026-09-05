@@ -60,8 +60,19 @@ export default function Analytics({ reports = [] }) {
     ["resolved", "closed", "responded"].includes((r.status || "").toLowerCase())
   ).length;
   const pending = safeReports.filter(r => (r.status || "").toLowerCase() === "pending").length;
-  const active = safeReports.filter(r => (r.status || "").toLowerCase() === "active").length;
+  // The server never stores "active" — reportController.js:120 rewrites it to
+  // "responding" — so matching that literal alone kept this KPI at 0 forever.
+  // BFP and CDRRMO Analytics already use this wider set.
+  const active = safeReports.filter(r =>
+    ["active", "responding", "ongoing", "dispatching", "en_route"].includes((r.status || "").toLowerCase())
+  ).length;
   const resolutionRate = total > 0 ? Math.round((responded / total) * 100) : 0;
+  // Guarded here rather than at each use site. The chart previously wrote
+  // `Math.round((pending / total) * 100) || 15` and `resolutionRate || 75`, so with no
+  // reports the NaN fell through to the fallback and the donut displayed a confident
+  // 75% resolution / 15% pending that no data supported.
+  const pendingRate = total > 0 ? Math.round((pending / total) * 100) : 0;
+  const activeRate = total > 0 ? Math.max(0, 100 - resolutionRate - pendingRate) : 0;
 
   const monthlyTrend = useMemo(() => {
     const now = new Date();
@@ -241,38 +252,47 @@ export default function Analytics({ reports = [] }) {
                   fill="none"
                   stroke="#f59e0b"
                   strokeWidth="12"
-                  strokeDasharray={`${(Math.round((pending / total) * 100) || 15) * 2.64} 264`}
-                  strokeDashoffset={`-${(resolutionRate || 75) * 2.64}`}
+                  strokeDasharray={`${pendingRate * 2.64} 264`}
+                  strokeDashoffset={`-${resolutionRate * 2.64}`}
                   strokeLinecap="round"
                   className="transition-all duration-1000 ease-out delay-200"
                 />
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-3xl font-black text-slate-800 leading-none mb-1">{resolutionRate || 75}%</span>
-                <span className="text-[10px] font-bold text-red-500 flex items-center gap-0.5">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m7 15 5 5 5-5" /><path d="M12 4v16" /></svg>
-                  12.7%
+                <span className="text-3xl font-black text-slate-800 leading-none mb-1">{resolutionRate}%</span>
+                <span className="text-[10px] font-bold text-slate-400">
+                  {total > 0 ? `${responded} of ${total} resolved` : "No reports yet"}
                 </span>
               </div>
             </div>
 
+            {/* Label now reflects the real resolution rate. It was previously hardcoded
+                to "Poor Response Rate" regardless of the data. */}
             <div className="mt-4 px-4 py-2 rounded-full border border-slate-100 shadow-sm flex items-center gap-2 mb-8">
               <div className="w-4 h-4 rounded-full bg-red-100 flex items-center justify-center text-red-500 text-[10px]">★</div>
-              <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">Poor Response Rate</span>
+              <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">
+                {total === 0
+                  ? "Awaiting Data"
+                  : resolutionRate >= 75
+                  ? "Strong Response Rate"
+                  : resolutionRate >= 40
+                  ? "Fair Response Rate"
+                  : "Poor Response Rate"}
+              </span>
             </div>
 
             <div className="w-full space-y-3.5 mt-auto">
               <div className="flex items-center justify-between text-[11px] font-bold text-slate-500">
                 <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-indigo-500"></span>Resolved</div>
-                <span className="text-slate-800 font-black text-xs">{resolutionRate || 75}%</span>
+                <span className="text-slate-800 font-black text-xs">{resolutionRate}%</span>
               </div>
               <div className="flex items-center justify-between text-[11px] font-bold text-slate-500">
                 <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-amber-500"></span>Pending</div>
-                <span className="text-slate-800 font-black text-xs">{Math.round((pending / total) * 100) || 15}%</span>
+                <span className="text-slate-800 font-black text-xs">{pendingRate}%</span>
               </div>
               <div className="flex items-center justify-between text-[11px] font-bold text-slate-500">
                 <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-slate-300"></span>Active</div>
-                <span className="text-slate-800 font-black text-xs">{100 - (resolutionRate || 75) - (Math.round((pending / total) * 100) || 15)}%</span>
+                <span className="text-slate-800 font-black text-xs">{activeRate}%</span>
               </div>
             </div>
           </div>

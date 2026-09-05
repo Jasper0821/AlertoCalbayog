@@ -319,14 +319,19 @@ export default function DashboardOverview({ reports = [], setActiveNav, onStatus
                           <circle cx="12" cy="12" r="3"></circle>
                         </svg>
                       </button>
-                      <button title="Mark Resolved" onClick={()=>setResolvingReportId(r._id)}
-                        style={{ background:"none", border:"none", cursor:"pointer", color:"#10b981", padding:3, borderRadius:5 }}
-                        onMouseEnter={e=>e.currentTarget.style.background="#ecfdf5"}
-                        onMouseLeave={e=>e.currentTarget.style.background="none"}>
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                          <polyline points="20 6 9 17 4 12"/>
-                        </svg>
-                      </button>
+                      {/* Only a responding incident can be resolved (reportController.js:18).
+                          This used to render on every row, so resolving a pending one
+                          collected photos and then failed with 400. */}
+                      {["responding", "active"].includes((r.status || "").toLowerCase()) && (
+                        <button title="Mark Resolved" onClick={()=>setResolvingReportId(r._id)}
+                          style={{ background:"none", border:"none", cursor:"pointer", color:"#10b981", padding:3, borderRadius:5 }}
+                          onMouseEnter={e=>e.currentTarget.style.background="#ecfdf5"}
+                          onMouseLeave={e=>e.currentTarget.style.background="none"}>
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                            <polyline points="20 6 9 17 4 12"/>
+                          </svg>
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

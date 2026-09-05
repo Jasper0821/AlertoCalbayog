@@ -82,6 +82,17 @@ const emergencyReportSchema = new mongoose.Schema(
       purok: {
         type: String,
         default: ""
+      },
+      // What responders actually navigate by once GPS gets them to the block.
+      landmark: {
+        type: String,
+        default: ""
+      },
+      // GPS uncertainty in metres, as reported by the device. Lets dispatch tell
+      // a ±12 m fix from a ±480 m one instead of trusting every pin equally.
+      accuracy: {
+        type: Number,
+        default: null
       }
     },
     actionLog: [
@@ -95,6 +106,12 @@ const emergencyReportSchema = new mongoose.Schema(
           default: "System"
         },
         actorRole: {
+          type: String,
+          default: ""
+        },
+        // Which agency the actor belonged to. Lets the admin console show who
+        // actually responded rather than only who was alerted.
+        actorAgency: {
           type: String,
           default: ""
         },

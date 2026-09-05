@@ -48,17 +48,16 @@ export function formatIncidentLocation(location) {
   return `${streetPurok}, ${bgy}`;
 }
 
-export function formatLocationForTable(location, report) {
-  const userAddress = (report?.userId?.completeAddress || "").trim();
-  const userBarangay = (report?.userId?.barangay || "").trim();
-
-  if (!location) {
-    if (userAddress) return userAddress;
-    if (userBarangay && !/^(district|calbayog)$/i.test(userBarangay)) {
-      return userBarangay.toLowerCase().startsWith("brgy") ? userBarangay : `Brgy. ${userBarangay}`;
-    }
-    return "Unknown Location";
-  }
+/**
+ * Human-readable position of AN INCIDENT.
+ *
+ * Deliberately never falls back to the reporter's registered home address. Doing so
+ * produced a confident, readable, wrong location for any emergency reported away
+ * from home — worse than showing coordinates, because a responder acts on it. Use
+ * reporterAddress() to show that separately and labelled.
+ */
+export function formatLocationForTable(location) {
+  if (!location) return "Unknown Location";
 
   if (typeof location === "string") {
     const cleaned = location
@@ -67,17 +66,8 @@ export function formatLocationForTable(location, report) {
       .replace(/^[,\s]+|[,\s]+$/g, "")
       .trim();
 
-    if (userAddress && !cleaned.toLowerCase().includes(userAddress.toLowerCase())) {
-      return cleaned && !/^(calbayog|calbayog city)$/i.test(cleaned)
-        ? `${userAddress}, ${cleaned}`
-        : userAddress;
-    }
     if (cleaned && !/^(calbayog|calbayog city)$/i.test(cleaned)) {
       return cleaned;
-    }
-    if (userAddress) return userAddress;
-    if (userBarangay && !/^(district|calbayog)$/i.test(userBarangay)) {
-      return userBarangay.toLowerCase().startsWith("brgy") ? userBarangay : `Brgy. ${userBarangay}`;
     }
     return cleaned || location;
   }
@@ -85,9 +75,20 @@ export function formatLocationForTable(location, report) {
   const street = (location.street || "").trim();
   const barangay = (location.barangay || "").trim();
   const purok = (location.purok || "").trim();
+  const landmark = (location.landmark || "").trim();
   const lat = location.latitude;
   const lng = location.longitude;
-  const rawName = (location.name || location.address || "").trim();
+  // `location.address` has never existed on the EmergencyReport schema — dropped.
+  const rawName = (location.name || "").trim();
+
+  // The incident's own landmark is the single most useful line for a responder,
+  // so it leads whenever the device or geocoder captured one.
+  if (landmark) {
+    const tail = [street, purok, barangay ? formatBarangay(barangay) : ""].filter(
+      (part) => part && !landmark.toLowerCase().includes(part.toLowerCase())
+    );
+    return [landmark, ...tail].join(", ");
+  }
 
   if (rawName) {
     const cleanedName = rawName
@@ -96,34 +97,64 @@ export function formatLocationForTable(location, report) {
       .replace(/^[,\s]+|[,\s]+$/g, "")
       .trim();
 
-    if (userAddress && !cleanedName.toLowerCase().includes(userAddress.toLowerCase())) {
-      return cleanedName && !/^(calbayog|calbayog city)$/i.test(cleanedName)
-        ? `${userAddress}, ${cleanedName}`
-        : userAddress;
-    }
-
     if (cleanedName && !/^(calbayog|calbayog city)$/i.test(cleanedName)) {
       return cleanedName;
     }
   }
 
+  // Built from the INCIDENT's own fields only. The reporter's registered address is
+  // deliberately not mixed in here: for an emergency reported away from home it
+  // produces a confident, readable, wrong location, and a responder navigating to it
+  // goes to the wrong place. It is surfaced separately via reporterAddress().
   const parts = [];
-  if (userAddress) parts.push(userAddress);
-  if (street && !parts.some(p => p.toLowerCase().includes(street.toLowerCase()))) parts.push(street);
-  if (purok && !parts.some(p => p.toLowerCase().includes(purok.toLowerCase()))) parts.push(purok);
-
-  const safeBgy = barangay || userBarangay;
-  if (safeBgy && !/^(district|calbayog)$/i.test(safeBgy) && !parts.some(p => p.toLowerCase().includes(safeBgy.toLowerCase()))) {
-    parts.push(safeBgy.toLowerCase().startsWith("brgy") ? safeBgy : `Brgy. ${safeBgy}`);
+  if (street) parts.push(street);
+  if (purok && !parts.some((p) => p.toLowerCase().includes(purok.toLowerCase()))) {
+    parts.push(purok);
+  }
+  if (
+    barangay &&
+    !/^(district|calbayog)$/i.test(barangay) &&
+    !parts.some((p) => p.toLowerCase().includes(barangay.toLowerCase()))
+  ) {
+    parts.push(formatBarangay(barangay));
   }
 
   if (parts.length > 0) return parts.join(", ");
 
+  // Last resort. Coordinates are at least honest, and the Navigate action turns
+  // them into something a responder can actually follow.
   if (lat && lng) {
     return `[GPS: ${Number(lat).toFixed(5)}, ${Number(lng).toFixed(5)}]`;
   }
 
   return "Unknown Location";
+}
+
+/**
+ * The reporter's registered home address, for display as clearly-labelled context
+ * beside the incident location — never as the incident location itself.
+ */
+export function reporterAddress(report) {
+  const address = (report?.userId?.completeAddress || "").trim();
+  const barangay = (report?.userId?.barangay || "").trim();
+  if (address) return address;
+  if (barangay && !/^(district|calbayog)$/i.test(barangay)) return formatBarangay(barangay);
+  return "";
+}
+
+/** Google Maps directions link for a report, or "" when it has no usable position. */
+export function directionsUrl(report) {
+  const lat = Number(report?.location?.latitude);
+  const lng = Number(report?.location?.longitude);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || (lat === 0 && lng === 0)) return "";
+  return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+}
+
+/** "±12 m" when the device reported GPS uncertainty, otherwise "". */
+export function accuracyLabel(report) {
+  const accuracy = Number(report?.location?.accuracy);
+  if (!Number.isFinite(accuracy) || accuracy <= 0) return "";
+  return `±${Math.round(accuracy)} m`;
 }
 
 export function normalizeIncidentStatus(status) {
@@ -167,6 +198,75 @@ export const STATUS_STYLES = {
   cancelled: STATUS_STYLES_BASE.resolved,
   rejected: STATUS_STYLES_BASE.rejected,
 };
+
+/**
+ * Visual identity for each responding agency, shared by the admin live map,
+ * its legend and any table that needs to show who is handling an incident.
+ */
+export const AGENCY_STYLES = {
+  BFP: {
+    label: "BFP",
+    fullName: "Bureau of Fire Protection",
+    color: "#dc2626",
+    chip: "bg-red-50 text-red-700 border-red-200",
+  },
+  CDRRMO: {
+    label: "CDRRMO",
+    fullName: "City Disaster Risk Reduction & Management Office",
+    color: "#0891b2",
+    chip: "bg-cyan-50 text-cyan-700 border-cyan-200",
+  },
+  PNP: {
+    label: "PNP",
+    fullName: "Philippine National Police",
+    color: "#7c3aed",
+    chip: "bg-violet-50 text-violet-700 border-violet-200",
+  },
+  UNASSIGNED: {
+    label: "Unassigned",
+    fullName: "No agency has taken this incident yet",
+    color: "#d97706",
+    chip: "bg-amber-50 text-amber-700 border-amber-200",
+  },
+};
+
+/**
+ * Works out which agency is actually handling an incident.
+ *
+ * `assignedAgency` is authoritative and is written when an agency user dispatches
+ * (reportController.updateReportStatus). Reports created before that existed fall back
+ * to the actionLog, then to "not yet taken" — `notifiedAgencies` alone only says who
+ * was *alerted*, which is not the same question.
+ *
+ * Returns { agency, confirmed, notified }:
+ *   agency    - "BFP" | "CDRRMO" | "PNP" | null
+ *   confirmed - true when the agency genuinely took the incident
+ *   notified  - every agency that was alerted
+ */
+export function getRespondingAgency(report) {
+  const notified = Array.isArray(report?.notifiedAgencies) ? report.notifiedAgencies : [];
+
+  const assigned = report?.assignedAgency;
+  if (assigned && assigned !== "NONE" && AGENCY_STYLES[assigned]) {
+    return { agency: assigned, confirmed: true, notified };
+  }
+
+  // Older reports predate assignedAgency being written — recover it from the log entry
+  // that moved the incident into "responding".
+  const log = Array.isArray(report?.actionLog) ? report.actionLog : [];
+  for (let i = log.length - 1; i >= 0; i -= 1) {
+    const entry = log[i];
+    if (entry?.toStatus === "responding" && entry?.actorAgency && AGENCY_STYLES[entry.actorAgency]) {
+      return { agency: entry.actorAgency, confirmed: true, notified };
+    }
+  }
+
+  return { agency: null, confirmed: false, notified };
+}
+
+export function getAgencyStyle(agency) {
+  return AGENCY_STYLES[agency] || AGENCY_STYLES.UNASSIGNED;
+}
 
 export const PRIORITY_STYLES = {
   critical: "bg-red-100 text-red-700 border border-red-200",
@@ -282,9 +382,27 @@ export function getPriority(report) {
   return "medium";
 }
 
+/**
+ * A stable, human-readable id for an incident.
+ *
+ * EmergencyReport has no `incidentId` field, so the fallback always runs. It used to be
+ * derived from the row's position (`90 - (index % 9)`), which meant only nine distinct
+ * ids existed, rows 0 and 9 collided, the same incident changed id when the table was
+ * sorted or filtered, and callers that passed no index rendered "INC-2026-0NaN".
+ *
+ * Deriving it from the immutable Mongo _id instead makes it unique and identical in
+ * every view — the queue, the detail modal, the CSV export and the PDF all agree.
+ * `index` is accepted only as a last-resort fallback for records with no _id.
+ */
 export function getIncidentId(report, index) {
-  if (report.incidentId) return report.incidentId;
-  const d = report.createdAt ? new Date(report.createdAt) : new Date();
-  const yr = d.getFullYear();
-  return `INC-${yr}-0${String(90 - (index % 9)).padStart(2, "0")}`;
+  if (report?.incidentId) return report.incidentId;
+
+  const d = report?.createdAt ? new Date(report.createdAt) : new Date();
+  const yr = Number.isNaN(d.getTime()) ? new Date().getFullYear() : d.getFullYear();
+
+  const id = report?._id ? String(report._id) : "";
+  if (id) return `INC-${yr}-${id.slice(-6).toUpperCase()}`;
+
+  const seq = Number.isFinite(index) ? index + 1 : 0;
+  return `INC-${yr}-${String(seq).padStart(4, "0")}`;
 }

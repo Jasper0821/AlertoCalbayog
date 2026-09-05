@@ -16,3 +16,11 @@ services:
         sync: false
       - key: GMAIL_APP_PASS
         sync: false
+      # Image hosting for incident evidence photos. Without these the app falls
+      # back to storing base64 inline, which MongoDB caps at 16MB per report.
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false

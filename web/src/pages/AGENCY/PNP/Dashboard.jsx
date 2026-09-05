@@ -6,6 +6,7 @@ import { useEffect, useState, useRef } from "react";
 import api from "../../../api/axios.js";
 import socket from "../../../api/socket.js";
 import Swal from "sweetalert2";
+import { formatLocationForTable } from "../../../utils/incidentFormatters.js";
 import { clearDashboardNavigationState } from "../../../utils/dashboardSession.js";
 
 // Components
@@ -17,6 +18,7 @@ import IncidentHistory from "./IncidentHistory.jsx";
 import RejectedReports from "./RejectedReports.jsx";
 import Analytics from "./Analytics.jsx";
 import Settings from "./Settings.jsx";
+import ClosedIncidents from "./ClosedIncidents.jsx";
 
 
 const NAV = [
@@ -79,6 +81,19 @@ const NAV = [
     ),
   },
   {
+    // Once an admin closes a resolved report it disappeared from every agency screen:
+    // the queue excludes "closed" and Incident History only keeps resolved/responded.
+    // ClosedIncidents.jsx already handled this but was never routed.
+    id: "closed-incidents",
+    label: "Closed Cases",
+    icon: (
+      <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+        <rect x="3" y="4" width="18" height="4" rx="1" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8M10 12h4" />
+      </svg>
+    ),
+  },
+  {
     id: "analytics",
     label: "Analytics",
     icon: (
@@ -95,24 +110,20 @@ const isPnpReport = (report) =>
 
 function AdminDashboard() {
   const [reports, setReports] = useState([]);
-  const [statusOverrides, setStatusOverrides] = useState(() => {
-    try {
-      const stored = localStorage.getItem("pnpStatusOverrides");
-      return stored ? JSON.parse(stored) : {};
-    } catch (e) {
-      return {};
-    }
-  });
+  // statusOverrides are ephemeral (optimistic UI only) — NOT persisted to localStorage.
+  // They used to be written to localStorage but only when non-empty, so the empty state
+  // was never saved and stale overrides masked the real server status forever.
+  const [statusOverrides, setStatusOverrides] = useState({});
 
+  // Clear any overrides left behind by the previous build.
   useEffect(() => {
-    if (Object.keys(statusOverrides).length > 0) {
-      try { localStorage.setItem("pnpStatusOverrides", JSON.stringify(statusOverrides)); } catch (_) {}
-    }
-  }, [statusOverrides]);
+    try { localStorage.removeItem("pnpStatusOverrides"); } catch (_) {}
+  }, []);
   const [isOffline, setIsOffline] = useState(false);
   const [activeNav, setActiveNav] = useState(() => {
     const savedNav = localStorage.getItem("pnpActiveNav");
-    return savedNav === "closed-incidents" ? "dashboard" : (savedNav || "dashboard");
+    // Only restore a nav id that still exists.
+    return NAV.some((item) => item.id === savedNav) ? savedNav : "dashboard";
   });
 
   useEffect(() => {
@@ -126,8 +137,6 @@ function AdminDashboard() {
   // Real-time dispatch modal states
   const [activeAlert, setActiveAlert] = useState(null);
   const [alertQueue, setAlertQueue] = useState([]);
-  const [selectedUnit, setSelectedUnit] = useState("Mobile Patrol 1");
-  const [dispatchNote, setDispatchNote] = useState("");
 
   // Real-time dynamic clock state
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -233,20 +242,21 @@ function AdminDashboard() {
   const pendingCount = safeReports.filter(r => r.status === "pending").length;
   const activeCount = safeReports.filter(r => ["responding", "ongoing", "dispatching", "en_route", "active"].includes(r.status)).length;
 
-  // Poll for safety + initial load
+  // Poll for safety + initial load — clears stale overrides on each fresh fetch
   useEffect(() => {
     const fetchReports = async () => {
       try {
         const res = await api.get("/emergency/agency/PNP");
         setReports(Array.isArray(res.data) ? res.data : (res.data?.reports || []));
+        // Clear ALL overrides on successful fetch — server data is the source of truth
+        setStatusOverrides({});
         setIsOffline(false);
       } catch (error) {
         setIsOffline(true);
-        // We don't overwrite with mock data on failure to keep localStorage data
       }
     };
     fetchReports();
-    const iv = setInterval(fetchReports, 15000);
+    const iv = setInterval(fetchReports, 5000);
     return () => clearInterval(iv);
   }, []);
 
@@ -410,7 +420,7 @@ function AdminDashboard() {
     }
     socket.on("connect", onConnect);
 
-    socket.on("newEmergencyAlert", (newReport) => {
+    const onNewEmergencyAlert = (newReport) => {
       console.log("📡 PNP Command Center received live alert:", newReport);
 
       if (isPnpReport(newReport)) {
@@ -430,9 +440,9 @@ function AdminDashboard() {
 
         enqueueIncomingAlert(newReport);
       }
-    });
+    };
 
-    socket.on("reportStatusChanged", (updatedReport) => {
+    const onReportStatusChanged = (updatedReport) => {
       console.log("📡 PNP Command Center received status change:", updatedReport);
       if (isPnpReport(updatedReport)) {
         setReports(prev => prev.some(r => r._id === updatedReport._id)
@@ -445,9 +455,9 @@ function AdminDashboard() {
           return next;
         });
       }
-    });
+    };
 
-    socket.on("liveLocationUpdate", ({ reportId, latitude, longitude }) => {
+    const onLiveLocationUpdate = ({ reportId, latitude, longitude }) => {
       setReports(prev => prev.map(r => {
         if (r._id === reportId) {
           const locObj = typeof r.location === "object" && r.location ? r.location : {};
@@ -462,21 +472,29 @@ function AdminDashboard() {
         }
         return r;
       }));
-    });
+    };
 
-    socket.on("reportDeleted", ({ id }) => {
+    const onReportDeleted = ({ id }) => {
       setReports(prev => prev.filter(r => r._id !== id));
-    });
+    };
+
+    socket.on("newEmergencyAlert", onNewEmergencyAlert);
+    socket.on("reportStatusChanged", onReportStatusChanged);
+    socket.on("liveLocationUpdate", onLiveLocationUpdate);
+    socket.on("reportDeleted", onReportDeleted);
 
     return () => {
       socket.emit("leaveRoom", room);
       socket.emit("leaveRoom", "admin");
+      // Each .off() must name its handler. Calling socket.off("event") with no
+      // reference removes EVERY listener for that event on the shared singleton,
+      // including ones registered by other mounted components. Likewise the socket
+      // is app-wide, so disconnecting it here tore down other screens' live updates.
       socket.off("connect", onConnect);
-      socket.off("newEmergencyAlert");
-      socket.off("reportStatusChanged");
-      socket.off("liveLocationUpdate");
-      socket.off("reportDeleted");
-      socket.disconnect();
+      socket.off("newEmergencyAlert", onNewEmergencyAlert);
+      socket.off("reportStatusChanged", onReportStatusChanged);
+      socket.off("liveLocationUpdate", onLiveLocationUpdate);
+      socket.off("reportDeleted", onReportDeleted);
     };
   }, [user.agency, user.soundAlerts, user.loopAlarm]);
 
@@ -492,18 +510,35 @@ function AdminDashboard() {
     };
   }, [user.soundAlerts, user.loopAlarm]);
 
+  /**
+   * Opens the alert modal with the resident's proof photos present.
+   *
+   * Reports from list state come from /emergency/agency/:agency, which strips
+   * proofPhotos, so opening an alert from the notification bell used to show no
+   * photos at all — silently, and indistinguishably from "the resident sent none".
+   * Only a socket-delivered report arrives with them attached.
+   */
+  const openAlertWithPhotos = async (report) => {
+    setActiveAlert(report);
+    if (Array.isArray(report?.proofPhotos) && report.proofPhotos.length > 0) return;
+    try {
+      const res = await api.get(`/emergency/${report._id}`);
+      if (res.data?._id) setActiveAlert(res.data);
+    } catch {
+      // Keep the metadata-only view rather than closing the alert.
+    }
+  };
+
   // Handle active dispatch submission
-  const handleDispatchSubmit = () => {
+  const handleDispatchSubmit = async () => {
     if (!activeAlert) return;
 
-    // Update local and backend status
-    handleStatusChange(activeAlert._id, "responding");
+    // Awaited so a failed update surfaces before the alert modal disappears.
+    await handleStatusChange(activeAlert._id, "responding");
 
     // Close modal silently — no secondary popup
     setActiveAlert(null);
     stopSiren();
-    setSelectedUnit("Mobile Patrol 1");
-    setDispatchNote("");
     setActiveNav("queuing");
   };
 
@@ -522,13 +557,18 @@ function AdminDashboard() {
     window.location.href = "/";
   };
 
+  // Filters on the fields EmergencyReport actually has. The previous version matched
+  // r.type / r.crimeType / r.incidentType / r.reporterName / r.details — none of which
+  // exist on the model — so any keystroke emptied Queuing, Active, Map and Analytics
+  // at once. Location reuses the same formatter the tables render, so what you see is
+  // what you can search.
   const filteredReports = safeReports.filter(r => {
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase();
-    const type = (r.type || r.crimeType || r.incidentType || "").toLowerCase();
-    const location = (r.location?.barangay || (typeof r.location === "string" ? r.location : "")).toLowerCase();
-    const reporter = (r.reporterName || "").toLowerCase();
-    const details = (r.details || "").toLowerCase();
+    const type = (r.emergencyType || r.type || "").toLowerCase();
+    const location = formatLocationForTable(r.location, r).toLowerCase();
+    const reporter = (r.userId?.fullName || r.reporterName || "").toLowerCase();
+    const details = (r.description || "").toLowerCase();
     return type.includes(q) || location.includes(q) || reporter.includes(q) || details.includes(q);
   });
 
@@ -538,7 +578,10 @@ function AdminDashboard() {
       case "incident-reports": return <ActiveIncidents reports={filteredReports} onStatusChange={handleStatusChange} />;
       case "queuing": return <QueuingSystem reports={filteredReports} onStatusChange={handleStatusChange} />;
       case "live-map": return <LiveMap reports={filteredReports} />;
-      case "incident-history": return <IncidentHistory reports={filteredReports} />;
+      // Incident History must always receive the complete PNP report set.
+      // Its own filters control which resolved records are shown or exported.
+      case "incident-history": return <IncidentHistory reports={safeReports} />;
+      case "closed-incidents": return <ClosedIncidents reports={safeReports} agencyName="PNP" />;
       case "rejected-incidents": return <RejectedReports reports={filteredReports} />;
       case "analytics": return <Analytics reports={filteredReports} />;
       case "settings": return <Settings user={user} onUserUpdate={setUser} />;
@@ -823,7 +866,7 @@ function AdminDashboard() {
                   </div>
                   <div className="max-h-64 overflow-y-auto divide-y divide-slate-50">
                     {safeReports.filter(r => r.status === "pending").slice(0, 4).map((r, i) => (
-                      <div key={i} className="flex items-start gap-3 px-4 py-3 hover:bg-slate-50 transition-colors cursor-pointer" onClick={() => { setActiveAlert(r); setShowNotifDropdown(false); stopSiren(); }}>
+                      <div key={i} className="flex items-start gap-3 px-4 py-3 hover:bg-slate-50 transition-colors cursor-pointer" onClick={() => { openAlertWithPhotos(r); setShowNotifDropdown(false); stopSiren(); }}>
                         <div className="w-2 h-2 rounded-full bg-amber-400 mt-1.5 shrink-0"></div>
                         <div className="min-w-0">
                           <p className="text-xs font-semibold text-slate-800 truncate">{r.userId?.fullName || "Anonymous"}</p>
@@ -1062,47 +1105,10 @@ function AdminDashboard() {
                 )}
               </div>
 
-              {/* Dispatch panel */}
-              <div className="mx-5 mb-5 rounded-xl border border-[#0a1e3f]/15 overflow-hidden">
-                <div className="bg-[#0a1e3f] px-4 py-2.5 flex items-center gap-2">
-                  <svg className="w-3.5 h-3.5 text-white/70" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
-                  </svg>
-                  <p className="text-[10px] font-black uppercase tracking-[0.15em] text-white/80">
-                    Dispatch Assignment
-                  </p>
-                </div>
-                <div className="bg-white px-4 py-4 space-y-3">
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                      Responding Unit
-                    </label>
-                    <select
-                      value={selectedUnit}
-                      onChange={e => setSelectedUnit(e.target.value)}
-                      className="w-full px-3 py-2.5 text-sm text-slate-800 border border-slate-200 rounded-lg bg-white focus:border-[#0a1e3f] focus:ring-2 focus:ring-[#0a1e3f]/10 outline-none transition-all cursor-pointer font-semibold"
-                    >
-                      <option value="Mobile Patrol 1">Mobile Patrol 1 — PNP Alpha</option>
-                      <option value="Mobile Patrol 2">Mobile Patrol 2 — PNP Bravo</option>
-                      <option value="K9 Search Unit">K9 Search Unit — PNP Delta</option>
-                      <option value="Special Operations Team">Special Operations Team — PNP SOT</option>
-                      <option value="Traffic Investigation Division">Traffic Investigation Div. — PNP TID</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                      Field Orders / Notes
-                    </label>
-                    <textarea
-                      rows={2}
-                      value={dispatchNote}
-                      onChange={e => setDispatchNote(e.target.value)}
-                      placeholder="Enter special instructions for the assigned unit (optional)..."
-                      className="w-full px-3 py-2 text-[13px] text-slate-800 border border-slate-200 rounded-lg bg-slate-50 focus:bg-white focus:border-[#0a1e3f] focus:ring-2 focus:ring-[#0a1e3f]/10 outline-none transition-all resize-none placeholder:text-slate-400"
-                    />
-                  </div>
-                </div>
-              </div>
+              {/* The "Responding Unit" / "Field Orders" panel was removed: EmergencyReport
+                  has no field for either, and handleDispatchSubmit discarded both. The UI
+                  implied dispatchers were recording an assignment that was never saved.
+                  Restore it only alongside backend fields to persist it. */}
             </div>
 
             {/* ── FOOTER ── */}

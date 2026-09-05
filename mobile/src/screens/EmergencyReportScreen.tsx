@@ -12,6 +12,7 @@ import {
   StyleSheet,
   StatusBar,
   TextInput,
+  Modal,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Location from "expo-location";
@@ -19,6 +20,8 @@ import * as ImagePicker from "expo-image-picker";
 import * as ImageManipulator from "expo-image-manipulator";
 import Header from "../components/Header";
 import { COLORS } from "../styles/colors";
+import CALBAYOG_BARANGAYS from "../constants/calbayogBarangays";
+import { uploadEvidenceImage } from "../api/uploads";
 import {
   FireIcon,
   MedicalIcon,
@@ -58,6 +61,8 @@ export default function EmergencyReportScreen({
   const { emergencyType } = route.params;
   const [description, setDescription] = useState<string>("");
   const [proofPhotos, setProofPhotos] = useState<string[]>([]);
+  // Indices of photos still uploading, so submit can wait for them.
+  const [uploadingSlots, setUploadingSlots] = useState<number[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [locationEnabled, setLocationEnabled] = useState<boolean>(false);
   const [checkingLocation, setCheckingLocation] = useState<boolean>(true);
@@ -65,6 +70,24 @@ export default function EmergencyReportScreen({
   // weak mobile signal this is the difference between "is it frozen?" and
   // watching real progress during the most stressful moment of the app.
   const [uploadProgress, setUploadProgress] = useState<number>(0);
+
+  // Address of THE INCIDENT, resolved on-device. The OS geocoder (Google Play
+  // Services / Apple) has far better Philippine coverage than the server-side
+  // Nominatim fallback, needs no network round-trip from the API host, and runs
+  // while the reporter is standing at the scene.
+  const [barangay, setBarangay] = useState<string>("");
+  const [street, setStreet] = useState<string>("");
+  const [purok, setPurok] = useState<string>("");
+  const [landmark, setLandmark] = useState<string>("");
+  const [accuracy, setAccuracy] = useState<number | null>(null);
+  const [resolvingAddress, setResolvingAddress] = useState<boolean>(false);
+  const [showLocationEdit, setShowLocationEdit] = useState<boolean>(false);
+  const [showBarangayPicker, setShowBarangayPicker] = useState<boolean>(false);
+  const [barangaySearch, setBarangaySearch] = useState<string>("");
+
+  const filteredBarangays = CALBAYOG_BARANGAYS.filter((bgy) =>
+    bgy.toLowerCase().includes(barangaySearch.toLowerCase())
+  );
 
   const checkLocationStatus = useCallback(async () => {
     try {
@@ -93,6 +116,59 @@ export default function EmergencyReportScreen({
   useEffect(() => {
     checkLocationStatus();
   }, [checkLocationStatus]);
+
+  /**
+   * Resolves the incident's address as soon as the screen opens, so the lookup
+   * overlaps the time the reporter spends taking photos and costs them nothing.
+   * Everything it finds is editable below — a wrong barangay is worse than none.
+   */
+  const resolveAddress = useCallback(async () => {
+    setResolvingAddress(true);
+    try {
+      const position = await Location.getCurrentPositionAsync({
+        // The report is what responders navigate by, so it gets the best fix we
+        // can take. Live tracking already used High while this used Balanced.
+        accuracy: Location.Accuracy.High,
+      });
+
+      if (typeof position.coords.accuracy === "number") {
+        setAccuracy(Math.round(position.coords.accuracy));
+      }
+
+      const [place] = await Location.reverseGeocodeAsync({
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+      });
+      if (!place) return;
+
+      // Android usually reports the barangay in `district`; fall back to subregion.
+      const detected = (place.district || place.subregion || "").trim();
+      const matched = CALBAYOG_BARANGAYS.find(
+        (bgy) => bgy.toLowerCase() === detected.toLowerCase()
+      );
+      if (matched || detected) setBarangay(matched || detected);
+
+      if (place.street) setStreet(place.street.trim());
+
+      // Some geocoders return the purok inside the district/subregion string.
+      const purokMatch = `${place.district || ""} ${place.subregion || ""}`.match(
+        /purok\s*([\w-]+)/i
+      );
+      if (purokMatch) setPurok(purokMatch[0].trim());
+
+      // `name` is usually the nearest named feature — a decent landmark seed.
+      if (place.name && place.name !== place.street) setLandmark(place.name.trim());
+    } catch {
+      // Non-fatal: the report still sends with coordinates, and the server will
+      // attempt its own lookup. Never block the emergency on an address.
+    } finally {
+      setResolvingAddress(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (locationEnabled) resolveAddress();
+  }, [locationEnabled, resolveAddress]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (nextAppState) => {
@@ -148,8 +224,23 @@ export default function EmergencyReportScreen({
         ? `data:image/jpeg;base64,${manipulated.base64}`
         : manipulated.uri;
 
+      const slot = currentCount;
       setProofPhotos((prev) => [...prev, imageUri]);
       currentCount++;
+
+      // Upload in the background so it overlaps the next capture instead of
+      // stacking megabytes of base64 onto the submit request. The hosted URL
+      // replaces the inline image in place; on failure the inline image stays.
+      setUploadingSlots((prev) => [...prev, slot]);
+      uploadEvidenceImage(imageUri, "proof")
+        .then((hosted) => {
+          if (hosted !== imageUri) {
+            setProofPhotos((prev) => prev.map((p, i) => (i === slot ? hosted : p)));
+          }
+        })
+        .finally(() => {
+          setUploadingSlots((prev) => prev.filter((i) => i !== slot));
+        });
 
       if (currentCount >= MAX_PHOTOS) {
         Alert.alert(
@@ -237,6 +328,9 @@ export default function EmergencyReportScreen({
     loading ||
     !locationEnabled ||
     checkingLocation ||
+    // Sending mid-upload would submit a base64 photo that is seconds away from
+    // having a hosted URL, bloating the payload for no reason.
+    uploadingSlots.length > 0 ||
     proofPhotos.length < MIN_PHOTOS ||
     proofPhotos.length > MAX_PHOTOS;
 
@@ -267,10 +361,12 @@ export default function EmergencyReportScreen({
       let location;
       try {
         location = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Balanced,
+          accuracy: Location.Accuracy.High,
         });
       } catch {
-        location = await Location.getLastKnownPositionAsync({});
+        // Only accept a cached fix from the last 5 minutes. An unbounded stale
+        // position could put responders wherever the phone was hours ago.
+        location = await Location.getLastKnownPositionAsync({ maxAge: 5 * 60 * 1000 });
         if (!location) {
           Alert.alert(
             "Location Unavailable",
@@ -296,6 +392,16 @@ export default function EmergencyReportScreen({
           proofPhotos,
           latitude: location.coords.latitude,
           longitude: location.coords.longitude,
+          // Resolved on-device above. The backend reads all of these and only
+          // falls back to its own geocoder for whatever is missing.
+          barangay: barangay.trim(),
+          street: street.trim(),
+          purok: purok.trim(),
+          landmark: landmark.trim(),
+          accuracy:
+            typeof location.coords.accuracy === "number"
+              ? Math.round(location.coords.accuracy)
+              : accuracy,
         },
         {
           headers: {
@@ -347,6 +453,7 @@ export default function EmergencyReportScreen({
     if (!locationEnabled) return "ENABLE LOCATION TO SEND";
     if (!photosReady)
       return `TAKE ${photosRemaining} MORE PHOTO${photosRemaining > 1 ? "S" : ""}`;
+    if (uploadingSlots.length > 0) return "UPLOADING PHOTOS…";
     return "SEND EMERGENCY REPORT";
   };
 
@@ -424,7 +531,9 @@ export default function EmergencyReportScreen({
               {checkingLocation
                 ? "Making sure responders can find you"
                 : locationEnabled
-                ? "Your exact position will be sent with this report"
+                ? accuracy !== null
+                  ? `Accurate to about ${accuracy}m`
+                  : "Your exact position will be sent with this report"
                 : "Responders cannot be dispatched without it"}
             </Text>
           </View>
@@ -438,6 +547,86 @@ export default function EmergencyReportScreen({
             </TouchableOpacity>
           )}
         </View>
+
+        {/* Detected address. GPS gets responders to the block; barangay, purok and
+            a landmark get them to the door. Everything here is optional and
+            pre-filled — ignoring it costs the reporter nothing. */}
+        {locationEnabled && (
+          <View style={styles.addressCard}>
+            <View style={styles.addressHeader}>
+              <Text style={styles.addressPin}>📍</Text>
+              <View style={{ flex: 1 }}>
+                {resolvingAddress && !barangay ? (
+                  <Text style={styles.addressResolving}>Finding your address…</Text>
+                ) : (
+                  <Text style={styles.addressText}>
+                    {[
+                      landmark,
+                      street,
+                      purok,
+                      barangay ? `Brgy. ${barangay.replace(/^brgy\.?\s*/i, "")}` : "",
+                    ]
+                      .filter(Boolean)
+                      .join(", ") || "Address not detected — please add it"}
+                  </Text>
+                )}
+              </View>
+              <TouchableOpacity
+                onPress={() => setShowLocationEdit(!showLocationEdit)}
+                activeOpacity={0.7}
+                style={styles.addressEditBtn}
+              >
+                <Text style={styles.addressEditText}>
+                  {showLocationEdit ? "DONE" : "EDIT"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {showLocationEdit && (
+              <View style={styles.addressFields}>
+                <Text style={styles.addressLabel}>BARANGAY</Text>
+                <View style={{ flexDirection: "row", alignItems: "center" }}>
+                  <TextInput
+                    style={[styles.addressInput, { flex: 1 }]}
+                    placeholder="Barangay"
+                    placeholderTextColor="#94A3B8"
+                    value={barangay}
+                    onChangeText={setBarangay}
+                    autoCapitalize="words"
+                  />
+                  <TouchableOpacity
+                    style={styles.addressListBtn}
+                    onPress={() => setShowBarangayPicker(true)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.addressListText}>LIST</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <Text style={styles.addressLabel}>PUROK / STREET</Text>
+                <TextInput
+                  style={styles.addressInput}
+                  placeholder="e.g. Purok 3, Rizal Street"
+                  placeholderTextColor="#94A3B8"
+                  value={purok || street}
+                  onChangeText={setPurok}
+                />
+              </View>
+            )}
+
+            <Text style={styles.addressLabel}>NEAREST LANDMARK</Text>
+            <TextInput
+              style={styles.addressInput}
+              placeholder="e.g. beside the blue water tank"
+              placeholderTextColor="#94A3B8"
+              value={landmark}
+              onChangeText={setLandmark}
+            />
+            <Text style={styles.addressHint}>
+              This is what responders use to find you on the last stretch.
+            </Text>
+          </View>
+        )}
 
         {/* STEP 1 — Photos */}
         <View style={styles.stepCard}>
@@ -530,14 +719,14 @@ export default function EmergencyReportScreen({
                 Details <Text style={styles.optionalTag}>optional</Text>
               </Text>
               <Text style={styles.stepSub}>
-                A landmark or condition helps responders arrive faster
+                What is happening, and who needs help
               </Text>
             </View>
           </View>
 
           <TextInput
             style={styles.textAreaInput}
-            placeholder="e.g. Beside the barangay hall, second floor, one person trapped…"
+            placeholder="e.g. Kitchen fire on the second floor, one person still inside…"
             placeholderTextColor="#94A3B8"
             value={description}
             onChangeText={setDescription}
@@ -551,6 +740,44 @@ export default function EmergencyReportScreen({
           location are recorded with every report.
         </Text>
       </ScrollView>
+
+      {/* Barangay picker — same list and interaction as the registration screen */}
+      <Modal visible={showBarangayPicker} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeaderRow}>
+              <Text style={styles.modalTitle}>Select Barangay</Text>
+              <TouchableOpacity onPress={() => setShowBarangayPicker(false)}>
+                <Text style={styles.modalClose}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <TextInput
+              style={styles.modalSearchInput}
+              placeholder="Search barangay…"
+              placeholderTextColor="#94A3B8"
+              value={barangaySearch}
+              onChangeText={setBarangaySearch}
+            />
+
+            <ScrollView style={{ maxHeight: 320 }} keyboardShouldPersistTaps="handled">
+              {filteredBarangays.map((bgy) => (
+                <TouchableOpacity
+                  key={bgy}
+                  style={styles.barangayItem}
+                  onPress={() => {
+                    setBarangay(bgy);
+                    setShowBarangayPicker(false);
+                    setBarangaySearch("");
+                  }}
+                >
+                  <Text style={styles.barangayItemText}>Brgy. {bgy}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
 
       {/* Sticky action bar — the send button is never scrolled out of reach */}
       <View
@@ -691,6 +918,141 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 11,
     fontWeight: "900",
+  },
+
+  /* Detected address */
+  addressCard: {
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 12,
+  },
+  addressHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  addressPin: {
+    fontSize: 15,
+    marginRight: 8,
+  },
+  addressText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: COLORS.primary,
+  },
+  addressResolving: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#94A3B8",
+    fontStyle: "italic",
+  },
+  addressEditBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    backgroundColor: "#EFF6FF",
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
+  },
+  addressEditText: {
+    fontSize: 10,
+    fontWeight: "900",
+    color: "#2563EB",
+  },
+  addressFields: {
+    marginBottom: 4,
+  },
+  addressLabel: {
+    fontSize: 9.5,
+    fontWeight: "900",
+    letterSpacing: 0.8,
+    color: COLORS.textGray,
+    marginBottom: 5,
+    marginTop: 6,
+  },
+  addressInput: {
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    height: 42,
+    fontSize: 13,
+    color: COLORS.primary,
+  },
+  addressListBtn: {
+    backgroundColor: "#EFF6FF",
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
+    borderRadius: 10,
+    height: 42,
+    paddingHorizontal: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    marginLeft: 8,
+  },
+  addressListText: {
+    fontSize: 10,
+    fontWeight: "900",
+    color: "#2563EB",
+  },
+  addressHint: {
+    fontSize: 10.5,
+    color: "#94A3B8",
+    marginTop: 6,
+  },
+
+  /* Barangay picker modal */
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.6)",
+    justifyContent: "center",
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 20,
+    padding: 18,
+  },
+  modalHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: "900",
+    color: COLORS.primary,
+  },
+  modalClose: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#94A3B8",
+  },
+  modalSearchInput: {
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    height: 42,
+    fontSize: 13,
+    color: COLORS.primary,
+    marginBottom: 10,
+  },
+  barangayItem: {
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
+  },
+  barangayItemText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: COLORS.primary,
   },
 
   /* Step cards */

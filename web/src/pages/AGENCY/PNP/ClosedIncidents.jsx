@@ -25,7 +25,7 @@ export default function ClosedIncidents({ reports = [], agencyName = "PNP" }) {
     .filter((report) => (report.status || "").toLowerCase() === "closed")
     .filter((report) => {
       const incidentDate = toDateInputValue(report.createdAt || report.date);
-      const location = formatLocationForTable(report.location).toLowerCase();
+      const location = formatLocationForTable(report.location, report).toLowerCase();
       const reporter = (report.userId?.fullName || "").toLowerCase();
       const type = (report.emergencyType || "").toLowerCase();
       const query = search.trim().toLowerCase();
@@ -44,6 +44,10 @@ export default function ClosedIncidents({ reports = [], agencyName = "PNP" }) {
 
   const handleExportPDF = () => {
     const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      alert("Please allow pop-ups for this site to download the PDF report.");
+      return;
+    }
 
     const dateRange = fromDate || toDate
       ? `${fromDate || "Beginning"} — ${toDate || "Present"}`
