@@ -31,15 +31,17 @@ import {
   SearchIcon as Search,
   LogoutIcon as LogOut,
   MenuIcon as Menu,
-  ResponderIcon
+  ResponderIcon,
+  MapPinIcon
 } from "./icons.jsx";
 import api from "../../api/axios.js";
 import socket from "../../api/socket.js";
 import Swal from "sweetalert2";
 import { getValidCalbayogBarangay } from "../../utils/barangays.js";
-import { formatLocationForTable } from "../../utils/incidentFormatters.js";
+import { formatLocationForTable, directionsUrl, reporterAddress } from "../../utils/incidentFormatters.js";
 import { clearDashboardNavigationState } from "../../utils/dashboardSession.js";
 import AdminQueuingSystem from "./AdminQueuingSystem.jsx";
+import AdminLiveMap from "./AdminLiveMap.jsx";
 
 const safeSetItem = (key, value) => {
   try {
@@ -119,6 +121,7 @@ const PIE_COLORS = ["#f59e0b", "#0d9488", "#2563eb", "#059669", "#64748b", "#4f4
 const NAV = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "queuing", label: "Queuing System", icon: Menu },
+  { id: "live-map", label: "Live Map", icon: MapPinIcon },
   { id: "closed-incidents", label: "Closed Cases", icon: ArchiveIcon },
   { id: "rejected-incidents", label: "Rejected Reports", icon: XCircle },
   { id: "analytics", label: "Analytics", icon: BarChart2 },
@@ -280,7 +283,12 @@ function AnalyticsCard({ title, subtitle, children, className = "" }) {
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
-  const [activeNav, setActiveNav] = useState(() => localStorage.getItem("adminActiveNav") || "overview");
+  // Only restore a nav id that still exists in NAV. Recovers admins stranded on the
+  // old orphan "incidents" value, which had no sidebar entry and no way back.
+  const [activeNav, setActiveNav] = useState(() => {
+    const saved = localStorage.getItem("adminActiveNav");
+    return NAV.some((item) => item.id === saved) ? saved : "overview";
+  });
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [activeSettingsTab, setActiveSettingsTab] = useState("system-info");
   const [activeCategories, setActiveCategories] = useState({
@@ -297,6 +305,14 @@ export default function AdminDashboard() {
     residentPush: true,
     radius: "5"
   });
+  // The socket effect below only re-runs on [sessionId, storedUser.id], so its handlers
+  // captured the notificationsConfig from first mount and toggling Sound/Desktop alerts
+  // in Settings had no effect until a full remount. A ref keeps the live value readable
+  // without tearing down and re-establishing the socket on every settings change.
+  const notificationsConfigRef = useRef(notificationsConfig);
+  useEffect(() => {
+    notificationsConfigRef.current = notificationsConfig;
+  }, [notificationsConfig]);
   const [locationConfig, setLocationConfig] = useState({
     refreshRate: 10,
     lat: "12.0674",
@@ -357,6 +373,18 @@ export default function AdminDashboard() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [savingReportId, setSavingReportId] = useState("");
   const [selectedReport, setSelectedReport] = useState(null);
+  // Evidence photos for the open detail modal, fetched separately.
+  //
+  // GET /emergency strips proofPhotos and resolutionEvidence (they are large), so the
+  // report objects in list state never carry them. The modal used to read them straight
+  // off that stripped object, find nothing, and accuse the resident of filing a false
+  // report. Only GET /emergency/:id returns the photos.
+  const [detailEvidence, setDetailEvidence] = useState({
+    proof: [],
+    resolution: [],
+    loading: false,
+    loaded: false,
+  });
   const [previewImage, setPreviewImage] = useState(null);
   const [isNotificationsModalOpen, setIsNotificationsModalOpen] = useState(false);
   // Audit Trail state
@@ -792,8 +820,59 @@ export default function AdminDashboard() {
     load();
   }, []);
 
+  // Load the open report's evidence photos. Reset first so photos from a previously
+  // viewed incident can never linger on the next one.
+  useEffect(() => {
+    const reportId = selectedReport?.report?._id;
+    if (!reportId) {
+      setDetailEvidence({ proof: [], resolution: [], loading: false, loaded: false });
+      return;
+    }
+
+    const listReport = selectedReport.report;
+    const alreadyHasPhotos =
+      Array.isArray(listReport.proofPhotos) && listReport.proofPhotos.length > 0;
+
+    // A report delivered over the socket arrives unstripped — no need to refetch.
+    if (alreadyHasPhotos) {
+      setDetailEvidence({
+        proof: listReport.proofPhotos,
+        resolution: Array.isArray(listReport.resolutionEvidence) ? listReport.resolutionEvidence : [],
+        loading: false,
+        loaded: true,
+      });
+      return;
+    }
+
+    let cancelled = false;
+    setDetailEvidence({ proof: [], resolution: [], loading: true, loaded: false });
+
+    api.get(`/emergency/${reportId}`)
+      .then((res) => {
+        if (cancelled) return;
+        const data = res.data || {};
+        setDetailEvidence({
+          proof: Array.isArray(data.proofPhotos) ? data.proofPhotos : [],
+          resolution: Array.isArray(data.resolutionEvidence) ? data.resolutionEvidence : [],
+          loading: false,
+          loaded: true,
+        });
+      })
+      .catch(() => {
+        if (cancelled) return;
+        // loaded stays false so the UI says "could not load" rather than
+        // asserting that no evidence was submitted.
+        setDetailEvidence({ proof: [], resolution: [], loading: false, loaded: false });
+      });
+
+    return () => { cancelled = true; };
+  }, [selectedReport]);
+
   useEffect(() => {
     safeSetItem("adminActiveNav", activeNav);
+    // Clear any stale error banner when changing pages — it used to persist across
+    // navigation, so a failure on one screen kept showing red on every other one.
+    setError("");
   }, [activeNav]);
 
   useEffect(() => {
@@ -816,15 +895,10 @@ export default function AdminDashboard() {
   }, [activeNav, auditTab, auditPage]);
 
   useEffect(() => {
-    const connectSocket = async () => {
-      socket.connect();
-      socket.emit("identify", {
-        userId: storedUser.id,
-        role: "admin",
-        sessionId,
-      });
-
-      socket.on("notification", (notification) => {
+    // Handlers are hoisted so cleanup can remove exactly these listeners. Calling
+    // socket.off("event") with no reference strips every listener for that event on
+    // the shared singleton, including ones other mounted components registered.
+    const onNotification = (notification) => {
         setNotifications((prev) => {
           const next = [
             {
@@ -843,20 +917,20 @@ export default function AdminDashboard() {
           safeSetItem("adminNotifications", JSON.stringify(next));
           return next;
         });
-      });
+    };
 
-      const upsertReport = (report) => {
-        setReports((prev) => prev.some((item) => item._id === report._id)
-          ? prev.map((item) => item._id === report._id ? report : item)
-          : [report, ...prev]
-        );
-      };
+    const upsertReport = (report) => {
+      setReports((prev) => prev.some((item) => item._id === report._id)
+        ? prev.map((item) => item._id === report._id ? report : item)
+        : [report, ...prev]
+      );
+    };
 
-      socket.on("newEmergencyAlert", (report) => {
+    const onNewEmergencyAlert = (report) => {
         upsertReport(report);
 
         // --- Sound alert (respects notificationsConfig.soundAlerts) ---
-        if (notificationsConfig.soundAlerts) {
+        if (notificationsConfigRef.current.soundAlerts) {
           try {
             const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             const oscillator = audioCtx.createOscillator();
@@ -875,7 +949,7 @@ export default function AdminDashboard() {
         }
 
         // --- Desktop push notification (respects notificationsConfig.desktopNotif) ---
-        if (notificationsConfig.desktopNotif && "Notification" in window) {
+        if (notificationsConfigRef.current.desktopNotif && "Notification" in window) {
           const sendDesktopNotif = () => {
             new Notification("🚨 New Emergency Alert", {
               body: `${(report.emergencyType || "Incident").toUpperCase()} reported at ${report.location?.name || report.location?.barangay || "unknown location"}.`,
@@ -891,25 +965,35 @@ export default function AdminDashboard() {
             });
           }
         }
-      });
-
-      socket.on("reportStatusChanged", (report) => {
-        upsertReport(report);
-      });
-
-      socket.on("reportDeleted", ({ id }) => {
-        setReports((prev) => prev.filter((report) => report._id !== id));
-      });
     };
 
-    connectSocket();
+    const onReportStatusChanged = (report) => {
+      upsertReport(report);
+    };
+
+    const onReportDeleted = ({ id }) => {
+      setReports((prev) => prev.filter((report) => report._id !== id));
+    };
+
+    socket.connect();
+    socket.emit("identify", {
+      userId: storedUser.id,
+      role: "admin",
+      sessionId,
+    });
+
+    socket.on("notification", onNotification);
+    socket.on("newEmergencyAlert", onNewEmergencyAlert);
+    socket.on("reportStatusChanged", onReportStatusChanged);
+    socket.on("reportDeleted", onReportDeleted);
 
     return () => {
-      socket.off("notification");
-      socket.off("newEmergencyAlert");
-      socket.off("reportStatusChanged");
-      socket.off("reportDeleted");
-      socket.disconnect();
+      socket.off("notification", onNotification);
+      socket.off("newEmergencyAlert", onNewEmergencyAlert);
+      socket.off("reportStatusChanged", onReportStatusChanged);
+      socket.off("reportDeleted", onReportDeleted);
+      // No socket.disconnect() here: the socket is an app-wide singleton and
+      // disconnecting on unmount killed live updates for every other screen.
       // Clean up session timeout timers
       if (sessionTimerRef.current) clearTimeout(sessionTimerRef.current);
       if (sessionWarnRef.current) clearTimeout(sessionWarnRef.current);
@@ -1285,12 +1369,10 @@ export default function AdminDashboard() {
     setSavingReportId(reportId);
     setError("");
     try {
-      let response;
-      try {
-        response = await api.put(`/emergency/${reportId}`, { status: newStatus });
-      } catch {
-        response = await api.put(`/reports/${reportId}/status`, { status: newStatus });
-      }
+      // PUT /emergency/:id and PUT /reports/:id/status resolve to the same handler
+      // (emergencyRoutes.js:26, reportRoutes.js:6), so the old fallback could only
+      // ever repeat the same failure while swallowing the real error message.
+      const response = await api.put(`/emergency/${reportId}`, { status: newStatus });
       const updatedReport = response.data?.report || response.data;
       if (updatedReport?._id) {
         setReports((prev) => prev.map((r) => (r._id === updatedReport._id ? updatedReport : r)));
@@ -1318,7 +1400,11 @@ export default function AdminDashboard() {
     }
 
     const printWindow = window.open("", "_blank");
-    
+    if (!printWindow) {
+      alert("Please allow pop-ups for this site to download the PDF report.");
+      return;
+    }
+
     // Build incident rows
     const rowsHtml = reports.map((r, i) => {
       const type = (r.emergencyType || "others").toUpperCase();
@@ -1497,7 +1583,11 @@ export default function AdminDashboard() {
     }
 
     const printWindow = window.open("", "_blank");
-    
+    if (!printWindow) {
+      alert("Please allow pop-ups for this site to download the PDF report.");
+      return;
+    }
+
     // Build incident rows
     const rowsHtml = reports.map((r, i) => {
       const type = (r.emergencyType || "others").toUpperCase();
@@ -1992,102 +2082,120 @@ export default function AdminDashboard() {
   );
 
   const renderOverview = () => (
-    <div className="flex flex-col gap-2 h-full">
-      <div className="grid grid-cols-4 gap-2 shrink-0">
-        {statCards.map((stat) => {
-          const Icon = stat.icon;
-          return (
-            <div key={stat.label} className="flex items-center gap-2 rounded-lg border border-slate-100 bg-white px-3 py-2 shadow-sm">
-              <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${stat.bg} ${stat.text}`}>
-                <Icon className="h-3.5 w-3.5" />
+    // Scrolls rather than squeezing every panel into one fixed screen. The old layout
+    // was locked to h-full, which forced 8-9px type and 7x7px icons to make it fit.
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
+        <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+          {statCards.map((stat) => {
+            const Icon = stat.icon;
+            return (
+              <div key={stat.label} className="flex items-center gap-3.5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${stat.bg} ${stat.text}`}>
+                  <Icon className="h-5 w-5" />
+                </div>
+                <div className="min-w-0">
+                  <p className="truncate text-[11px] font-black uppercase tracking-wider text-slate-400">{stat.label}</p>
+                  <p className="text-2xl font-black leading-tight tracking-tight text-slate-900">{stat.value}</p>
+                  <p className="truncate text-[11px] font-semibold text-slate-400">{stat.sub}</p>
+                </div>
               </div>
-              <div className="min-w-0">
-                <p className="text-[8px] font-black uppercase tracking-widest text-slate-400 truncate">{stat.label}</p>
-                <p className="text-base font-black leading-none text-slate-900">{stat.value}</p>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
 
-      {!analyticsData.hasData ? (
-        <EmptyAnalytics />
-      ) : (
-        <div className="flex flex-col gap-2 flex-1 min-h-0">
-          {/* Top Half: Charts */}
-          <div className="grid grid-cols-3 gap-2 flex-1 min-h-0">
-            {/* Pie */}
-            <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm min-h-0 flex flex-col">
-              <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1">Incident Analysis</p>
-              <div className="flex-1 min-h-0">
-                <ResponsiveContainer width="100%" height="100%" minWidth={100} minHeight={100} initialDimension={{ width: 100, height: 100 }}>
-                  <PieChart>
-                    <Pie data={analyticsData.statuses} dataKey="value" nameKey="name" innerRadius={24} outerRadius={40} paddingAngle={3}>
-                      {analyticsData.statuses.map((entry, index) => (
-                        <Cell key={entry.name} fill={entry.fill || PIE_COLORS[index % PIE_COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip content={<ChartTooltip />} />
-                    <Legend iconType="circle" iconSize={6} formatter={(value) => <span className="text-[8px] font-bold text-slate-600">{value}</span>} />
-                  </PieChart>
-                </ResponsiveContainer>
+        {!analyticsData.hasData ? (
+          <EmptyAnalytics />
+        ) : (
+          <>
+            {/* Trend gets the full width — it is the most informative panel and was
+                previously crushed into a third of a row. */}
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="mb-3">
+                <h2 className="text-sm font-black text-slate-900">Incident Trend</h2>
+                <p className="text-xs font-medium text-slate-400">Reports created over the latest six-month window</p>
               </div>
-            </div>
-
-            {/* Bar */}
-            <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm min-h-0 flex flex-col">
-              <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1">By Category</p>
-              <div className="flex-1 min-h-0">
+              <div className="h-[260px]">
                 <ResponsiveContainer width="100%" height="100%" minWidth={100} minHeight={100} initialDimension={{ width: 100, height: 100 }}>
-                  <BarChart data={analyticsData.categories} margin={{ top: 4, right: 4, left: -28, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 8, fontWeight: 700 }} />
-                    <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 8, fontWeight: 700 }} />
-                    <Tooltip content={<ChartTooltip />} />
-                    <Bar dataKey="value" radius={[3, 3, 0, 0]}>
-                      {analyticsData.categories.map((entry) => (
-                        <Cell key={entry.name} fill={entry.fill || "#10b981"} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-
-            {/* Trend line */}
-            <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm min-h-0 flex flex-col">
-              <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1">Incident Trend</p>
-              <div className="flex-1 min-h-0">
-                <ResponsiveContainer width="100%" height="100%" minWidth={100} minHeight={100} initialDimension={{ width: 100, height: 100 }}>
-                  <LineChart data={analyticsData.trend} margin={{ top: 4, right: 8, left: -26, bottom: 0 }}>
+                  <LineChart data={analyticsData.trend} margin={{ top: 8, right: 16, left: -18, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 9, fontWeight: 700 }} />
-                    <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 9, fontWeight: 700 }} />
+                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 11, fontWeight: 700 }} />
+                    <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 11, fontWeight: 700 }} />
                     <Tooltip content={<ChartTooltip />} />
-                    <Line type="monotone" dataKey="incidents" stroke="#10b981" strokeWidth={2} dot={{ r: 2.5, fill: "#10b981" }} activeDot={{ r: 4 }} />
+                    <Line type="monotone" dataKey="incidents" stroke={THEME.accent} strokeWidth={3} dot={{ r: 4, fill: THEME.accent }} activeDot={{ r: 6 }} />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
             </div>
-          </div>
 
-          {/* Bottom Half: Scorecard */}
-          <section className="flex-1 min-h-0 overflow-hidden rounded-xl border border-slate-100 bg-white shadow-sm flex flex-col">
-            <div className="border-b border-slate-100 px-3 py-2 flex justify-between items-center shrink-0">
-              <div>
-                <h2 className="text-[10px] font-black text-slate-900">Incident Scorecard</h2>
-                <p className="text-[8px] text-slate-400">Latest reports</p>
+            <div className="grid gap-4 lg:grid-cols-2">
+              {/* Pie */}
+              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="mb-3">
+                  <h2 className="text-sm font-black text-slate-900">Incidents by Status</h2>
+                  <p className="text-xs font-medium text-slate-400">Current operational state of all reports</p>
+                </div>
+                <div className="h-[240px]">
+                  <ResponsiveContainer width="100%" height="100%" minWidth={100} minHeight={100} initialDimension={{ width: 100, height: 100 }}>
+                    <PieChart>
+                      <Pie data={analyticsData.statuses} dataKey="value" nameKey="name" innerRadius="42%" outerRadius="72%" paddingAngle={3}>
+                        {analyticsData.statuses.map((entry, index) => (
+                          <Cell key={entry.name} fill={entry.fill || PIE_COLORS[index % PIE_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip content={<ChartTooltip />} />
+                      <Legend iconType="circle" iconSize={8} formatter={(value) => <span className="text-xs font-bold text-slate-600">{value}</span>} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
               </div>
-              <button onClick={() => setActiveNav("incidents")} className="rounded-lg bg-emerald-500 px-2 py-1 text-[9px] font-bold text-white transition hover:bg-emerald-600">
-                View All
-              </button>
+
+              {/* Bar */}
+              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="mb-3">
+                  <h2 className="text-sm font-black text-slate-900">Incidents by Category</h2>
+                  <p className="text-xs font-medium text-slate-400">Distribution across emergency types</p>
+                </div>
+                <div className="h-[240px]">
+                  <ResponsiveContainer width="100%" height="100%" minWidth={100} minHeight={100} initialDimension={{ width: 100, height: 100 }}>
+                    <BarChart data={analyticsData.categories} margin={{ top: 4, right: 8, left: -22, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 11, fontWeight: 700 }} />
+                      <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 11, fontWeight: 700 }} />
+                      <Tooltip content={<ChartTooltip />} />
+                      <Bar dataKey="value" radius={[4, 4, 0, 0]} maxBarSize={48}>
+                        {analyticsData.categories.map((entry) => (
+                          <Cell key={entry.name} fill={entry.fill || "#10b981"} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
             </div>
-            <div className="overflow-auto flex-1">
-              {renderIncidentTable(filteredReports.slice(0, 2), true)}
-            </div>
-          </section>
-        </div>
-      )}
+
+            {/* Recent incidents. Was capped at 2 rows in a squeezed panel; five rows
+                in a normally-sized card is a far more useful glance. */}
+            <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+              <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-5 py-3.5">
+                <div>
+                  <h2 className="text-sm font-black text-slate-900">Recent Incidents</h2>
+                  <p className="text-xs font-medium text-slate-400">Latest reports across all agencies</p>
+                </div>
+                {/* "incidents" is not a key in NAV, so this used to navigate to an orphan
+                    view with no sidebar highlight — and it was persisted to localStorage,
+                    stranding the admin there across reloads. Queuing is the live list. */}
+                <button onClick={() => setActiveNav("queuing")} className="rounded-lg bg-emerald-500 px-3.5 py-2 text-xs font-bold text-white transition hover:bg-emerald-600">
+                  View All
+                </button>
+              </div>
+              <div className="overflow-auto">
+                {renderIncidentTable(filteredReports.slice(0, 5), true)}
+              </div>
+            </section>
+          </>
+        )}
+      </div>
     </div>
   );
 
@@ -3852,7 +3960,8 @@ export default function AdminDashboard() {
   const renderContent = () => {
     if (activeNav === "overview") return renderOverview();
     if (activeNav === "incidents") return renderIncidents();
-    if (activeNav === "queuing") return <AdminQueuingSystem reports={reports} onStatusChange={updateReportStatus} onViewReport={(report, idx) => setSelectedReport({ report, index: idx })} />;
+    if (activeNav === "queuing") return <AdminQueuingSystem reports={reports} onStatusChange={updateReportStatus} savingReportId={savingReportId} onViewReport={(report, idx) => setSelectedReport({ report, index: idx })} />;
+    if (activeNav === "live-map") return <AdminLiveMap reports={reports} onViewReport={(report, idx) => setSelectedReport({ report, index: idx })} />;
     if (activeNav === "closed-incidents") return renderIncidents("closed");
     if (activeNav === "rejected-incidents") return renderIncidents("rejected");
     if (activeNav === "analytics") return renderAnalytics();
@@ -3923,8 +4032,10 @@ export default function AdminDashboard() {
             <button onClick={() => setIsSidebarOpen(true)} className="shrink-0 rounded-lg p-2 md:hidden hover:bg-slate-50" aria-label="Open menu">
               <Menu className="h-5 w-5 text-slate-700" />
             </button>
+            {/* Was `{label} Overview`, which read "Queuing System Overview" and
+                "Settings Overview". The nav label already names the page. */}
             <h1 className="text-xl font-black text-slate-900 hidden sm:block">
-              {NAV.find((item) => item.id === activeNav)?.label || "Dashboard"} Overview
+              {NAV.find((item) => item.id === activeNav)?.label || "Dashboard"}
             </h1>
           </div>
 
@@ -3991,25 +4102,16 @@ export default function AdminDashboard() {
           ["Reporter", report.userId?.fullName || "Unknown"],
           ["Contact", report.userId?.phoneNumber || "No contact number"],
           ["Location", getLocation(report)],
+          ...(reporterAddress(report) ? [["Reporter's address", reporterAddress(report)]] : []),
           ["Reported", report.createdAt ? new Date(report.createdAt).toLocaleString() : "—"],
           [isRejected ? "Rejected" : "Closed", eventDate ? new Date(eventDate).toLocaleString() : "N/A"],
         ];
-        const userEvidenceImages = Array.from(
-          new Set([
-            ...(Array.isArray(report.proofPhotos) ? report.proofPhotos : []),
-            ...(Array.isArray(report.proofImages) ? report.proofImages : []),
-            ...(Array.isArray(report.media) ? report.media : []),
-            ...(Array.isArray(report.images) ? report.images : []),
-            ...(typeof report.imageUrl === "string" && report.imageUrl ? [report.imageUrl] : []),
-            ...(typeof report.image === "string" && report.image ? [report.image] : []),
-          ].filter(Boolean))
-        );
-        const responderEvidenceImages = Array.from(
-          new Set([
-            ...(Array.isArray(report.resolutionEvidence) ? report.resolutionEvidence : []),
-            ...(Array.isArray(report.evidenceImages) ? report.evidenceImages : []),
-          ].filter(Boolean))
-        );
+        // Sourced from the detail fetch above, not from the stripped list object.
+        // The old proofImages/media/images/imageUrl/image fallbacks were dead —
+        // none of those fields exist on the EmergencyReport schema.
+        const userEvidenceImages = Array.from(new Set(detailEvidence.proof.filter(Boolean)));
+        const responderEvidenceImages = Array.from(new Set(detailEvidence.resolution.filter(Boolean)));
+        const totalEvidence = userEvidenceImages.length + responderEvidenceImages.length;
         const renderEvidenceGallery = (images, source) => (
           <div>
             <p className="mb-2 text-[10px] font-black uppercase tracking-widest text-slate-400">
@@ -4034,24 +4136,90 @@ export default function AdminDashboard() {
             </div>
           </div>
         );
-        const hasEvidence = userEvidenceImages.length > 0 || responderEvidenceImages.length > 0;
         return (
           <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/60 p-4" onMouseDown={() => setSelectedReport(null)}>
             <div className="flex h-[calc(100dvh-2rem)] max-h-[39rem] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl" onMouseDown={(event) => event.stopPropagation()}>
               <div className="flex items-start justify-between bg-slate-900 px-6 py-5 text-white">
                 <div>
                   <p className="text-[10px] font-black uppercase tracking-widest text-slate-300">Incident details</p>
-                  <h2 className="mt-1 font-mono text-sm font-black">{getIncidentId(report, index)}</h2>
+                  <div className="mt-1 flex items-center gap-2">
+                    <h2 className="font-mono text-sm font-black">{getIncidentId(report, index)}</h2>
+                    {totalEvidence > 0 && (
+                      <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-black text-emerald-300">
+                        {totalEvidence} photo{totalEvidence === 1 ? "" : "s"}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <button type="button" onClick={() => setSelectedReport(null)} className="rounded-lg p-1 text-slate-300 transition hover:bg-white/10 hover:text-white" aria-label="Close details">
                   <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" d="m6 6 12 12M18 6 6 18" /></svg>
                 </button>
               </div>
               <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4 sm:p-6">
-                <div className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-black ${statusInfo.bg} ${statusInfo.border} ${statusInfo.text}`}>
-                  <span className={`h-1.5 w-1.5 rounded-full ${statusInfo.dot}`} /> {statusInfo.label}
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-black ${statusInfo.bg} ${statusInfo.border} ${statusInfo.text}`}>
+                    <span className={`h-1.5 w-1.5 rounded-full ${statusInfo.dot}`} /> {statusInfo.label}
+                  </div>
+                  {directionsUrl(report) && (
+                    <div className="flex items-center gap-2">
+                      <a
+                        href={directionsUrl(report)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-1.5 text-[11px] font-black text-white transition hover:bg-slate-700"
+                      >
+                        <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a2 2 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                          <circle cx="12" cy="11" r="3" />
+                        </svg>
+                        NAVIGATE
+                      </a>
+                      <button
+                        type="button"
+                        onClick={() => navigator.clipboard?.writeText(
+                          `${report.location?.latitude}, ${report.location?.longitude}`
+                        )}
+                        className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-black text-slate-600 transition hover:bg-slate-100"
+                      >
+                        COPY GPS
+                      </button>
+                    </div>
+                  )}
                 </div>
-                <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
+
+                {/* Evidence leads. It is the reason the modal is open — verifying a
+                    report — and used to sit below every metadata field, off-screen. */}
+                {detailEvidence.loading && (
+                  <div className="flex items-center gap-2.5 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600" />
+                    <p className="text-sm font-semibold text-slate-500">Loading evidence photos…</p>
+                  </div>
+                )}
+
+                {!detailEvidence.loading && totalEvidence > 0 && (
+                  <div className="space-y-5">
+                    {userEvidenceImages.length > 0 && renderEvidenceGallery(userEvidenceImages, "Scene photos from resident")}
+                    {responderEvidenceImages.length > 0 && renderEvidenceGallery(responderEvidenceImages, "Resolution photos from responder")}
+                  </div>
+                )}
+
+                {/* Only accuse once the fetch actually succeeded and came back empty.
+                    Gating on `loaded` stops this flashing during every load. */}
+                {!detailEvidence.loading && detailEvidence.loaded && totalEvidence === 0 && (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-amber-700">Scene &amp; proof of evidence</p>
+                    <p className="mt-1 text-sm font-semibold text-amber-800">No proof photos are attached to this report.</p>
+                  </div>
+                )}
+
+                {!detailEvidence.loading && !detailEvidence.loaded && (
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Scene &amp; proof of evidence</p>
+                    <p className="mt-1 text-sm font-semibold text-slate-600">Could not load the evidence photos. Check your connection and reopen this report.</p>
+                  </div>
+                )}
+
+                <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
                   {detailRows.map(([label, value]) => (
                     <div key={label} className={label === "Location" ? "sm:col-span-2" : ""}>
                       <dt className="text-[10px] font-black uppercase tracking-widest text-slate-400">{label}</dt>
@@ -4064,18 +4232,6 @@ export default function AdminDashboard() {
                   <p className="mt-1 whitespace-pre-wrap rounded-lg bg-slate-50 p-3 text-sm leading-6 text-slate-700">{report.description || "No description provided."}</p>
                 </div>
 
-                {hasEvidence && (
-                  <div className="space-y-5">
-                    {userEvidenceImages.length > 0 && renderEvidenceGallery(userEvidenceImages, "Photos from user")}
-                    {responderEvidenceImages.length > 0 && renderEvidenceGallery(responderEvidenceImages, "Photos from responder")}
-                  </div>
-                )}
-                {!hasEvidence && (
-                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-amber-700">Scene & Proof of Evidence</p>
-                    <p className="mt-1 text-sm font-semibold text-amber-800">No evidence was submitted. This may be a false report.</p>
-                  </div>
-                )}
               </div>
               <div className="flex shrink-0 justify-end border-t border-slate-100 bg-slate-50 px-4 py-3 sm:px-6">
                 <button
@@ -4161,8 +4317,8 @@ export default function AdminDashboard() {
                             <p className="text-[10px] text-slate-400">{report.userId?.phoneNumber || "No contact"}</p>
                           </td>
                           <td className="p-3 truncate max-w-[200px]" title={getLocation(report)}>
+                            {getLocation(report)}
                           </td>
-                          {getLocation(report)}
                           <td className="p-3 text-slate-500">
                             {report.updatedAt ? new Date(report.updatedAt).toLocaleString() : ""}
                           </td>
