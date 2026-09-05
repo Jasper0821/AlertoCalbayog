@@ -1,4 +1,5 @@
 import { useRef, useState, useCallback, useEffect } from "react";
+import { uploadEvidenceImage } from "../../api/uploads.js";
 
 const MAX_IMAGES = 10;
 
@@ -17,6 +18,8 @@ export default function ResolutionEvidenceModal({ onClose, onSubmit }) {
   const streamRef  = useRef(null);
 
   const [images,   setImages]   = useState([]);
+  // Indices of photos still uploading, so submit can wait for them.
+  const [uploading, setUploading] = useState([]);
   const [error,    setError]    = useState("");
   const [saving,   setSaving]   = useState(false);
   const [camReady, setCamReady] = useState(false);
@@ -82,14 +85,32 @@ export default function ResolutionEvidenceModal({ onClose, onSubmit }) {
     canvas.getContext("2d").drawImage(video, 0, 0);
 
     const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+    const slot = images.length;
     setImages(prev => [...prev, dataUrl]);
     setError("");
+
+    // Upload immediately so the wait overlaps the responder taking the next shot,
+    // rather than stacking up as megabytes of base64 at submit time. The URL
+    // replaces the data URI in place; on failure the data URI simply stays.
+    setUploading(prev => [...prev, slot]);
+    uploadEvidenceImage(dataUrl, "resolution")
+      .then((hosted) => {
+        if (hosted !== dataUrl) {
+          setImages(prev => prev.map((img, i) => (i === slot ? hosted : img)));
+        }
+      })
+      .finally(() => {
+        setUploading(prev => prev.filter((i) => i !== slot));
+      });
   }, [camReady, images.length]);
 
   const removeImage = (idx) => setImages(prev => prev.filter((_, i) => i !== idx));
 
   const submit = async () => {
     if (!images.length) return setError("At least one photo is required.");
+    if (uploading.length > 0) {
+      return setError("Please wait — photos are still uploading.");
+    }
     setSaving(true);
     stopStream();
     try {
