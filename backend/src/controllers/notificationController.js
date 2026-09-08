@@ -126,7 +126,7 @@ exports.markAsRead = async (req, res) => {
     const filter = buildRecipientFilter(req.user);
     filter._id = req.params.id;
 
-    const notification = await Notification.findOneAndUpdate(filter, { read: true }, { new: true });
+    const notification = await Notification.findOneAndUpdate(filter, { read: true }, { returnDocument: "after" });
 
     if (!notification) {
       return res.status(404).json({ message: "Notification not found" });
@@ -144,7 +144,7 @@ exports.markAsUnread = async (req, res) => {
     const filter = buildRecipientFilter(req.user);
     filter._id = req.params.id;
 
-    const notification = await Notification.findOneAndUpdate(filter, { read: false }, { new: true });
+    const notification = await Notification.findOneAndUpdate(filter, { read: false }, { returnDocument: "after" });
     if (!notification) {
       return res.status(404).json({ message: "Notification not found" });
     }

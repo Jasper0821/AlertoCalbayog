@@ -92,7 +92,7 @@ const runSchedulerCheck = async () => {
       await SystemSettings.findOneAndUpdate(
         { key: "lastScheduleRuns" },
         { value: lastRuns },
-        { upsert: true, new: true }
+        { upsert: true, returnDocument: "after" }
       );
       console.log(`[Scheduler] Automated backup saved as ${filename}.`);
     }
@@ -148,7 +148,7 @@ const runSchedulerCheck = async () => {
       await SystemSettings.findOneAndUpdate(
         { key: "lastScheduleRuns" },
         { value: lastRuns },
-        { upsert: true, new: true }
+        { upsert: true, returnDocument: "after" }
       );
     }
 
