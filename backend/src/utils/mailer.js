@@ -16,15 +16,19 @@ async function createTransporter() {
   }
 
   const gmailUser = process.env.GMAIL_USER?.trim();
+  // Google shows app passwords as four space-separated groups; the spaces are
+  // presentational and must be stripped before use.
   const gmailPass = process.env.GMAIL_APP_PASS?.replace(/\s+/g, "").trim();
 
-  if (
-    gmailUser &&
-    gmailPass &&
-    gmailUser !== "your_gmail@gmail.com" &&
-    gmailPass !== "your_16_char_app_password" &&
-    gmailPass !== ""
-  ) {
+  // These guard against the .env.example PLACEHOLDERS being left in place. They must
+  // never list real credentials: at one point this compared against the project's own
+  // Gmail address, which meant the transport was built only when the account was NOT
+  // the real one — so every OTP silently failed. Compare against placeholders only.
+  const isPlaceholder =
+    gmailUser === "your_gmail@gmail.com" ||
+    gmailPass === "your_16_char_app_password";
+
+  if (gmailUser && gmailPass && !isPlaceholder) {
     try {
       const transporter = nodemailer.createTransport({
         host: "smtp.gmail.com",
