@@ -80,7 +80,10 @@ exports.getMyNotifications = async (req, res) => {
     });
 
     const notifications = await Notification.find(finalQuery)
-      .populate("reportId", "resolutionEvidence proofPhotos status emergencyType")
+      // Photos are deliberately excluded. This was the only list endpoint that
+      // opted INTO them, and at 50 rows per page it could return hundreds of
+      // megabytes. Clients load evidence per-report via GET /emergency/:id.
+      .populate("reportId", "status emergencyType")
       .sort({ createdAt: -1 })
       .skip((pageNum - 1) * limitNum)
       .limit(limitNum)

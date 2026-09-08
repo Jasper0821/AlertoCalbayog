@@ -1,5 +1,6 @@
 const express = require("express");
 const cors = require("cors");
+const compression = require("compression");
 const mongoose = require("mongoose");
 
 const authRoutes = require("./routes/authRoutes");
@@ -19,6 +20,11 @@ const app = express();
 // X-Forwarded-For. Without this the rate limiters would key every request in
 // production to the same proxy address and throttle all residents as one client.
 app.set("trust proxy", 1);
+
+// Report lists are large, highly repetitive JSON and were being served raw, which
+// was a significant share of the bandwidth that exhausted the previous host's
+// allowance. This typically cuts those responses by 85% or more.
+app.use(compression());
 
 app.use(cors());
 

@@ -286,24 +286,32 @@ exports.createEmergencyReport = async (req, res) => {
     const io = req.app.get("io");
     const residentInfo = populatedReport.userId;
 
+    // Photos are stripped from the broadcast. Sending them meant ~40MB of egress
+    // per report once the fan-out across both agency rooms and admin is counted,
+    // and the dashboards already load evidence on demand via GET /emergency/:id.
+    const alertPayload = populatedReport.toObject();
+    delete alertPayload.proofPhotos;
+    delete alertPayload.resolutionEvidence;
+
     notifiedAgencies.forEach((agency) => {
-      io.to(agency).emit("newEmergencyAlert", populatedReport);
+      io.to(agency).emit("newEmergencyAlert", alertPayload);
     });
 
-    io.to("admin").emit("newEmergencyAlert", populatedReport);
+    io.to("admin").emit("newEmergencyAlert", alertPayload);
 
     // Create notifications for admin AND each notified responder agency
     const notifTitle = "New incident reported";
     const notifMessage = `A new ${populatedReport.emergencyType || "incident"} report has been submitted by ${residentInfo?.fullName || "a resident"}.`;
+    // Neither proofPhotos nor the resident's base64 avatar belong here: both were
+    // duplicated into every notification document, persisted a second time, and
+    // re-sent over the socket to each agency plus admin.
     const notifMeta = {
       emergencyType: populatedReport.emergencyType,
       location: populatedReport.location,
-      proofPhotos: populatedReport.proofPhotos || [],
       resident: residentInfo ? {
         fullName: residentInfo.fullName || "",
         email: residentInfo.email || "",
         phoneNumber: residentInfo.phoneNumber || "",
-        avatar: residentInfo.avatar || "",
         barangay: residentInfo.barangay || "",
       } : null,
     };
@@ -349,13 +357,17 @@ exports.createEmergencyReport = async (req, res) => {
 
 exports.getAllReports = async (req, res) => {
   try {
+    // Bounded so the response cannot grow without limit as incidents accumulate.
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 500, 1), 2000);
+
     const reports = await EmergencyReport.find({ isDeleted: { $ne: true } })
       .select("-proofPhotos -resolutionEvidence")
       // barangay/completeAddress are the reporter's REGISTERED address, shown to
       // dispatchers as labelled context. They are never the incident's location.
       .populate("userId", "fullName email role phoneNumber barangay completeAddress")
       .populate("assignedResponder", "fullName email role agency phoneNumber")
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .limit(limit);
 
     res.json(reports);
   } catch (error) {
@@ -459,7 +471,14 @@ exports.getReportsByAgency = async (req, res) => {
     else if (agencyUpper === "PNP") typeFallback = ["crime"];
     else if (agencyUpper === "CDRRMO") typeFallback = ["fire", "flood", "emergency", "medical", "others"];
 
-    const reports = await EmergencyReport.find({
+    // This endpoint is polled by every open agency dashboard, so it must stay
+    // bounded. It previously returned every matching report on every call, which
+    // grows without limit as the city files more incidents.
+    //
+    // The full status range is still returned by default because the dashboard
+    // derives Queuing, Incident History, Rejected and Closed Cases from this one
+    // response. `status` narrows it when a caller only needs open incidents.
+    const query = {
       isDeleted: { $ne: true },
       $or: [
         { notifiedAgencies: { $in: [agencyUpper, agency, new RegExp(`^${agencyUpper}$`, "i")] } },
@@ -467,11 +486,24 @@ exports.getReportsByAgency = async (req, res) => {
         { notifiedAgencies: { $exists: false } },
         { notifiedAgencies: { $size: 0 } }
       ]
-    })
-      .select("-proofPhotos -resolutionEvidence")
+    };
+
+    const requestedStatuses = String(req.query.status || "")
+      .split(",")
+      .map((value) => value.trim().toLowerCase())
+      .filter(Boolean);
+    if (requestedStatuses.length > 0) {
+      query.status = { $in: requestedStatuses };
+    }
+
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 500, 1), 2000);
+
+    const reports = await EmergencyReport.find(query)
+      .select("-proofPhotos -resolutionEvidence -actionLog")
       .populate("userId", "fullName email role phoneNumber barangay completeAddress")
       .populate("assignedResponder", "fullName email role agency phoneNumber")
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .limit(limit);
 
     res.json(reports);
   } catch (error) {

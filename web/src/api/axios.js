@@ -1,12 +1,8 @@
 import axios from "axios";
-
-const resolveBaseURL = () => {
-  const url = import.meta.env.VITE_API_URL || "https://alertocalbayog-2.onrender.com";
-  return `${url.replace(/\/+$/, "")}/api`;
-};
+import { API_BASE_URL } from "./config.js";
 
 const api = axios.create({
-  baseURL: resolveBaseURL(),
+  baseURL: API_BASE_URL,
   headers: {
     "Content-Type": "application/json",
   },

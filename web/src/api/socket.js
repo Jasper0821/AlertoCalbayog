@@ -1,9 +1,7 @@
 import { io } from "socket.io-client";
+import { API_HOST } from "./config.js";
 
-const SOCKET_URL = import.meta.env.VITE_API_URL
-  || "https://alertocalbayog-2.onrender.com";
-
-const socket = io(SOCKET_URL, {
+const socket = io(API_HOST, {
   autoConnect: false,
   transports: ["polling", "websocket"],
   upgrade: true,

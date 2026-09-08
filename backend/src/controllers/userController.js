@@ -55,7 +55,13 @@ const adminNotification = async ({ title, message, metadata = {}, type = "user_e
 
 exports.getAllUsers = async (req, res) => {
   try {
-    const users = await User.find().select("-password").sort({ createdAt: -1 });
+    // `avatar` is excluded: avatars are stored as base64 data URIs, so returning one
+    // per user made this response grow with the user base, and the admin user table
+    // does not render them. (visiblePassword is still returned because the admin
+    // table displays it — see the note in the security review.)
+    const users = await User.find()
+      .select("-password -avatar")
+      .sort({ createdAt: -1 });
     const EmergencyReport = require("../models/EmergencyReport");
 
     const usersWithCounts = await Promise.all(
