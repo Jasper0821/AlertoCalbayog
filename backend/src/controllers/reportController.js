@@ -52,7 +52,13 @@ const emitReportChange = async (req, report, notificationMessage, notificationTy
   if (!io) return;
 
   const reportId = report._id.toString();
-  io.emit(`statusUpdate-${reportId}`, report);
+
+  // Photos are stripped from every socket payload below. They can be ~15MB of
+  // base64 per report, and the only consumers (the detail modals) already fetch
+  // them on demand via GET /emergency/:id.
+  const lean = typeof report.toObject === "function" ? report.toObject() : { ...report };
+  delete lean.proofPhotos;
+  delete lean.resolutionEvidence;
 
   const userIdStr = report.userId && report.userId._id ? report.userId._id.toString() : report.userId?.toString();
   if (userIdStr && notificationMessage) {
@@ -66,13 +72,15 @@ const emitReportChange = async (req, report, notificationMessage, notificationTy
         message: notificationMessage,
         category: "incident",
         type: notificationType,
-        metadata: {
-          status: report.status,
-          resolutionEvidence: report.resolutionEvidence || [],
-          proofPhotos: report.proofPhotos || []
-        }
+        // Photos are deliberately not copied here. They were duplicated into every
+        // notification document — persisted to Mongo a second time and re-sent over
+        // the socket — while the client can load them from the report itself.
+        metadata: { status: report.status, reportId }
       });
 
+      // Scoped to the incident's owner. This used to also be broadcast to every
+      // connected socket on the server via a bare io.emit.
+      io.to(userIdStr).emit(`statusUpdate-${reportId}`, lean);
       io.to(userIdStr).emit("notification", saved);
     } catch (err) {
       console.error("Failed to persist notification:", err.message);
@@ -104,15 +112,15 @@ const emitReportChange = async (req, report, notificationMessage, notificationTy
 
   if (report.notifiedAgencies) {
     report.notifiedAgencies.forEach((agency) => {
-      io.to(agency).emit("reportStatusChanged", report);
+      io.to(agency).emit("reportStatusChanged", lean);
     });
   }
 
   if (report.assignedResponder?._id) {
-    io.to(report.assignedResponder._id.toString()).emit("reportAssigned", report);
+    io.to(report.assignedResponder._id.toString()).emit("reportAssigned", lean);
   }
 
-  io.to("admin").emit("reportStatusChanged", report);
+  io.to("admin").emit("reportStatusChanged", lean);
 };
 
 exports.updateReportStatus = async (req, res) => {

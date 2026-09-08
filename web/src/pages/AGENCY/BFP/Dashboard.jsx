@@ -251,7 +251,10 @@ function BfpDashboard() {
       }
     };
     fetchReports();
-    const iv = setInterval(fetchReports, 5000);
+    // Sockets deliver live updates instantly; this poll is only a safety net for a
+    // dropped connection. At 5s it ran 17,280 times a day per open tab and was the
+    // single largest consumer of the host bandwidth allowance.
+    const iv = setInterval(fetchReports, 30000);
     return () => clearInterval(iv);
   }, []);
 
@@ -393,7 +396,9 @@ function BfpDashboard() {
     if (activeAlert || alertQueue.length === 0) return;
 
     const [nextAlert, ...remainingAlerts] = alertQueue;
-    setActiveAlert(nextAlert);
+    // Socket payloads no longer carry photos (they were ~40MB of egress per
+    // report), so the alert loads its evidence on open instead.
+    openAlertWithPhotos(nextAlert);
     setAlertQueue(remainingAlerts);
     playAlertSound();
   }, [activeAlert, alertQueue, user.soundAlerts, user.loopAlarm]);
@@ -406,7 +411,8 @@ function BfpDashboard() {
     const onConnect = () => {
       console.log("📡 BFP connected to socket, joining room:", room);
       socket.emit("joinRoom", room);
-      socket.emit("joinRoom", "admin");
+      // Deliberately NOT joining "admin": it doubled every payload this dashboard
+      // received and leaked admin-only notifications to agency staff.
     };
 
     if (socket.connected) {
@@ -480,7 +486,6 @@ function BfpDashboard() {
 
     return () => {
       socket.emit("leaveRoom", room);
-      socket.emit("leaveRoom", "admin");
       // Each .off() must name its handler. Calling socket.off("event") with no
       // reference removes EVERY listener for that event on the shared singleton,
       // including ones registered by other mounted components. Likewise the socket

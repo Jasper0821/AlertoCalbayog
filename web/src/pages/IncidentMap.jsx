@@ -86,7 +86,9 @@ function IncidentMap() {
  }
  };
  fetchReports();
- const interval = setInterval(fetchReports, 15000);
+ // Public page with no socket connection, so it does need to poll — but this is
+ // an at-a-glance awareness map, not a dispatch console, so a minute is plenty.
+ const interval = setInterval(fetchReports, 60000);
  return () => clearInterval(interval);
  }, []);
 

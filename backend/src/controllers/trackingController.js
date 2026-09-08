@@ -28,7 +28,9 @@ exports.updateTracking = async (req, res) => {
         userId: req.user.id,
         tracking
       };
-      io.emit(`trackingUpdate-${reportId}`, tracking);
+      // Scoped to the resident being tracked. A bare io.emit sent every GPS ping
+      // to every connected socket on the server.
+      io.to(String(req.user.id)).emit(`trackingUpdate-${reportId}`, tracking);
       io.to("CDRRMO").emit("liveLocationUpdate", payload);
       io.to("PNP").emit("liveLocationUpdate", payload);
       io.to("BFP").emit("liveLocationUpdate", payload);
