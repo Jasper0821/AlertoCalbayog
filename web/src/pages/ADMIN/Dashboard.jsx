@@ -35,6 +35,7 @@ import {
   MapPinIcon
 } from "./icons.jsx";
 import api from "../../api/axios.js";
+import { API_HOST } from "../../api/config.js";
 import socket from "../../api/socket.js";
 import Swal from "sweetalert2";
 import { getValidCalbayogBarangay } from "../../utils/barangays.js";
@@ -3225,7 +3226,7 @@ export default function AdminDashboard() {
   };
 
   const renderSettings = () => {
-    const apiBase = import.meta.env.VITE_API_URL || "https://alertocalbayog-2.onrender.com";
+    const apiBase = API_HOST;
 
     const roleCounts = ["admin", "responder", "resident"].map((role) => ({
       role,

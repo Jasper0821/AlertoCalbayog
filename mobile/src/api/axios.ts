@@ -1,6 +1,9 @@
 import axios from "axios";
 import Constants from "expo-constants";
 
+/** Single source of truth for the production backend host. Keep in sync with eas.json. */
+const PRODUCTION_API_HOST = "https://alertocalbayog-2.onrender.com";
+
 // Dynamically retrieve the host PC's IP address from Expo Constants or process.env
 const getBackendUrl = () => {
   // 1. In development (Expo Go / Dev Client), prioritize dynamic host detection so it automatically works
@@ -17,8 +20,15 @@ const getBackendUrl = () => {
     return cleanUrl.endsWith("/api") ? cleanUrl : `${cleanUrl}/api`;
   }
 
-  // 3. Fallback to production Render URL
-  return "https://alertocalbayog-2.onrender.com/api";
+  // 3. Fallback.
+  //
+  // WARNING: this value is compiled into the APK at build time. Changing the
+  // backend host means editing PRODUCTION_API_HOST below AND eas.json, then
+  // rebuilding and redistributing the app — already-installed copies keep
+  // calling whatever host was baked in when they were built. Pointing this at a
+  // domain you control, rather than a host's own subdomain, would make future
+  // moves a DNS change instead of a forced reinstall.
+  return `${PRODUCTION_API_HOST}/api`;
 };
 
 export const backendUrl = getBackendUrl();
