@@ -182,7 +182,7 @@ exports.updateUser = async (req, res) => {
     }
 
     const user = await User.findByIdAndUpdate(id, updates, {
-      new: true,
+      returnDocument: "after",
       runValidators: true
     }).select("-password");
 
@@ -330,7 +330,7 @@ exports.updateProfile = async (req, res) => {
     }
 
     const user = await User.findByIdAndUpdate(id, updates, {
-      new: true,
+      returnDocument: "after",
       runValidators: true
     }).select("-password");
 

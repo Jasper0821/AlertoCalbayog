@@ -21,10 +21,18 @@ exports.exportBackup = async (req, res) => {
   try {
     ensureBackupsDir();
 
-    const users = await User.find({}).lean();
-    const reports = await EmergencyReport.find({}).lean();
+    // Photos are excluded for the same reason as the automated backup in
+    // utils/scheduler.js: base64 proof images are several MB each, and loading all
+    // of them at once exhausted the heap on a 512MB instance and killed the process.
+    // An admin pressing Export must never be able to take the API down.
+    const users = await User.find({}).select("-avatar").lean();
+    const reports = await EmergencyReport.find({})
+      .select("-proofPhotos -resolutionEvidence")
+      .lean();
     const auditlogs = await AuditLog.find({}).lean();
-    const notifications = await Notification.find({}).lean();
+    const notifications = await Notification.find({})
+      .select("-metadata.proofPhotos -metadata.resolutionEvidence")
+      .lean();
     const messages = await Message.find({}).lean();
     const trackings = await Tracking.find({}).lean();
 
@@ -45,8 +53,8 @@ exports.exportBackup = async (req, res) => {
     const filename = `alerto_backup_manual_${timestamp}.json`;
     const filePath = path.join(BACKUPS_DIR, filename);
 
-    // Save to server local disk
-    fs.writeFileSync(filePath, JSON.stringify(backupData, null, 2), "utf-8");
+    // Not pretty-printed — the indentation roughly doubles the in-memory string.
+    fs.writeFileSync(filePath, JSON.stringify(backupData), "utf-8");
 
     // Log the backup action in AuditTrail
     await AuditLog.create({

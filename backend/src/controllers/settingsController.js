@@ -56,7 +56,7 @@ exports.updateSettings = async (req, res) => {
     const updated = await SystemSettings.findOneAndUpdate(
       { key },
       { value },
-      { new: true, upsert: true }
+      { returnDocument: "after", upsert: true }
     );
 
     res.json({ message: `Settings for ${key} updated successfully`, data: updated });

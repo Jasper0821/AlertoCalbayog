@@ -6,7 +6,7 @@
  * better, set VITE_API_URL in the hosting provider's environment settings) and every
  * caller follows.
  */
-const FALLBACK_API_HOST = "https://alertocalbayog-2.onrender.com";
+const FALLBACK_API_HOST = "https://alertocalbayog-mcms.onrender.com";
 
 /** Backend origin with no trailing slash and no /api suffix. Used for Socket.IO. */
 export const API_HOST = String(import.meta.env.VITE_API_URL || FALLBACK_API_HOST)
