@@ -52,10 +52,33 @@ const runSchedulerCheck = async () => {
 
     if (backupDue) {
       console.log(`[Scheduler] Starting automated backup (Interval: ${interval})...`);
-      const users = await User.find({}).lean();
-      const reports = await EmergencyReport.find({}).lean();
+
+      // Record the attempt BEFORE doing the work.
+      //
+      // This timestamp used to be written only after a successful backup. When the
+      // backup killed the process (see the memory note below), the attempt was never
+      // recorded, so the next boot found no lastBackupTime, decided a backup was due,
+      // and died again — an unrecoverable crash loop that took the whole API down.
+      // Recording first means a failure costs one interval, not the entire service.
+      lastRuns.lastAutoBackup[interval] = now.toISOString();
+      await SystemSettings.findOneAndUpdate(
+        { key: "lastScheduleRuns" },
+        { value: lastRuns },
+        { upsert: true, returnDocument: "after" }
+      );
+
+      // Photos are excluded deliberately. proofPhotos/resolutionEvidence are base64
+      // data URIs of several MB each, and loading every one into a 512MB container
+      // exhausted the heap. Going forward they live in Cloudinary and the documents
+      // carry only URLs, so nothing meaningful is lost from the backup.
+      const users = await User.find({}).select("-avatar").lean();
+      const reports = await EmergencyReport.find({})
+        .select("-proofPhotos -resolutionEvidence")
+        .lean();
       const auditlogs = await AuditLog.find({}).lean();
-      const notifications = await Notification.find({}).lean();
+      const notifications = await Notification.find({})
+        .select("-metadata.proofPhotos -metadata.resolutionEvidence")
+        .lean();
       const messages = await Message.find({}).lean();
       const trackings = await Tracking.find({}).lean();
 
@@ -76,7 +99,9 @@ const runSchedulerCheck = async () => {
       const filename = `alerto_backup_auto_${interval}_${dateStr}.json`;
       const filePath = path.join(BACKUPS_DIR, filename);
 
-      fs.writeFileSync(filePath, JSON.stringify(backupData, null, 2), "utf-8");
+      // Not pretty-printed: the indentation roughly doubled the size of the string
+      // held in memory alongside the already-large source objects.
+      fs.writeFileSync(filePath, JSON.stringify(backupData), "utf-8");
 
       // Log backup completion in audit trail
       await AuditLog.create({
@@ -87,13 +112,7 @@ const runSchedulerCheck = async () => {
         source: "system",
       });
 
-      // Update last runs state
-      lastRuns.lastAutoBackup[interval] = now.toISOString();
-      await SystemSettings.findOneAndUpdate(
-        { key: "lastScheduleRuns" },
-        { value: lastRuns },
-        { upsert: true, returnDocument: "after" }
-      );
+      // (The lastAutoBackup timestamp was already recorded before the work started.)
       console.log(`[Scheduler] Automated backup saved as ${filename}.`);
     }
 
@@ -159,10 +178,22 @@ const runSchedulerCheck = async () => {
 
 // Initialize and start scheduler (checks hourly)
 const startScheduler = () => {
+  // Escape hatch. If the scheduler ever takes the service down again, set
+  // DISABLE_SCHEDULER=true in the host's environment to boot without it.
+  if (String(process.env.DISABLE_SCHEDULER).toLowerCase() === "true") {
+    console.log("⏰ Scheduler disabled via DISABLE_SCHEDULER.");
+    return;
+  }
+
   console.log("⏰ Data Management & Backup Scheduler Initialized.");
-  // Run immediate check on startup
-  runSchedulerCheck();
-  // Check every hour
+
+  // Deliberately NOT run immediately. Backups are memory-heavy, and running one
+  // during boot meant the process could die before it ever served a request —
+  // so the API never came up at all. Delaying lets the server become healthy
+  // first, so a failure degrades the backup rather than the whole service.
+  const STARTUP_DELAY = 2 * 60 * 1000;
+  setTimeout(runSchedulerCheck, STARTUP_DELAY);
+
   const ONE_HOUR = 60 * 60 * 1000;
   setInterval(runSchedulerCheck, ONE_HOUR);
 };
