@@ -2,7 +2,7 @@ import axios from "axios";
 import Constants from "expo-constants";
 
 /** Single source of truth for the production backend host. Keep in sync with eas.json. */
-const PRODUCTION_API_HOST = "https://alertocalbayog-2.onrender.com";
+const PRODUCTION_API_HOST = "https://alertocalbayog-mcms.onrender.com";
 
 // Dynamically retrieve the host PC's IP address from Expo Constants or process.env
 const getBackendUrl = () => {
