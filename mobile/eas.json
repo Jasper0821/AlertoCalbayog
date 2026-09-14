@@ -10,7 +10,8 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://alertocalbayog-mcms.onrender.com"
+        "EXPO_PUBLIC_API_URL": "https://alertocalbayog-mcms.onrender.com",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "892430385717-3i8g8ue561rqftv859o8i6gg1q4gk1nt.apps.googleusercontent.com"
       }
     },
     "production": {
@@ -18,7 +19,8 @@
         "buildType": "app-bundle"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://alertocalbayog-mcms.onrender.com"
+        "EXPO_PUBLIC_API_URL": "https://alertocalbayog-mcms.onrender.com",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "892430385717-3i8g8ue561rqftv859o8i6gg1q4gk1nt.apps.googleusercontent.com"
       }
     }
   },

@@ -96,9 +96,34 @@ export const signInWithGoogle = async (): Promise<GoogleSignInResult> => {
     if (code.includes("CANCEL") || code === "12501") {
       return { status: "cancelled" };
     }
+
+    // DEVELOPER_ERROR (status 10) is the usual reason Google Sign-In works in
+    // development and then fails in a real build. It means Google rejected the
+    // app's identity: the signing certificate's SHA-1, the package name and the
+    // OAuth client in Google Cloud Console do not all agree. The generic message
+    // it ships with gives no hint of that, so name it explicitly.
+    if (code === "DEVELOPER_ERROR" || code === "10") {
+      return {
+        status: "error",
+        message:
+          "Google rejected this app's identity (DEVELOPER_ERROR). The build's SHA-1 " +
+          "certificate fingerprint is probably not registered against an Android OAuth " +
+          "client for com.alertocalbayog.mobile in Google Cloud Console.",
+      };
+    }
+
+    if (code === "PLAY_SERVICES_NOT_AVAILABLE" || code === "2") {
+      return {
+        status: "error",
+        message: "Google Play Services is missing or out of date on this device.",
+      };
+    }
+
     return {
       status: "error",
-      message: err?.message || "Google Sign-In failed. Please try again or use your mobile number.",
+      message:
+        (err?.message ? `Google Sign-In failed: ${err.message}` : "Google Sign-In failed.") +
+        " You can still sign in with your mobile number.",
     };
   }
 };
