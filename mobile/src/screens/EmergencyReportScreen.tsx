@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -53,6 +53,33 @@ interface Props {
 const MIN_PHOTOS = 2;
 const MAX_PHOTOS = 5;
 
+/**
+ * How old the newest watched fix may be and still be sent as-is. A reporter who
+ * has been on this screen for even a few seconds already has a fix this fresh,
+ * so submit costs no GPS wait at all.
+ */
+const FRESH_FIX_MAX_AGE_MS = 30 * 1000;
+
+/**
+ * Ceiling on how long submit may block waiting for a brand-new fix when no fresh
+ * one exists. getCurrentPositionAsync has no timeout of its own: indoors or under
+ * cover it can wait for a satellite lock indefinitely, which is what made SEND
+ * feel frozen. After this we fall back to whatever position we already have.
+ */
+const SUBMIT_FIX_TIMEOUT_MS = 8 * 1000;
+
+/** Oldest cached fix we will accept as a last resort. */
+const LAST_KNOWN_MAX_AGE_MS = 5 * 60 * 1000;
+
+type Fix = Location.LocationObject;
+
+/** Resolves to null instead of hanging, so a slow GPS cannot block the report. */
+const withTimeout = <T,>(promise: Promise<T>, ms: number): Promise<T | null> =>
+  Promise.race([
+    promise.catch(() => null),
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), ms)),
+  ]);
+
 export default function EmergencyReportScreen({
   route,
   navigation,
@@ -84,6 +111,25 @@ export default function EmergencyReportScreen({
   const [showLocationEdit, setShowLocationEdit] = useState<boolean>(false);
   const [showBarangayPicker, setShowBarangayPicker] = useState<boolean>(false);
   const [barangaySearch, setBarangaySearch] = useState<string>("");
+
+  /**
+   * The newest position the device has produced since this screen opened, kept
+   * warm by the watcher below. Submit reads this instead of asking for a fresh
+   * fix, which is the whole reason SEND no longer waits on GPS.
+   */
+  const latestFixRef = useRef<Fix | null>(null);
+
+  const rememberFix = useCallback((fix: Fix | null) => {
+    if (!fix) return;
+    const previous = latestFixRef.current;
+    // Keep the newer reading. Watch updates and one-shot reads can interleave.
+    if (!previous || fix.timestamp >= previous.timestamp) {
+      latestFixRef.current = fix;
+      if (typeof fix.coords.accuracy === "number") {
+        setAccuracy(Math.round(fix.coords.accuracy));
+      }
+    }
+  }, []);
 
   const filteredBarangays = CALBAYOG_BARANGAYS.filter((bgy) =>
     bgy.toLowerCase().includes(barangaySearch.toLowerCase())
@@ -125,15 +171,28 @@ export default function EmergencyReportScreen({
   const resolveAddress = useCallback(async () => {
     setResolvingAddress(true);
     try {
-      const position = await Location.getCurrentPositionAsync({
-        // The report is what responders navigate by, so it gets the best fix we
-        // can take. Live tracking already used High while this used Balanced.
-        accuracy: Location.Accuracy.High,
-      });
+      // Show the reporter something immediately. A cached fix is usually metres
+      // from the real one and arrives instantly, where a fresh High-accuracy fix
+      // can take tens of seconds — during which the screen used to sit blank.
+      const cached = await Location.getLastKnownPositionAsync({
+        maxAge: LAST_KNOWN_MAX_AGE_MS,
+      }).catch(() => null);
+      rememberFix(cached);
 
-      if (typeof position.coords.accuracy === "number") {
-        setAccuracy(Math.round(position.coords.accuracy));
-      }
+      // Then take the good fix. Bounded, because an unbounded wait here left
+      // "Detecting location…" on screen indefinitely indoors.
+      const fresh = await withTimeout(
+        Location.getCurrentPositionAsync({
+          // The report is what responders navigate by, so it gets the best fix we
+          // can take. Live tracking already used High while this used Balanced.
+          accuracy: Location.Accuracy.High,
+        }),
+        SUBMIT_FIX_TIMEOUT_MS
+      );
+      rememberFix(fresh);
+
+      const position = fresh || cached;
+      if (!position) return;
 
       const [place] = await Location.reverseGeocodeAsync({
         latitude: position.coords.latitude,
@@ -169,6 +228,43 @@ export default function EmergencyReportScreen({
   useEffect(() => {
     if (locationEnabled) resolveAddress();
   }, [locationEnabled, resolveAddress]);
+
+  /**
+   * Keeps a fix warm for the whole time the reporter spends photographing the
+   * scene. GPS is already powered up from the lookup above, so this costs little
+   * and means the position is ready the instant SEND is pressed rather than
+   * being requested from cold at the worst possible moment.
+   */
+  useEffect(() => {
+    if (!locationEnabled) return;
+
+    let subscription: Location.LocationSubscription | null = null;
+    let cancelled = false;
+
+    Location.watchPositionAsync(
+      {
+        accuracy: Location.Accuracy.High,
+        timeInterval: 3000,
+        distanceInterval: 5,
+      },
+      rememberFix
+    )
+      .then((sub) => {
+        if (cancelled) {
+          sub.remove();
+          return;
+        }
+        subscription = sub;
+      })
+      .catch(() => {
+        // Non-fatal: submit still falls back to a one-shot read.
+      });
+
+    return () => {
+      cancelled = true;
+      subscription?.remove();
+    };
+  }, [locationEnabled, rememberFix]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (nextAppState) => {
@@ -334,6 +430,40 @@ export default function EmergencyReportScreen({
     proofPhotos.length < MIN_PHOTOS ||
     proofPhotos.length > MAX_PHOTOS;
 
+  /**
+   * The position the report is sent with, in order of preference:
+   *
+   *   1. The warm fix the watcher has been maintaining — almost always present,
+   *      and returns instantly.
+   *   2. A fresh read, but capped so it cannot block the report indefinitely.
+   *   3. Any fix we already hold, even a slightly stale one.
+   *   4. A cached OS fix from the last five minutes.
+   *
+   * Only an unbounded stale position is refused outright: sending responders to
+   * where the phone was hours ago is worse than reporting no location at all.
+   */
+  const resolveSubmitPosition = async (): Promise<Fix | null> => {
+    const warm = latestFixRef.current;
+    if (warm && Date.now() - warm.timestamp < FRESH_FIX_MAX_AGE_MS) {
+      return warm;
+    }
+
+    const fresh = await withTimeout(
+      Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High }),
+      SUBMIT_FIX_TIMEOUT_MS
+    );
+    if (fresh) {
+      rememberFix(fresh);
+      return fresh;
+    }
+
+    if (latestFixRef.current) return latestFixRef.current;
+
+    return Location.getLastKnownPositionAsync({
+      maxAge: LAST_KNOWN_MAX_AGE_MS,
+    }).catch(() => null);
+  };
+
   const handleSubmit = async () => {
     if (!locationEnabled) {
       Alert.alert(
@@ -358,27 +488,18 @@ export default function EmergencyReportScreen({
     setLoading(true);
     setUploadProgress(0);
     try {
-      let location;
-      try {
-        location = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.High,
-        });
-      } catch {
-        // Only accept a cached fix from the last 5 minutes. An unbounded stale
-        // position could put responders wherever the phone was hours ago.
-        location = await Location.getLastKnownPositionAsync({ maxAge: 5 * 60 * 1000 });
-        if (!location) {
-          Alert.alert(
-            "Location Unavailable",
-            "Unable to determine your current location. Please make sure your GPS is turned on and try again.",
-            [
-              { text: "Open Settings", onPress: () => Linking.openSettings() },
-              { text: "Cancel", style: "cancel" },
-            ]
-          );
-          setLoading(false);
-          return;
-        }
+      const location = await resolveSubmitPosition();
+      if (!location) {
+        Alert.alert(
+          "Location Unavailable",
+          "Unable to determine your current location. Please make sure your GPS is turned on and try again.",
+          [
+            { text: "Open Settings", onPress: () => Linking.openSettings() },
+            { text: "Cancel", style: "cancel" },
+          ]
+        );
+        setLoading(false);
+        return;
       }
       const token = await getToken();
 

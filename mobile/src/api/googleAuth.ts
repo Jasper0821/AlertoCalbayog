@@ -49,9 +49,9 @@ export const signInWithGoogle = async (): Promise<GoogleSignInResult> => {
     return {
       status: "unavailable",
       message:
-        "Google Sign-In needs a development build — it cannot run inside Expo Go. " +
+        "Google Sign-In needs a real build — it cannot run inside Expo Go. " +
         "Sign in with your mobile number to continue testing, or build with " +
-        "'eas build --profile development' to try Google.",
+        "'eas build --profile preview --platform android' to try Google.",
     };
   }
 
