@@ -24,3 +24,8 @@ services:
         sync: false
       - key: CLOUDINARY_API_SECRET
         sync: false
+      # Google Sign-In. Same value as EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID in
+      # mobile/eas.json — the server checks incoming ID tokens were issued for
+      # this client. Google Sign-In is refused while it is unset.
+      - key: GOOGLE_WEB_CLIENT_ID
+        sync: false

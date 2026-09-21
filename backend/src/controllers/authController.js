@@ -12,6 +12,28 @@ const OTP_EXPIRY_MINUTES = 7;
 const CURRENT_TERMS_VERSION = process.env.CURRENT_TERMS_VERSION || "1.0";
 const CURRENT_PRIVACY_VERSION = process.env.CURRENT_PRIVACY_VERSION || "1.0";
 
+/**
+ * The OAuth client our mobile app signs in with. Google's tokeninfo endpoint only
+ * tells us a token is authentic and unexpired — NOT that it was issued for us. An
+ * ID token minted for any other application in the world is equally "valid" there,
+ * so without comparing the `aud` claim against this value, anyone holding such a
+ * token could sign in as its owner. Must match EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID
+ * in mobile/eas.json.
+ */
+const GOOGLE_WEB_CLIENT_ID = process.env.GOOGLE_WEB_CLIENT_ID?.trim();
+
+if (!GOOGLE_WEB_CLIENT_ID) {
+  console.warn(
+    "\n⚠️  [Auth] GOOGLE_WEB_CLIENT_ID is not set. Google Sign-In will be refused.\n" +
+    "    Set it to the same web client id the app builds with (mobile/eas.json →\n" +
+    "    EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID) in your hosting provider's environment\n" +
+    "    settings (Render → Environment). Every other sign-in method is unaffected.\n"
+  );
+}
+
+/** Google's tokeninfo call, bounded so a slow response cannot hang the request. */
+const GOOGLE_VERIFY_TIMEOUT_MS = 8000;
+
 
 // Validates password complexity based on the stored securityConfig setting
 const checkPasswordComplexity = async (password) => {
@@ -856,11 +878,43 @@ exports.googleLogin = async (req, res) => {
       });
     }
 
+    // Refuse rather than accept tokens we cannot attribute to our own app. See the
+    // note on GOOGLE_WEB_CLIENT_ID above: without it this endpoint would honour an
+    // ID token issued to any application, which is an authentication bypass.
+    if (!GOOGLE_WEB_CLIENT_ID) {
+      console.error("googleLogin refused: GOOGLE_WEB_CLIENT_ID is not configured.");
+      return res.status(503).json({
+        message: "Google Sign-In is not configured on the server. Please sign in with your mobile number instead."
+      });
+    }
+
     let googleUser = null;
     try {
-      const verifyRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${idToken}`);
+      const controller = new AbortController();
+      const verifyTimeout = setTimeout(() => controller.abort(), GOOGLE_VERIFY_TIMEOUT_MS);
+
+      let verifyRes;
+      try {
+        verifyRes = await fetch(
+          `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`,
+          { signal: controller.signal }
+        );
+      } finally {
+        clearTimeout(verifyTimeout);
+      }
+
       if (verifyRes.ok) {
         const payload = await verifyRes.json();
+
+        // The audience check. `aud` names the OAuth client the token was minted
+        // for; anything else is a token meant for a different application.
+        if (payload.aud !== GOOGLE_WEB_CLIENT_ID) {
+          console.warn(`googleLogin rejected token for foreign audience: ${payload.aud}`);
+          return res.status(401).json({
+            message: "Google Verification Failed: This sign-in token was not issued for Alerto Calbayog."
+          });
+        }
+
         if (payload.email_verified === "true" || payload.email_verified === true) {
           googleUser = {
             sub: payload.sub,
@@ -876,7 +930,10 @@ exports.googleLogin = async (req, res) => {
         return res.status(401).json({ message: "Google Verification Failed: Invalid or expired Google ID token." });
       }
     } catch (tokenErr) {
-      console.error("Failed to verify Google ID token with Google API:", tokenErr);
+      const reason = tokenErr.name === "AbortError"
+        ? `timed out after ${GOOGLE_VERIFY_TIMEOUT_MS}ms`
+        : tokenErr.message;
+      console.error("Failed to verify Google ID token with Google API:", reason);
       return res.status(401).json({ message: "Google Verification Failed: Unable to contact Google authentication servers." });
     }
 
