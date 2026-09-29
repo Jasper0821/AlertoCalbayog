@@ -57,7 +57,7 @@ export default function AdminQueuingSystem({
           <h1 className="text-xl font-black tracking-tight text-slate-900">Queuing System</h1>
           <p className="text-xs font-medium text-slate-500 mt-0.5">Manage active incident queues across all agencies.</p>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex flex-wrap items-center gap-2">
           <span className="flex items-center gap-1.5 text-xs font-bold bg-amber-50 border border-amber-200 text-amber-700 px-3 py-1.5 rounded-full">
             <span className="w-2 h-2 rounded-full bg-amber-400"></span>
             {pendingCount} Pending

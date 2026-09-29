@@ -134,7 +134,7 @@ function LandingPage() {
   });
 
   return (
-    <main className="relative flex h-dvh flex-col overflow-hidden bg-[#04112b] font-sans text-white antialiased transition-colors duration-300">
+    <main className="relative flex min-h-dvh flex-col bg-[#04112b] md:h-dvh md:overflow-hidden font-sans text-white antialiased transition-colors duration-300">
 
       {/* Splash screen — unmounts after done */}
       {!splashDone && (

@@ -1,3 +1,4 @@
+import ReportGenerator from "../../../components/ReportGenerator.jsx";
 import { useState, useEffect, useMemo } from "react";
 import { BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line } from "recharts";
 
@@ -180,12 +181,14 @@ export default function Analytics({ reports = [] }) {
   return (
     <div className="space-y-5 pb-10 w-full min-h-screen bg-[#f8fafc] p-4 lg:p-8 rounded-3xl font-sans">
 
+      <ReportGenerator reports={reports} scope="PNP" scopeLabel="PNP" accent="violet" />
+
       {/* TOP ROW */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 mb-5">
 
         {/* 1. Overall Trend (Line Chart) */}
         <div className="lg:col-span-8 bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-slate-100 relative overflow-hidden flex flex-col">
-          <div className="flex items-start justify-between mb-8 relative z-10">
+          <div className="flex flex-wrap items-start justify-between gap-4 mb-8 relative z-10">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 rounded-full border border-slate-100 flex items-center justify-center text-slate-400 bg-slate-50">
                 <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18" /><path d="m19 9-5 5-4-4-3 3" /></svg>
