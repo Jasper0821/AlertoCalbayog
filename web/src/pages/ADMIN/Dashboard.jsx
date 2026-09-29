@@ -41,6 +41,8 @@ import Swal from "sweetalert2";
 import { getValidCalbayogBarangay } from "../../utils/barangays.js";
 import { formatLocationForTable, directionsUrl, reporterAddress } from "../../utils/incidentFormatters.js";
 import { clearDashboardNavigationState } from "../../utils/dashboardSession.js";
+import { formatMinutes, getFirstResponseDate } from "../../utils/reportGenerator.js";
+import ReportGenerator from "../../components/ReportGenerator.jsx";
 import AdminQueuingSystem from "./AdminQueuingSystem.jsx";
 import AdminLiveMap from "./AdminLiveMap.jsx";
 
@@ -228,27 +230,6 @@ function buildMonthlyTrend(reports) {
   return months.map(({ name, incidents }) => ({ name, incidents }));
 }
 
-function getFirstResponseDate(report) {
-  const entries = Array.isArray(report.actionLog) ? report.actionLog : [];
-  const responseEntry = entries
-    .filter((entry) => {
-      const toStatus = (entry.toStatus || "").toLowerCase();
-      return entry.action === "responder_assignment" || ["verified", "responding", "active", "resolved", "responded"].includes(toStatus);
-    })
-    .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))[0];
-
-  return responseEntry?.createdAt ? new Date(responseEntry.createdAt) : null;
-}
-
-function formatMinutes(minutes) {
-  if (!Number.isFinite(minutes)) return "Not available";
-  if (minutes < 1) return "<1 min";
-  if (minutes < 60) return `${Math.round(minutes)} min`;
-  const hours = Math.floor(minutes / 60);
-  const mins = Math.round(minutes % 60);
-  return `${hours}h ${mins}m`;
-}
-
 function ChartTooltip({ active, payload, label }) {
   if (!active || !payload?.length) return null;
   return (
@@ -256,6 +237,20 @@ function ChartTooltip({ active, payload, label }) {
       <p className="font-black text-slate-900">{label || payload[0].name}</p>
       <p className="mt-1 font-semibold text-slate-600">{payload[0].value} incidents</p>
     </div>
+  );
+}
+
+// Barangay names are often full addresses; Recharts wraps them onto several lines,
+// which overlap neighbouring rows. Keep each label on one line and ellipsize it.
+const BARANGAY_LABEL_MAX = 22;
+function BarangayTick({ x, y, payload }) {
+  const full = String(payload?.value ?? "");
+  const text = full.length > BARANGAY_LABEL_MAX ? `${full.slice(0, BARANGAY_LABEL_MAX - 1).trimEnd()}…` : full;
+  return (
+    <text x={x} y={y} dx={-6} dy={4} textAnchor="end" fill="#64748b" fontSize={11} fontWeight={700}>
+      <title>{full}</title>
+      {text}
+    </text>
   );
 }
 
@@ -1993,12 +1988,13 @@ export default function AdminDashboard() {
   );
 
   const renderAnalytics = () => (
-    <div className="flex flex-col h-full overflow-hidden">
+    <div className="flex-1 h-full min-h-0 overflow-y-auto overflow-x-hidden pr-1 space-y-3">
+      <ReportGenerator reports={reports} scope="admin" scopeLabel="Citywide" />
 
       {!analyticsData.hasData ? (
         <EmptyAnalytics />
       ) : (
-        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden pr-1 space-y-3">
+        <>
           {/* Row 1: Line chart + Status Pie */}
           <div className="grid gap-3 xl:grid-cols-[1.3fr_0.7fr]">
             <AnalyticsCard title="Monthly Incident Trend" subtitle="Reports created during the latest six-month window">
@@ -2060,16 +2056,17 @@ export default function AdminDashboard() {
             </AnalyticsCard>
 
             <AnalyticsCard title="Top Barangays by Reports" subtitle="Barangays with the highest incident volume">
-              <div style={{ height: 200 }}>
+              <div style={{ height: Math.max(200, analyticsData.barangays.slice(0, 8).length * 34 + 40) }}>
                 <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} initialDimension={{ width: 100, height: 100 }}>
                   <BarChart
                     data={analyticsData.barangays.slice(0, 8)}
                     layout="vertical"
-                    margin={{ top: 8, right: 16, left: 12, bottom: 0 }}
+                    margin={{ top: 8, right: 16, left: 4, bottom: 0 }}
+                    barCategoryGap={8}
                   >
                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" horizontal={false} />
                     <XAxis type="number" allowDecimals={false} axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 11, fontWeight: 700 }} />
-                    <YAxis type="category" dataKey="name" width={88} axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 10, fontWeight: 700 }} />
+                    <YAxis type="category" dataKey="name" width={150} interval={0} axisLine={false} tickLine={false} tick={<BarangayTick />} />
                     <Tooltip content={<ChartTooltip />} />
                     <Bar dataKey="value" fill="#0f766e" radius={[0, 8, 8, 0]} />
                   </BarChart>
@@ -2077,7 +2074,7 @@ export default function AdminDashboard() {
               </div>
             </AnalyticsCard>
           </div>
-        </div>
+        </>
       )}
     </div>
   );
@@ -2092,7 +2089,7 @@ export default function AdminDashboard() {
             const Icon = stat.icon;
             return (
               <div key={stat.label} className="flex items-center gap-3.5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${stat.bg} ${stat.text}`}>
+                <div className={`hidden h-11 w-11 shrink-0 items-center justify-center rounded-xl sm:flex ${stat.bg} ${stat.text}`}>
                   <Icon className="h-5 w-5" />
                 </div>
                 <div className="min-w-0">
@@ -3329,7 +3326,7 @@ export default function AdminDashboard() {
     ];
 
     return (
-      <div className="-mx-4 -my-3 lg:-mx-6 lg:-my-4 h-[calc(100vh-5rem)] bg-white flex flex-col lg:flex-row" style={{ fontFamily: "'Inter', 'Manrope', system-ui, sans-serif" }}>
+      <div className="-mx-3 -my-3 sm:-mx-4 md:-mx-6 md:-my-4 md:h-[calc(100vh-5rem)] bg-white flex flex-col lg:flex-row" style={{ fontFamily: "'Inter', 'Manrope', system-ui, sans-serif" }}>
 
         {/* Left Column Settings Navigation - Light themed */}
         <div className="w-full lg:w-72 shrink-0 border-r border-slate-100 flex flex-col">

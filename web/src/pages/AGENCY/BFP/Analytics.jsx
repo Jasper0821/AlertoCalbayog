@@ -1,3 +1,4 @@
+import ReportGenerator from "../../../components/ReportGenerator.jsx";
 import { useState, useEffect, useMemo } from "react";
 import {
   BarChart, Bar, CartesianGrid, Cell, Pie, PieChart,
@@ -71,6 +72,8 @@ export default function Analytics({ reports = [] }) {
 
   return (
     <div className="space-y-6 pb-10 bg-slate-50 min-h-screen text-slate-800 p-1">
+
+      <ReportGenerator reports={reports} scope="BFP" scopeLabel="BFP" accent="red" />
 
       {/* Top 2-Column Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

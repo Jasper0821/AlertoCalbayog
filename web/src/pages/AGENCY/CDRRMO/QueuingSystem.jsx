@@ -163,7 +163,7 @@ export default function QueuingSystem({ reports = [], onStatusChange }) {
           </tbody>
         </table>
         </div>
-        <div className="space-y-3 p-3 lg:hidden">
+        <div className="h-full space-y-3 overflow-y-auto p-3 lg:hidden">
           {activeReports.map((report, idx) => {
             const type = (report.emergencyType || "others").toLowerCase();
             const tc = TYPE_COLORS[type] || TYPE_COLORS.others;

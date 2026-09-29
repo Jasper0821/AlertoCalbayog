@@ -64,7 +64,7 @@ export default function QueuingSystem({ reports = [], onStatusChange }) {
 
   return (
     <div className="space-y-6 pb-10">
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-xl font-bold text-slate-800">Queuing System</h1>
           <p className="text-sm text-slate-500 mt-0.5">Manage active incident queues and update report status in real-time.</p>

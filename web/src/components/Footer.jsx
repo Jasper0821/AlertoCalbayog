@@ -10,7 +10,7 @@ export function Footer() {
           <h3 className="truncate text-[13px] font-bold tracking-tight text-white sm:text-sm">
             Alerto Calbayog
           </h3>
-          <p className="mt-0.5 truncate text-[10px] text-slate-500 sm:text-[11px]">
+          <p className="mt-0.5 text-[10px] leading-snug sm:truncate text-slate-500 sm:text-[11px]">
             © {currentYear} Alerto Calbayog Emergency Response System. All Rights Reserved. Official Government Portal.
           </p>
         </div>

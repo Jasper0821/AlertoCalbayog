@@ -61,16 +61,16 @@ function Register() {
  };
 
  return (
- <main className="relative flex h-dvh flex-col overflow-hidden bg-[#f4f7fc] font-sans antialiased transition-colors duration-300">
+ <main className="relative flex min-h-dvh flex-col bg-[#f4f7fc] md:h-dvh md:overflow-hidden font-sans antialiased transition-colors duration-300">
  <Navbar />
 
- <div className="relative flex min-h-0 flex-1 items-center justify-center px-4 pt-16 pb-1">
+ <div className="relative flex min-h-0 flex-1 items-center justify-center px-4 pt-20 pb-4 md:pt-16 md:pb-1">
  {/* Background Decorative Elements */}
  <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(12,49,102,0.03),transparent_40%)]" />
  <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgba(239,68,68,0.02),transparent_40%)]" />
 
  {/* Unified Two-Panel Registration Box */}
- <section className="relative z-10 flex max-h-full w-full max-w-3xl overflow-hidden rounded-xl border border-slate-200/60 bg-white shadow-xl md:flex-row">
+ <section className="relative z-10 flex w-full max-w-3xl overflow-hidden md:max-h-full rounded-xl border border-slate-200/60 bg-white shadow-xl md:flex-row">
  
  {/* Left Panel: Responder Network Sidebar */}
  <div className="relative hidden w-full shrink-0 bg-[#0a1e3f] p-4 text-white md:flex md:w-[220px] md:flex-col md:justify-between">

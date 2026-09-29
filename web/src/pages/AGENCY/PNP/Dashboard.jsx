@@ -928,9 +928,12 @@ function AdminDashboard() {
         </header>
 
         {/* ── PAGE CONTENT ── */}
-        <section className={`flex-1 min-h-0 ${activeNav === "live-map" || activeNav === "dashboard"
+        <section className={`flex-1 min-h-0 ${activeNav === "live-map"
           ? "overflow-hidden p-0 m-0 w-full h-full"
-          : "overflow-y-auto p-5 md:p-7"
+          : activeNav === "dashboard"
+            // The overview fits one screen on desktop but stacks (and must scroll) on phones.
+            ? "overflow-y-auto md:overflow-hidden p-0 m-0 w-full h-full"
+            : "overflow-y-auto p-5 md:p-7"
           }`}>
           <div className={
             activeNav === "live-map" || activeNav === "dashboard"

@@ -88,7 +88,7 @@ function Login() {
   };
 
   return (
-    <main className="relative flex h-dvh flex-col overflow-hidden bg-[#f4f7fc] font-sans antialiased transition-colors duration-300">
+    <main className="relative flex min-h-dvh flex-col bg-[#f4f7fc] md:h-dvh md:overflow-hidden font-sans antialiased transition-colors duration-300">
       <Navbar />
 
       <div className="relative flex min-h-0 flex-1 flex-col items-center justify-center px-4 pt-20 pb-3">
