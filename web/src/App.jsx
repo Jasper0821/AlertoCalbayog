@@ -14,6 +14,7 @@ import Contact from "./pages/Contact";
 import ForgotPassword from "./pages/ForgotPassword";
 import IncidentMap from "./pages/IncidentMap";
 import VerifyOTP from "./pages/VerifyOTP";
+import Policies from "./pages/Policies";
 import { clearDashboardNavigationState } from "./utils/dashboardSession.js";
 
 const getAgencyRoute = (user) => {
@@ -89,6 +90,9 @@ function App() {
         <Route path="/about" element={<About />} />
         <Route path="/contact" element={<Contact />} />
         <Route path="/map" element={<IncidentMap />} />
+        <Route path="/privacy" element={<Policies />} />
+        <Route path="/terms" element={<Policies />} />
+        <Route path="/emergency-protocols" element={<Policies />} />
 
         <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
         <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
