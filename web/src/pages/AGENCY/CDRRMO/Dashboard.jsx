@@ -103,8 +103,12 @@ const NAV = [
   },
 ];
 
+// Crime reports are PNP's, but newer ones also alert CDRRMO as medical support.
+// Older crime reports that only notified PNP stay off this dashboard.
 function isCdrrmoReport(report) {
-  return (report.emergencyType || report.incidentType || report.type || "").toLowerCase() !== "crime";
+  const type = (report.emergencyType || report.incidentType || report.type || "").toLowerCase();
+  if (type !== "crime") return true;
+  return (report.notifiedAgencies || []).includes("CDRRMO");
 }
 
 function CdrrmoDashboard() {
@@ -442,7 +446,7 @@ function CdrrmoDashboard() {
     socket.on("connect", onConnect);
 
     const onNewEmergencyAlert = (newReport) => {
-      // Ensure we only process CDRRMO reports (block PNP/crime reports)
+      // Ensure we only process CDRRMO reports (block PNP-only crime reports)
       if (!isCdrrmoReport(newReport)) return;
 
       const reportId = newReport._id;
@@ -465,7 +469,7 @@ function CdrrmoDashboard() {
     };
 
     const onReportStatusChanged = (updatedReport) => {
-      // Ensure we only process CDRRMO reports (block PNP/crime reports)
+      // Ensure we only process CDRRMO reports (block PNP-only crime reports)
       if (!isCdrrmoReport(updatedReport)) return;
 
       console.log("📡 CDRRMO Command Center received status change:", updatedReport);

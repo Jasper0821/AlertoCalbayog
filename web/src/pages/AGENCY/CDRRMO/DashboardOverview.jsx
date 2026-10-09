@@ -321,8 +321,10 @@ export default function DashboardOverview({ reports = [], setActiveNav, onStatus
                       </button>
                       {/* Only a responding incident can be resolved (reportController.js:18).
                           This used to render on every row, so resolving a pending one
-                          collected photos and then failed with 400. */}
-                      {["responding", "active"].includes((r.status || "").toLowerCase()) && (
+                          collected photos and then failed with 400. Crime is resolved
+                          by PNP; CDRRMO only provides medical support there. */}
+                      {["responding", "active"].includes((r.status || "").toLowerCase()) &&
+                        (r.emergencyType || "").toLowerCase() !== "crime" && (
                         <button title="Mark Resolved" onClick={()=>setResolvingReportId(r._id)}
                           style={{ background:"none", border:"none", cursor:"pointer", color:"#10b981", padding:3, borderRadius:5 }}
                           onMouseEnter={e=>e.currentTarget.style.background="#ecfdf5"}

@@ -75,7 +75,7 @@ function MapResizeBridge() {
 // Resolve a report's emergencyType to a config entry
 function getTypeConfig(emergencyType) {
   const raw = (emergencyType || "others").toLowerCase().trim();
-  // crime is PNP-only — show as generic warning on CDRRMO map
+  // crime has no CDRRMO pin style (CDRRMO only gives medical support) — show as generic warning
   if (raw === "crime" || raw === "security") return TYPE_MAP_CONFIG.others;
   return TYPE_MAP_CONFIG[raw] || TYPE_MAP_CONFIG.others;
 }
@@ -130,7 +130,7 @@ export default function LiveMap({ reports = [] }) {
   // Collect unique types present in reports for the legend
   const presentTypes = [...new Set(safeReports.map(r => {
     const raw = (r.emergencyType || "others").toLowerCase().trim();
-    // crime → others for CDRRMO
+    // crime → others for CDRRMO (no crime pin style here)
     if (raw === "crime" || raw === "security") return "others";
     return raw;
   }))].filter(t => TYPE_MAP_CONFIG[t]);

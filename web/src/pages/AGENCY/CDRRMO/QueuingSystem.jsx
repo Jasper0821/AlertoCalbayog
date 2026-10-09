@@ -12,6 +12,21 @@ const TYPE_COLORS = {
   others:  { dot: "bg-slate-400",   text: "text-slate-600",   bg: "bg-slate-100", border: "border-slate-200" },
   emergency:{ dot: "bg-slate-400",  text: "text-slate-600",   bg: "bg-slate-100", border: "border-slate-200" },
 };
+const isCrime = (report) => (report.emergencyType || "").toLowerCase() === "crime";
+const isLockedForCdrrmo = (report) => {
+  const status = (report.status || "").toLowerCase();
+  if (["resolved", "responded"].includes(status)) return true;
+  return isCrime(report) && ["responding", "active"].includes(status);
+};
+
+function SupportBadge() {
+  return (
+    <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700" title="PNP leads this case. CDRRMO responds with medical support.">
+      Medical support · PNP lead
+    </span>
+  );
+}
+
 const STATUS_STYLES = {
   pending:    { dot: "bg-amber-400",   text: "text-amber-700",   bg: "bg-amber-50",   border: "border-amber-200",   label: "Pending" },
   rejected:   { dot: "bg-red-500",     text: "text-red-700",     bg: "bg-red-50",     border: "border-red-200",     label: "Rejected" },
@@ -49,8 +64,15 @@ export default function QueuingSystem({ reports = [], onStatusChange }) {
     return current === "active" ? "responding" : current;
   };
 
-  const statusOptions = (status) => {
+  const statusOptions = (status, crime = false) => {
     const current = (status || "pending").toLowerCase();
+    // CDRRMO only sends medical support on crime; PNP rejects or resolves it
+    // (enforced in reportController.js updateReportStatus).
+    if (crime) {
+      if (current === "responding" || current === "active") return <option value="responding">Responding</option>;
+      if (current === "resolved" || current === "responded") return <option value="resolved">Awaiting admin closure</option>;
+      return <><option value="pending">Pending</option><option value="responding">Responding</option></>;
+    }
     if (current === "responding" || current === "active") {
       return <><option value="responding">Responding</option><option value="resolved">Resolved</option></>;
     }
@@ -106,10 +128,13 @@ export default function QueuingSystem({ reports = [], onStatusChange }) {
               return (
                 <tr key={report._id || idx} className="hover:bg-slate-50/30 transition-colors text-sm text-slate-700">
                   <td className="px-5 py-4">
-                    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-bold ${tc.bg} ${tc.border} ${tc.text}`}>
-                      <span className={`w-2 h-2 rounded-full ${tc.dot}`}></span>
-                      {TYPE_LABELS[type] || "Incident"}
-                    </span>
+                    <div className="flex flex-col items-start gap-1">
+                      <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-bold ${tc.bg} ${tc.border} ${tc.text}`}>
+                        <span className={`w-2 h-2 rounded-full ${tc.dot}`}></span>
+                        {TYPE_LABELS[type] || "Incident"}
+                      </span>
+                      {isCrime(report) && <SupportBadge />}
+                    </div>
                   </td>
                   <td className="px-5 py-4 text-slate-500 font-medium max-w-[160px]" title={locationText}>
                     <p className="truncate">{locationText}</p>
@@ -127,10 +152,10 @@ export default function QueuingSystem({ reports = [], onStatusChange }) {
                     <select
                       value={toSelectValue(report.status)}
                       onChange={(e) => handleStatusSelect(report._id, e.target.value)}
-                      disabled={["resolved", "responded"].includes((report.status || "").toLowerCase())}
+                      disabled={isLockedForCdrrmo(report)}
                       className="text-xs font-bold border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-700 outline-none cursor-pointer hover:border-[#0a1e3f] focus:border-[#0a1e3f] focus:ring-1 focus:ring-[#0a1e3f]/30 transition-all shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      {statusOptions(report.status)}
+                      {statusOptions(report.status, isCrime(report))}
                     </select>
                   </td>
                   <td className="px-5 py-4">
@@ -180,6 +205,7 @@ export default function QueuingSystem({ reports = [], onStatusChange }) {
                       <span className={`h-1.5 w-1.5 rounded-full ${sc.dot}`}></span>
                       {sc.label}
                     </span>
+                    {isCrime(report) && <SupportBadge />}
                   </div>
                   <button onClick={() => setSelectedReport(report)} className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-violet-200 bg-violet-50 px-2.5 py-1.5 text-[11px] font-semibold text-violet-700">
                     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
@@ -196,10 +222,10 @@ export default function QueuingSystem({ reports = [], onStatusChange }) {
                   <select
                     value={toSelectValue(report.status)}
                     onChange={(e) => handleStatusSelect(report._id, e.target.value)}
-                    disabled={["resolved", "responded"].includes((report.status || "").toLowerCase())}
+                    disabled={isLockedForCdrrmo(report)}
                     className="w-full text-xs font-bold border border-slate-200 rounded-lg px-3 py-2 bg-white text-slate-700 outline-none disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    {statusOptions(report.status)}
+                    {statusOptions(report.status, isCrime(report))}
                   </select>
                 </div>
               </article>
