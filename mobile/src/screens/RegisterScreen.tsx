@@ -74,7 +74,8 @@ export default function RegisterScreen({ navigation, route }: Props): React.JSX.
   const [completeAddress, setCompleteAddress] = useState<string>("");
   const [showOptional, setShowOptional] = useState<boolean>(false);
 
-  const [agreeTerms, setAgreeTerms] = useState<boolean>(true);
+  // Data Privacy Act: consent must be an affirmative act, so this starts unchecked.
+  const [agreeTerms, setAgreeTerms] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
   const [locating, setLocating] = useState<boolean>(false);
 
@@ -202,7 +203,7 @@ export default function RegisterScreen({ navigation, route }: Props): React.JSX.
             phoneNumber: cleanMobile,
             barangay: barangay.trim(),
             completeAddress: completeAddress.trim(),
-            termsAccepted: true,
+            termsAccepted: agreeTerms,
           })
         : await api.post("/auth/register", {
             fullName: fullName.trim(),
@@ -213,7 +214,7 @@ export default function RegisterScreen({ navigation, route }: Props): React.JSX.
             emergencyContactNumber: cleanEmergency,
             // Recorded server-side so the resident is not stopped by the User
             // Agreement screen on their next launch.
-            termsAccepted: true,
+            termsAccepted: agreeTerms,
           });
 
       await saveToken(res.data.token);

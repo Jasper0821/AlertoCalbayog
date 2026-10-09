@@ -154,6 +154,16 @@ exports.updateReportStatus = async (req, res) => {
       return res.status(403).json({ message: "You are not allowed to update this report status" });
     }
 
+    // CDRRMO is alerted on crime only to send its medical unit. PNP owns the case,
+    // so CDRRMO may mark it responding but not reject or resolve it for everyone.
+    const isSupportAgency =
+      !isAdmin && report.emergencyType === "crime" && currentUser.agency === "CDRRMO";
+    if (isSupportAgency && status !== "responding") {
+      return res.status(403).json({
+        message: "PNP handles crime reports. CDRRMO can only mark its medical unit as responding."
+      });
+    }
+
     const previousStatus = report.status;
     if (!isAllowedStatusTransition(previousStatus, status, isAdmin)) {
       return res.status(400).json({
@@ -181,7 +191,8 @@ exports.updateReportStatus = async (req, res) => {
     // Record which agency actually took the incident. `assignedAgency` previously
     // stayed "NONE" forever because the only writer (PUT /reports/:id/assign) has no
     // UI, so the admin console could show who was *alerted* but never who *responded*.
-    if (status === "responding" && isAgencyUser && currentUser.agency) {
+    // A support agency's dispatch is kept in the actionLog; the case stays PNP's.
+    if (status === "responding" && isAgencyUser && !isSupportAgency && currentUser.agency) {
       report.assignedAgency = currentUser.agency;
     }
 

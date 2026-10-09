@@ -3,7 +3,9 @@ const mapAgencies = (emergencyType) => {
     case "fire":
       return ["CDRRMO", "BFP"];
     case "crime":
-      return ["PNP"];
+      // PNP leads; CDRRMO is alerted as support because crimes often involve
+      // injuries and CDRRMO runs the medical unit.
+      return ["PNP", "CDRRMO"];
     case "medical":
     case "others":
     case "flood":
