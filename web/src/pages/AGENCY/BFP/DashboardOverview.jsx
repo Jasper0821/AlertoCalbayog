@@ -3,7 +3,7 @@ import {
   LineChart, Line,
   XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from "recharts";
-import { TYPE_ICONS } from "../../../utils/incidentFormatters.js";
+import { TYPE_ICONS, formatLocationForTable } from "../../../utils/incidentFormatters.js";
 import IncidentDetailModal from "../PNP/IncidentDetailModal.jsx";
 import ResolutionEvidenceModal from "../ResolutionEvidenceModal.jsx";
 
@@ -337,7 +337,7 @@ export default function DashboardOverview({ reports = [], setActiveNav, onStatus
                 recentIncidents.map((r, i) => {
                   const type = (r.emergencyType || "fire").toLowerCase();
                   const iconInfo = TYPE_ICONS[type] || TYPE_ICONS.fire;
-                  const locText = typeof r.location === "string" ? r.location : (r.location?.name || "Unknown");
+                  const locText = formatLocationForTable(r.location);
                   const date = r.createdAt ? new Date(r.createdAt) : new Date();
                   const isPending = ["pending","verified"].includes((r.status || "").toLowerCase());
                   const isResponding = ["responding","active"].includes((r.status || "").toLowerCase());

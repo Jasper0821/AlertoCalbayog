@@ -209,7 +209,7 @@ export default function LiveMap({ reports = [] }) {
                           <div className="font-semibold text-slate-700">{report.location}</div>
                         ) : (
                           <>
-                            <div className="font-bold text-[#0a1e3f] mb-1">{report.location?.name || "Specified Location"}</div>
+                            <div className="font-bold text-[#0a1e3f] mb-1">{formatLocationForTable(report.location)}</div>
                             {report.location?.barangay && (
                               <div className="flex justify-between items-center text-[10px] py-0.5 border-b border-slate-100/50">
                                 <span className="font-semibold text-slate-400">Barangay</span>

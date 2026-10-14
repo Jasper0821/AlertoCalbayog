@@ -3,7 +3,7 @@ import {
   LineChart, Line,
   XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from "recharts";
-import { TYPE_ICONS } from "../../../utils/incidentFormatters.js";
+import { TYPE_ICONS, formatLocationForTable } from "../../../utils/incidentFormatters.js";
 import IncidentDetailModal from "./IncidentDetailModal.jsx";
 import ResolutionEvidenceModal from "../ResolutionEvidenceModal.jsx";
 
@@ -298,7 +298,7 @@ export default function DashboardOverview({ reports = [], setActiveNav, onStatus
               const typeInfo = TYPE_ICONS[typeKey] || TYPE_ICONS.others;
               const reporter = r.userId?.fullName || r.name || "Anonymous";
               const phone = r.userId?.phoneNumber || r.phoneNumber || "N/A";
-              const loc = typeof r.location === "string" ? r.location : (r.location?.name || [r.location?.barangay, r.location?.street].filter(Boolean).join(", ") || "Unknown");
+              const loc = formatLocationForTable(r.location);
               return (
                 <tr key={r._id || i} style={{ borderTop: "1px solid #f8fafc", transition: "background .12s" }}
                   onMouseEnter={e => e.currentTarget.style.background = "#f8fafc"}

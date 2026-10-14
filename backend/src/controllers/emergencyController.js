@@ -18,6 +18,15 @@ const cleanBarangay = (value = "") =>
     .replace(/\s+district$/i, " District")
     .trim();
 
+// Android's geocoder names an unnamed spot by its Plus Code ("3H9V+8H2"), which the app
+// sent as the landmark. That code is for the geocoder's snapped point, not the GPS fix;
+// the dashboards derive the accurate one from the coordinates, so it is dropped here.
+const withoutPlusCode = (value = "") =>
+  String(value)
+    .replace(/\b[23456789CFGHJMPQRVWX]{4,8}\+[23456789CFGHJMPQRVWX]*/gi, "")
+    .replace(/^[,\s]+|[,\s]+$/g, "")
+    .trim();
+
 const cleanPurok = (value = "") => {
   const cleaned = cleanText(value);
   const match = cleaned.match(/\bpurok\s+([a-z0-9 -]+)/i);
@@ -150,12 +159,15 @@ exports.createEmergencyReport = async (req, res) => {
 
     // Address describing THE INCIDENT. The reporting device geocodes on-site and
     // sends these; anything it could not determine is filled in below.
-    let name = req.body.address || req.body.locationName || "";
-    let barangay = (req.body.barangay || "").trim();
-    let street = (req.body.street || "").trim();
+    let name = withoutPlusCode(req.body.address || req.body.locationName || "");
+    // cleanBarangay also empties the province ("Samar"), which Android reports in the
+    // barangay's place when it has none; no Calbayog barangay contains that word.
+    let barangay = cleanBarangay(req.body.barangay || "");
+    if (/^district$/i.test(barangay)) barangay = "";
+    let street = withoutPlusCode(req.body.street || "");
     let purok = (req.body.purok || "").trim();
     let cityOrTown = "Calbayog City";
-    let landmark = (req.body.landmark || "").trim();
+    let landmark = withoutPlusCode(req.body.landmark || "");
 
     const accuracy = Number.isFinite(Number(req.body.accuracy))
       ? Number(req.body.accuracy)
@@ -237,10 +249,12 @@ exports.createEmergencyReport = async (req, res) => {
       ? (barangay.toLowerCase().startsWith("brgy") ? barangay : `Brgy. ${barangay}`)
       : "";
 
+    // The city is appended once at the end, so it is stripped from the geocoded name here.
+    const cleanedName = cleanText(name).replace(/,(\s*,)+/g, ",");
     if (landmark) {
       finalParts.push(landmark);
-    } else if (name && !/^(calbayog|calbayog city)$/i.test(name)) {
-      finalParts.push(name);
+    } else if (cleanedName) {
+      finalParts.push(cleanedName);
     }
 
     if (street && !finalParts.some(p => p.toLowerCase().includes(street.toLowerCase()))) {
@@ -255,11 +269,20 @@ exports.createEmergencyReport = async (req, res) => {
       finalParts.push(bgyFormatted);
     }
 
-    // Left empty rather than emitting a bare "Calbayog City", which carries no
-    // information and only masked the fact that no address was resolved.
-    const exactLocationName = finalParts.length > 0
-      ? Array.from(new Set(finalParts)).join(", ")
-      : "";
+    // Ends with the locality the way Google Maps writes it ("…, Calbayog, Samar"), or
+    // the other town Nominatim placed the incident in. Left empty rather than emitting
+    // a bare city, which carries no information and only masks that no address was
+    // resolved; the dashboards still show the Plus Code derived from the coordinates.
+    // A different town is named alone: its province is not necessarily Samar.
+    const locality = cityOrTown && !/calbayog|samar|visayas/i.test(cityOrTown)
+      ? cityOrTown
+      : "Calbayog, Samar";
+    const address = Array.from(new Set(finalParts)).join(", ");
+    const exactLocationName = !address
+      ? ""
+      : address.toLowerCase().endsWith(locality.toLowerCase())
+      ? address
+      : `${address}, ${locality}`;
 
     const report = await EmergencyReport.create({
       userId: req.user.id,

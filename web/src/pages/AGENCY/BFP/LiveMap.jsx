@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { MapContainer, TileLayer, Marker, Popup, ZoomControl, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { STATUS_STYLES, getIncidentId } from "../../../utils/incidentFormatters.js";
+import { STATUS_STYLES, getIncidentId, formatLocationForTable } from "../../../utils/incidentFormatters.js";
 
 const cityCenter = [12.068, 124.597];
 
@@ -161,7 +161,7 @@ export default function LiveMap({ reports = [] }) {
                     <div>
                       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Location</p>
                       <p className="font-semibold text-slate-800 leading-snug">
-                        {typeof r.location === "string" ? r.location : (r.location?.name || "Calbayog City")}
+                        {formatLocationForTable(r.location)}
                       </p>
                     </div>
 

@@ -174,7 +174,7 @@ function CdrrmoDashboard() {
     const title = `🚨 CDRRMO ALERT: ${report.emergencyType || "Emergency"}`;
     const body = [
       report.userId?.fullName || "Anonymous Reporter",
-      report.location?.name || report.location?.barangay || "Unknown Location",
+      formatLocationForTable(report.location),
       report.description ? report.description.slice(0, 80) + (report.description.length > 80 ? "..." : "") : "",
     ].filter(Boolean).join(" · ");
     const notif = new Notification(title, {
@@ -899,7 +899,7 @@ function CdrrmoDashboard() {
                         <div className="w-2 h-2 rounded-full bg-amber-400 mt-1.5 shrink-0"></div>
                         <div className="min-w-0">
                           <p className="text-xs font-semibold text-slate-800 truncate">{r.userId?.fullName || "Anonymous"}</p>
-                          <p className="text-[10px] text-slate-500 mt-0.5 truncate">{typeof r.location === "string" ? r.location : (r.location?.name || "Unknown")}</p>
+                          <p className="text-[10px] text-slate-500 mt-0.5 truncate">{formatLocationForTable(r.location)}</p>
                         </div>
                       </div>
                     ))}
@@ -1079,7 +1079,7 @@ function CdrrmoDashboard() {
                   },
                   {
                     label: "Location",
-                    value: activeAlert.location?.name || `${activeAlert.location?.barangay || activeAlert.barangay || "Unknown Barangay"}, ${activeAlert.location?.street || activeAlert.street || "N/A"}`.replace(/^,\s*/, ""),
+                    value: formatLocationForTable(activeAlert.location),
                   },
                 ].map(({ label, value, bold, mono }) => (
                   <div

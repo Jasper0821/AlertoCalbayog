@@ -6,6 +6,8 @@ import {
   directionsUrl,
   accuracyLabel,
   reporterAddress,
+  plusCodeSearchText,
+  gpsText,
 } from "../../../utils/incidentFormatters.js";
 import api from "../../../api/axios.js";
 
@@ -152,14 +154,11 @@ export default function IncidentDetailModal({ report: initialReport, onClose }) 
   const phone = report.userId?.phoneNumber || report.phoneNumber || null;
   const telHref = toTelHref(phone);
 
-  // Build exact location display
-  const locObj = typeof report.location === "object" && report.location ? report.location : {};
-  const lat = locObj.latitude;
-  const lng = locObj.longitude;
-  const gpsStr = (lat && lng) ? ` [GPS: ${Number(lat).toFixed(5)}, ${Number(lng).toFixed(5)}]` : "";
-
-  const baseLocation = formatLocationForTable(report.location);
-  const locationText = baseLocation + (baseLocation.includes("GPS:") ? "" : gpsStr);
+  // Location and coordinates sit in separate rows, each in a form Google Maps accepts
+  // as pasted. Gluing "[GPS: …]" onto the address made either one unsearchable.
+  const locationText = formatLocationForTable(report.location);
+  const gps = gpsText(report.location);
+  const mapsSearchText = plusCodeSearchText(report.location) || gps;
 
   const mapsUrl = directionsUrl(report);
   const accuracy = accuracyLabel(report);
@@ -182,7 +181,8 @@ export default function IncidentDetailModal({ report: initialReport, onClose }) 
     { label: "Reporter", value: report.userId?.fullName || "Anonymous" },
     { label: "Contact No.", value: phone ?? "N/A", mono: !!phone },
     { label: "Type", value: report.emergencyType || "Others", capitalize: true },
-    { label: "Exact Location", value: accuracy ? `${locationText} (${accuracy})` : locationText },
+    { label: "Exact Location", value: locationText },
+    ...(gps ? [{ label: "GPS", value: accuracy ? `${gps} (${accuracy})` : gps, mono: true }] : []),
     // The reporter's registered address, clearly separated. It is NOT where the
     // incident is — only useful as corroborating context.
     ...(homeAddress ? [{ label: "Reporter's Address", value: homeAddress }] : []),
@@ -241,10 +241,10 @@ export default function IncidentDetailModal({ report: initialReport, onClose }) 
               <button
                 type="button"
                 onClick={() => {
-                  navigator.clipboard?.writeText(`${lat}, ${lng}`);
+                  navigator.clipboard?.writeText(mapsSearchText);
                 }}
                 className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-xs font-black text-slate-600 transition hover:bg-slate-50"
-                title="Copy coordinates"
+                title={`Copy "${mapsSearchText}" to paste into Google Maps`}
               >
                 COPY
               </button>

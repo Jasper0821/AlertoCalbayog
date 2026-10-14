@@ -127,13 +127,20 @@ export default function RegisterScreen({ navigation, route }: Props): React.JSX.
         return;
       }
 
-      // Android usually reports the barangay in `district`; fall back to subregion.
-      const detected = (place.district || place.subregion || "").trim();
-      const matched = CALBAYOG_BARANGAYS.find(
-        (bgy) => bgy.toLowerCase() === detected.toLowerCase()
-      );
-      if (matched || detected) {
-        setBarangay(matched || detected);
+      // Android usually reports the barangay in `district`. `subregion` is the
+      // province ("Samar") in the Philippines, so it only counts when it names an
+      // actual barangay — otherwise residents were registered in "Brgy. Samar".
+      const findBarangay = (value?: string | null) =>
+        CALBAYOG_BARANGAYS.find(
+          (bgy) => bgy.toLowerCase() === (value || "").trim().toLowerCase()
+        );
+      const district = (place.district || "").trim();
+      const detected =
+        findBarangay(district) ||
+        findBarangay(place.subregion) ||
+        (/^(district|calbayog( city)?|samar)$/i.test(district) ? "" : district);
+      if (detected) {
+        setBarangay(detected);
       }
 
       const streetParts = [place.streetNumber, place.street, place.name].filter(
@@ -144,7 +151,7 @@ export default function RegisterScreen({ navigation, route }: Props): React.JSX.
         setCompleteAddress(uniqueParts.join(" "));
       }
 
-      if (!matched && !detected && uniqueParts.length === 0) {
+      if (!detected && uniqueParts.length === 0) {
         Alert.alert("Location Not Found", "We could not read your address. Please type it in manually.");
       }
     } catch (err: any) {

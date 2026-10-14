@@ -39,7 +39,7 @@ import { API_HOST } from "../../api/config.js";
 import socket from "../../api/socket.js";
 import Swal from "sweetalert2";
 import { getValidCalbayogBarangay } from "../../utils/barangays.js";
-import { formatLocationForTable, directionsUrl, reporterAddress } from "../../utils/incidentFormatters.js";
+import { formatLocationForTable, directionsUrl, reporterAddress, plusCodeSearchText, gpsText } from "../../utils/incidentFormatters.js";
 import { clearDashboardNavigationState } from "../../utils/dashboardSession.js";
 import { formatMinutes, getFirstResponseDate } from "../../utils/reportGenerator.js";
 import ReportGenerator from "../../components/ReportGenerator.jsx";
@@ -948,7 +948,7 @@ export default function AdminDashboard() {
         if (notificationsConfigRef.current.desktopNotif && "Notification" in window) {
           const sendDesktopNotif = () => {
             new Notification("🚨 New Emergency Alert", {
-              body: `${(report.emergencyType || "Incident").toUpperCase()} reported at ${report.location?.name || report.location?.barangay || "unknown location"}.`,
+              body: `${(report.emergencyType || "Incident").toUpperCase()} reported at ${formatLocationForTable(report.location)}.`,
               icon: "/logo.png",
               tag: report._id || "emergency",
             });
@@ -1249,7 +1249,7 @@ export default function AdminDashboard() {
       escape(r.userId?.fullName || "Unknown"),
       escape(r.userId?.phoneNumber || ""),
       escape(r.userId?.email || ""),
-      escape(r.location?.name || ""),
+      escape(formatLocationForTable(r.location)),
       escape(r.location?.barangay || ""),
       escape(r.location?.street || ""),
       escape(r.location?.latitude ?? ""),
@@ -4100,6 +4100,7 @@ export default function AdminDashboard() {
           ["Reporter", report.userId?.fullName || "Unknown"],
           ["Contact", report.userId?.phoneNumber || "No contact number"],
           ["Location", getLocation(report)],
+          ...(gpsText(report.location) ? [["GPS", gpsText(report.location)]] : []),
           ...(reporterAddress(report) ? [["Reporter's address", reporterAddress(report)]] : []),
           ["Reported", report.createdAt ? new Date(report.createdAt).toLocaleString() : "—"],
           [isRejected ? "Rejected" : "Closed", eventDate ? new Date(eventDate).toLocaleString() : "N/A"],
@@ -4175,11 +4176,12 @@ export default function AdminDashboard() {
                       <button
                         type="button"
                         onClick={() => navigator.clipboard?.writeText(
-                          `${report.location?.latitude}, ${report.location?.longitude}`
+                          plusCodeSearchText(report.location) || gpsText(report.location)
                         )}
                         className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-black text-slate-600 transition hover:bg-slate-100"
+                        title="Copies the Plus Code, ready to paste into Google Maps"
                       >
-                        COPY GPS
+                        COPY LOCATION
                       </button>
                     </div>
                   )}

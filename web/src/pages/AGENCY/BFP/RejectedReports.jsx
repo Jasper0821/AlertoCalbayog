@@ -28,7 +28,7 @@ export default function RejectedReports({ reports = [] }) {
   const [monthFilter, setMonthFilter] = useState("all");
 
   const filtered = resolved.filter(r => {
-    const loc = typeof r.location === "string" ? r.location : (r.location?.name || "");
+    const loc = formatLocationForTable(r.location);
     const name = r.userId?.fullName || "";
     const date = r.createdAt ? new Date(r.createdAt) : null;
     const isValidDate = date && !Number.isNaN(date.getTime());
@@ -55,7 +55,7 @@ export default function RejectedReports({ reports = [] }) {
       const type = (r.emergencyType || "fire").toUpperCase();
       const status = (r.status || "pending").toUpperCase();
       const incId = getIncidentId(r, i);
-      const loc = typeof r.location === "string" ? r.location : (r.location?.name || "Unknown");
+      const loc = formatLocationForTable(r.location);
       const date = r.createdAt ? new Date(r.createdAt) : new Date();
       const dateStr = `${date.toLocaleDateString()} ${date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
       const priority = getPriority(r).toUpperCase();
