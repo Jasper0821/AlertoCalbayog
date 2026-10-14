@@ -1,4 +1,43 @@
 import React from "react";
+import { shortPlusCode, isNearCalbayog } from "./plusCode.js";
+
+/** Locality a short Plus Code is read against, written the way Google Maps writes it. */
+export const CALBAYOG_LOCALITY = "Calbayog, Samar";
+
+// Trailing city/province segments, stripped so the locality is appended exactly once
+// whether or not the stored name already carried one.
+const TRAILING_LOCALITY =
+  /(?:^|,)\s*(?:city\s+of\s+calbayog|calbayog(?:\s+city)?|(?:western\s+)?samar|eastern\s+visayas|philippines|6710)\s*$/i;
+
+function stripLocality(text) {
+  let out = text.trim();
+  while (TRAILING_LOCALITY.test(out)) out = out.replace(TRAILING_LOCALITY, "").trim();
+  return out.replace(/^[,\s]+|[,\s]+$/g, "");
+}
+
+// A Plus Code such as "3H9V+8H2". Android's geocoder returns one as the place name when
+// nothing nearby is named, and the app stored it as the landmark. It describes the
+// geocoder's snapped point, not the GPS fix, so stored copies are dropped in favour of
+// the one derived from the report's own coordinates.
+const PLUS_CODE_TOKEN = /\b[23456789CFGHJMPQRVWX]{4,8}\+[23456789CFGHJMPQRVWX]*/gi;
+
+// What geocoders put in the barangay slot when they have no barangay: the province
+// (Android's subregion is "Samar"), the city itself, or a generic "District".
+const NOT_A_BARANGAY =
+  /^(?:district|calbayog(?:\s+city)?|(?:western\s+)?samar|eastern\s+visayas|philippines)$/i;
+
+/** Drops stored Plus Codes and placeholder "Brgy. Samar"-style segments from a text. */
+function tidyAddressText(text) {
+  return String(text || "")
+    .split(",")
+    .map((part) => part.replace(PLUS_CODE_TOKEN, "").trim())
+    .filter((part) => {
+      if (!part) return false;
+      const isBarangaySegment = /^(?:brgy\.?|barangay)(?:\s|$)/i.test(part);
+      return !(isBarangaySegment && (!cleanBarangay(part) || NOT_A_BARANGAY.test(cleanBarangay(part))));
+    })
+    .join(", ");
+}
 
 export function cleanBarangay(bgy) {
   if (!bgy) return "";
@@ -49,37 +88,23 @@ export function formatIncidentLocation(location) {
 }
 
 /**
- * Human-readable position of AN INCIDENT.
+ * The incident's street-level address from its own fields, without city or province,
+ * or "" when nothing was resolved.
  *
  * Deliberately never falls back to the reporter's registered home address. Doing so
  * produced a confident, readable, wrong location for any emergency reported away
  * from home — worse than showing coordinates, because a responder acts on it. Use
  * reporterAddress() to show that separately and labelled.
  */
-export function formatLocationForTable(location) {
-  if (!location) return "Unknown Location";
-
-  if (typeof location === "string") {
-    const cleaned = location
-      .replace(/,?\s*brgy\.?\s*district,?/gi, "")
-      .replace(/,?\s*district,?/gi, "")
-      .replace(/^[,\s]+|[,\s]+$/g, "")
-      .trim();
-
-    if (cleaned && !/^(calbayog|calbayog city)$/i.test(cleaned)) {
-      return cleaned;
-    }
-    return cleaned || location;
-  }
-
-  const street = (location.street || "").trim();
-  const barangay = (location.barangay || "").trim();
+function incidentAddress(location, stripCity) {
+  const street = tidyAddressText(location.street);
+  const barangay = NOT_A_BARANGAY.test(cleanBarangay((location.barangay || "").trim()))
+    ? ""
+    : (location.barangay || "").trim();
   const purok = (location.purok || "").trim();
-  const landmark = (location.landmark || "").trim();
-  const lat = location.latitude;
-  const lng = location.longitude;
+  const landmark = tidyAddressText(location.landmark);
   // `location.address` has never existed on the EmergencyReport schema — dropped.
-  const rawName = (location.name || "").trim();
+  const rawName = tidyAddressText(location.name);
 
   // The incident's own landmark is the single most useful line for a responder,
   // so it leads whenever the device or geocoder captured one.
@@ -96,38 +121,65 @@ export function formatLocationForTable(location) {
       .replace(/,?\s*district,?/gi, "")
       .replace(/^[,\s]+|[,\s]+$/g, "")
       .trim();
+    const name = stripCity ? stripLocality(cleanedName) : cleanedName;
 
-    if (cleanedName && !/^(calbayog|calbayog city)$/i.test(cleanedName)) {
-      return cleanedName;
+    if (name && !/^(calbayog|calbayog city)$/i.test(name)) {
+      return name;
     }
   }
 
-  // Built from the INCIDENT's own fields only. The reporter's registered address is
-  // deliberately not mixed in here: for an emergency reported away from home it
-  // produces a confident, readable, wrong location, and a responder navigating to it
-  // goes to the wrong place. It is surfaced separately via reporterAddress().
   const parts = [];
   if (street) parts.push(street);
   if (purok && !parts.some((p) => p.toLowerCase().includes(purok.toLowerCase()))) {
     parts.push(purok);
   }
-  if (
-    barangay &&
-    !/^(district|calbayog)$/i.test(barangay) &&
-    !parts.some((p) => p.toLowerCase().includes(barangay.toLowerCase()))
-  ) {
+  if (barangay && !parts.some((p) => p.toLowerCase().includes(barangay.toLowerCase()))) {
     parts.push(formatBarangay(barangay));
   }
 
-  if (parts.length > 0) return parts.join(", ");
+  return parts.join(", ");
+}
 
-  // Last resort. Coordinates are at least honest, and the Navigate action turns
-  // them into something a responder can actually follow.
-  if (lat && lng) {
-    return `[GPS: ${Number(lat).toFixed(5)}, ${Number(lng).toFixed(5)}]`;
+/**
+ * Human-readable position of AN INCIDENT, in the format Google Maps uses:
+ * "3H9V+7HG, Rosales Blvd, Brgy. X, Calbayog, Samar".
+ *
+ * The Plus Code is derived from the report's coordinates, so it is present even when
+ * no street address could be resolved, and pasting the whole string into Google Maps
+ * pins the incident to within a few metres.
+ */
+export function formatLocationForTable(location) {
+  if (!location) return "Unknown Location";
+
+  if (typeof location === "string") {
+    const cleaned = location
+      .replace(/,?\s*brgy\.?\s*district,?/gi, "")
+      .replace(/,?\s*district,?/gi, "")
+      .replace(/^[,\s]+|[,\s]+$/g, "")
+      .trim();
+
+    const text = cleaned || location;
+    return /calbayog/i.test(text) ? text : `${text}, ${CALBAYOG_LOCALITY}`;
   }
 
-  return "Unknown Location";
+  const lat = location.latitude;
+  const lng = location.longitude;
+  const plusCode = shortPlusCode(lat, lng);
+
+  // Without usable coordinates there is no Plus Code; the address alone is all there is.
+  if (!plusCode) {
+    const address = incidentAddress(location, true);
+    return address ? `${address}, ${CALBAYOG_LOCALITY}` : "Unknown Location";
+  }
+
+  // A short code means the point is in Calbayog and is read against it. Anything
+  // further out gets the full code and its stored name untouched, never a wrong city.
+  if (isNearCalbayog(lat, lng)) {
+    return [plusCode, incidentAddress(location, true), CALBAYOG_LOCALITY]
+      .filter(Boolean)
+      .join(", ");
+  }
+  return [plusCode, incidentAddress(location, false)].filter(Boolean).join(", ");
 }
 
 /**
@@ -140,6 +192,30 @@ export function reporterAddress(report) {
   if (address) return address;
   if (barangay && !/^(district|calbayog)$/i.test(barangay)) return formatBarangay(barangay);
   return "";
+}
+
+/**
+ * Text to paste into Google Maps to find the incident: "3H9V+7HF Calbayog, Samar"
+ * (the search form Google documents for Plus Codes), the full code outside Calbayog,
+ * or "" without usable coordinates.
+ */
+export function plusCodeSearchText(location) {
+  const lat = location?.latitude;
+  const lng = location?.longitude;
+  const code = shortPlusCode(lat, lng);
+  if (!code) return "";
+  return isNearCalbayog(lat, lng) ? `${code} ${CALBAYOG_LOCALITY}` : code;
+}
+
+/**
+ * Coordinates as "12.068175, 124.593938": latitude first, six decimals (about 10 cm),
+ * the form Google Maps searches directly. "" without usable coordinates.
+ */
+export function gpsText(location) {
+  const lat = Number(location?.latitude);
+  const lng = Number(location?.longitude);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || (lat === 0 && lng === 0)) return "";
+  return `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
 }
 
 /** Google Maps directions link for a report, or "" when it has no usable position. */

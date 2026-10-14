@@ -200,12 +200,19 @@ export default function EmergencyReportScreen({
       });
       if (!place) return;
 
-      // Android usually reports the barangay in `district`; fall back to subregion.
-      const detected = (place.district || place.subregion || "").trim();
-      const matched = CALBAYOG_BARANGAYS.find(
-        (bgy) => bgy.toLowerCase() === detected.toLowerCase()
-      );
-      if (matched || detected) setBarangay(matched || detected);
+      // Android usually reports the barangay in `district`. `subregion` is the
+      // province ("Samar") in the Philippines, so it only counts when it names an
+      // actual barangay — otherwise reports were labelled "Brgy. Samar".
+      const findBarangay = (value?: string | null) =>
+        CALBAYOG_BARANGAYS.find(
+          (bgy) => bgy.toLowerCase() === (value || "").trim().toLowerCase()
+        );
+      const district = (place.district || "").trim();
+      const detected =
+        findBarangay(district) ||
+        findBarangay(place.subregion) ||
+        (/^(district|calbayog( city)?|samar)$/i.test(district) ? "" : district);
+      if (detected) setBarangay(detected);
 
       if (place.street) setStreet(place.street.trim());
 
@@ -215,8 +222,15 @@ export default function EmergencyReportScreen({
       );
       if (purokMatch) setPurok(purokMatch[0].trim());
 
-      // `name` is usually the nearest named feature — a decent landmark seed.
-      if (place.name && place.name !== place.street) setLandmark(place.name.trim());
+      // `name` is usually the nearest named feature — a decent landmark seed. With
+      // nothing named nearby Android returns a Plus Code ("3H9V+8H2") instead, which
+      // is not a landmark and duplicated the code the dashboard derives from GPS.
+      const isPlusCode = /^[23456789CFGHJMPQRVWX]{4,8}\+[23456789CFGHJMPQRVWX]*$/i.test(
+        (place.name || "").trim()
+      );
+      if (place.name && place.name !== place.street && !isPlusCode) {
+        setLandmark(place.name.trim());
+      }
     } catch {
       // Non-fatal: the report still sends with coordinates, and the server will
       // attempt its own lookup. Never block the emergency on an address.
