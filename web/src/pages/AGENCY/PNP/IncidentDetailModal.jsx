@@ -11,6 +11,14 @@ import api from "../../../api/axios.js";
 
 const BRAND = "#7c3aed";
 
+// 09XXXXXXXXX -> +639XXXXXXXXX so the dialer gets an unambiguous PH number.
+function toTelHref(phone) {
+  const digits = String(phone || "").replace(/\D/g, "");
+  if (/^09\d{9}$/.test(digits)) return `tel:+63${digits.slice(1)}`;
+  if (/^639\d{9}$/.test(digits)) return `tel:+${digits}`;
+  return digits.length >= 7 ? `tel:${digits}` : null;
+}
+
 function EvidenceGalleryItem({ src, index, onOpen }) {
   const [loaded, setLoaded] = useState(false);
   return (
@@ -142,6 +150,7 @@ export default function IncidentDetailModal({ report: initialReport, onClose }) 
   if (!report) return null;
 
   const phone = report.userId?.phoneNumber || report.phoneNumber || null;
+  const telHref = toTelHref(phone);
 
   // Build exact location display
   const locObj = typeof report.location === "object" && report.location ? report.location : {};
@@ -239,6 +248,33 @@ export default function IncidentDetailModal({ report: initialReport, onClose }) 
               >
                 COPY
               </button>
+            </div>
+          )}
+
+          {/* Lets a responder who is still far away coach the reporter by phone until
+              the team arrives. tel: opens the device dialer (or Phone Link on a PC)
+              with the number filled in; the number stays visible for manual dialing. */}
+          {telHref ? (
+            <a
+              href={telHref}
+              title="Call the reporter to give instructions until responders arrive"
+              aria-label={`Call reporter at ${phone}`}
+              className="flex w-full flex-col items-center justify-center rounded-lg bg-emerald-600 px-3 py-2.5 text-white transition hover:bg-emerald-700"
+            >
+              <span className="flex items-center gap-2 text-xs font-black">
+                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                </svg>
+                CALL REPORTER
+              </span>
+              <span className="mt-0.5 font-mono text-[11px] font-semibold text-emerald-50">{phone}</span>
+            </a>
+          ) : (
+            <div className="flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-slate-100 px-3 py-2.5 text-xs font-bold text-slate-400">
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+              </svg>
+              No contact number on file
             </div>
           )}
 
