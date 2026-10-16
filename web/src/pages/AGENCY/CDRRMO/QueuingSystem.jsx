@@ -40,7 +40,7 @@ export default function QueuingSystem({ reports = [], onStatusChange }) {
   const [evidenceIncidentId, setEvidenceIncidentId] = useState(null);
   const [selectedReport, setSelectedReport] = useState(null);
 
-  // Only display active queues (pending & active), resolved ones go to Incident History
+  // Everything not yet closed or rejected. Resolved reports stay here until an admin closes them.
   const activeReports = reports.filter(r => 
     !["closed", "rejected"].includes((r.status || "").toLowerCase())
   );
@@ -87,7 +87,7 @@ export default function QueuingSystem({ reports = [], onStatusChange }) {
       <div className="flex shrink-0 flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold text-slate-800">Queuing System</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Manage active incident queues. When responded, incidents move to Incident History.</p>
+          <p className="text-sm text-slate-500 mt-0.5">Manage active incident queues. Resolved incidents move to Closed Cases once an admin closes them.</p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <span className="flex items-center gap-1.5 text-xs font-bold bg-amber-50 border border-amber-200 text-amber-700 px-3 py-1.5 rounded-full">
@@ -259,7 +259,7 @@ export default function QueuingSystem({ reports = [], onStatusChange }) {
             {/* Body */}
             <div className="p-6 bg-[#f8fafc]">
               <p className="text-slate-600 text-sm font-medium leading-relaxed">
-                Are you sure you want to mark this incident as resolved? It will be moved to the Incident History log.
+                Are you sure you want to mark this incident as resolved? It stays in the queue until an admin closes it, then moves to Closed Cases.
               </p>
             </div>
 

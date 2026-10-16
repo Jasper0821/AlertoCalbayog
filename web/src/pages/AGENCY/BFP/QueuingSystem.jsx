@@ -20,7 +20,7 @@ export default function QueuingSystem({ reports = [], onStatusChange }) {
   const [evidenceIncidentId, setEvidenceIncidentId] = useState(null);
   const [selectedReport, setSelectedReport] = useState(null);
 
-  // Only display active queues (pending & active), resolved ones go to Incident History
+  // Everything not yet closed or rejected. Resolved reports stay here until an admin closes them.
   const activeReports = reports.filter(r => 
     !["closed", "rejected"].includes((r.status || "").toLowerCase())
   );
@@ -49,7 +49,7 @@ export default function QueuingSystem({ reports = [], onStatusChange }) {
       <div className="flex shrink-0 flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold text-slate-800">BFP Fire Incident Queue</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Manage active fire emergency queues. Responded incidents move to Incident History.</p>
+          <p className="text-sm text-slate-500 mt-0.5">Manage active fire emergency queues. Resolved incidents move to Closed Cases once an admin closes them.</p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <span className="flex items-center gap-1.5 text-xs font-bold bg-amber-50 border border-amber-200 text-amber-700 px-3 py-1.5 rounded-full">

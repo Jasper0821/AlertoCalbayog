@@ -10,7 +10,6 @@ import DashboardOverview from "./DashboardOverview.jsx";
 import QueuingSystem from "./QueuingSystem.jsx";
 import ActiveIncidents from "./ActiveIncidents.jsx";
 import LiveMap from "./LiveMap.jsx";
-import IncidentHistory from "./IncidentHistory.jsx";
 import RejectedReports from "./RejectedReports.jsx";
 import Analytics from "./Analytics.jsx";
 import ClosedIncidents from "../PNP/ClosedIncidents.jsx";
@@ -63,15 +62,6 @@ const NAV = [
     ),
   },
   {
-    id: "incident-history",
-    label: "Incident History",
-    icon: (
-      <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-      </svg>
-    ),
-  },
-  {
     id: "rejected-incidents",
     label: "Rejected Reports",
     icon: (
@@ -81,8 +71,8 @@ const NAV = [
     ),
   },
   {
-    // Once an admin closes a resolved report it disappeared from every agency screen:
-    // the queue excludes "closed" and Incident History only keeps resolved/responded.
+    // The queue drops a report once an admin closes it, so this is where closed
+    // cases stay on record for the agency.
     id: "closed-incidents",
     label: "Closed Cases",
     icon: (
@@ -577,7 +567,6 @@ function BfpDashboard() {
       case "incident-reports": return <ActiveIncidents reports={filteredReports} onStatusChange={handleStatusChange} />;
       case "queuing": return <QueuingSystem reports={filteredReports} onStatusChange={handleStatusChange} />;
       case "live-map": return <LiveMap reports={filteredReports} />;
-      case "incident-history": return <IncidentHistory reports={safeReports} />;
       case "closed-incidents": return <ClosedIncidents reports={safeReports} agencyName="BFP" />;
       case "rejected-incidents": return <RejectedReports reports={filteredReports} />;
       case "analytics": return <Analytics reports={filteredReports} />;
@@ -589,7 +578,7 @@ function BfpDashboard() {
   const currentNav = NAV.find(n => n.id === activeNav);
   const pageTitle = currentNav?.label || "Dashboard";
   const incomingAlertCount = (activeAlert ? 1 : 0) + alertQueue.length;
-  const fixedHeightPages = ["incident-reports", "queuing", "incident-history", "rejected-incidents"];
+  const fixedHeightPages = ["incident-reports", "queuing", "rejected-incidents"];
 
   return (
     <div className="flex h-screen bg-slate-50 font-sans antialiased overflow-hidden">
@@ -854,7 +843,7 @@ function BfpDashboard() {
 
               {/* Notification Dropdown */}
               {showNotifDropdown && (
-                <div className="absolute right-0 top-full mt-2 w-80 bg-white border border-slate-200 rounded-2xl shadow-xl shadow-slate-200/60 z-50 overflow-hidden">
+                <div className="fixed inset-x-4 top-[4.5rem] sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 sm:w-80 bg-white border border-slate-200 rounded-2xl shadow-xl shadow-slate-200/60 z-50 overflow-hidden">
                   <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
                     <p className="text-sm font-bold text-slate-800">Notifications</p>
                     {pendingCount > 0 && (
@@ -942,7 +931,9 @@ function BfpDashboard() {
            PROFESSIONAL FIRE EMERGENCY ALERT DISPATCH MODAL
           ═══════════════════════════════════════════════════════ */}
       {activeAlert && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center px-4 pb-4 pt-24">
+          {/* pt-24 keeps the card clear of the "Incoming report" banner pinned above it,
+              which covered the header and close button on phones. */}
 
           {/* ── Deep red-smoke backdrop ── */}
           <div
@@ -966,13 +957,13 @@ function BfpDashboard() {
           />
 
           {/* ════════════ MODAL CARD ════════════ */}
-          <div className="alert-modal-card relative z-10 w-full max-w-[520px] rounded-2xl overflow-hidden shadow-[0_32px_80px_-8px_rgba(0,0,0,0.7)] border border-red-900/60 flex flex-col">
+          <div className="alert-modal-card relative z-10 w-full max-w-[520px] max-h-full rounded-2xl overflow-hidden shadow-[0_32px_80px_-8px_rgba(0,0,0,0.7)] border border-red-900/60 flex flex-col">
 
             {/* ── TOP COLOR STRIP ── */}
             <div className="h-1 w-full bg-gradient-to-r from-red-700 via-orange-500 to-yellow-400" />
 
             {/* ── HEADER ── */}
-            <div className="bg-[#7f1d1d] px-6 pt-5 pb-4 flex items-start justify-between shrink-0">
+            <div className="bg-[#7f1d1d] px-4 sm:px-6 pt-5 pb-4 flex items-start justify-between gap-3 shrink-0">
               <div className="flex items-center gap-4">
                 <div className="w-11 h-11 rounded-xl bg-white/10 border border-white/15 flex items-center justify-center shrink-0">
                   <svg className="w-6 h-6 text-orange-300" fill="none" stroke="currentColor" strokeWidth="1.6" viewBox="0 0 24 24">
@@ -1010,7 +1001,7 @@ function BfpDashboard() {
             </div>
 
             {/* ── INCIDENT TYPE BANNER ── */}
-            <div className="bg-[#6b1a1a] px-6 py-2.5 flex items-center justify-between border-t border-white/5">
+            <div className="bg-[#6b1a1a] shrink-0 px-4 sm:px-6 py-2.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-white/5">
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-orange-400 alert-live-dot" />
                 <span className="text-orange-300 font-black text-xs uppercase tracking-widest">
@@ -1026,8 +1017,8 @@ function BfpDashboard() {
             </div>
 
             {/* ── BODY ── */}
-            <div className="bg-[#f8fafc] overflow-y-auto max-h-[52vh]">
-              <div className="px-6 py-5 space-y-0">
+            <div className="bg-[#f8fafc] min-h-0 overflow-y-auto max-h-[52vh]">
+              <div className="px-4 sm:px-6 py-5 space-y-0">
                 <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-3">
                   Incident Information
                 </p>
@@ -1052,7 +1043,7 @@ function BfpDashboard() {
                     key={label}
                     className="flex items-baseline gap-3 py-2.5 border-b border-slate-100 last:border-0"
                   >
-                    <span className="w-28 shrink-0 text-[11px] font-semibold text-slate-400 uppercase tracking-wide">
+                    <span className="w-24 sm:w-28 shrink-0 text-[11px] font-semibold text-slate-400 uppercase tracking-wide">
                       {label}
                     </span>
                     <span
@@ -1104,7 +1095,7 @@ function BfpDashboard() {
             </div>
 
             {/* ── FOOTER ── */}
-            <div className="bg-white border-t border-slate-100 px-6 py-4 flex items-center justify-between shrink-0">
+            <div className="bg-white border-t border-slate-100 px-4 sm:px-6 py-4 flex items-center justify-between gap-3 shrink-0">
               <button
                 onClick={closeAlert}
                 className="text-[13px] font-semibold text-slate-400 hover:text-slate-600 transition-colors tracking-wide"
