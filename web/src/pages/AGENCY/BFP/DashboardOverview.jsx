@@ -221,7 +221,7 @@ export default function DashboardOverview({ reports = [], setActiveNav, onStatus
 
         {/* Card 4: Resolved */}
         <div
-          onClick={() => setActiveNav("incident-history")}
+          onClick={() => setActiveNav("closed-incidents")}
           className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4 shadow-sm flex items-center justify-between cursor-pointer hover:border-emerald-300 transition-all"
         >
           <div>

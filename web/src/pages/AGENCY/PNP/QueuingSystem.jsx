@@ -230,7 +230,7 @@ export default function QueuingSystem({ reports = [], onStatusChange }) {
             </div>
             <div className="p-6 bg-[#f8fafc]">
               <p className="text-slate-600 text-sm font-medium leading-relaxed">
-                Are you sure you want to mark this incident as <strong>resolved</strong>? It will be moved to the Incident History log.
+                Are you sure you want to mark this incident as <strong>resolved</strong>? It stays in the queue until an admin closes it, then moves to Closed Cases.
               </p>
             </div>
             <div className="bg-white border-t border-slate-100 px-6 py-4 flex items-center justify-end gap-3 shrink-0">
