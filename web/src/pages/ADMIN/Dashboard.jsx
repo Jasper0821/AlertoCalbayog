@@ -308,13 +308,6 @@ export default function AdminDashboard() {
   useEffect(() => {
     notificationsConfigRef.current = notificationsConfig;
   }, [notificationsConfig]);
-  const [locationConfig, setLocationConfig] = useState({
-    refreshRate: 10,
-    lat: "12.0674",
-    lng: "124.5946",
-    provider: "osm",
-    zoom: 13
-  });
   const [securityConfig, setSecurityConfig] = useState({
     complexPassword: true,
     sessionTimeout: 60
@@ -526,7 +519,6 @@ export default function AdminDashboard() {
     try {
       const response = await api.get("/settings");
       if (response.data) {
-        if (response.data.locationConfig) setLocationConfig(response.data.locationConfig);
         if (response.data.securityConfig) {
           setSecurityConfig(response.data.securityConfig);
           // Apply session timeout from DB value
@@ -3056,16 +3048,6 @@ export default function AdminDashboard() {
         )
       },
       {
-        id: "location-gps",
-        label: "Location & GPS Settings",
-        icon: (
-          <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-            <circle cx="12" cy="10" r="3" />
-          </svg>
-        )
-      },
-      {
         id: "user-access",
         label: "User & Access Control",
         icon: (
@@ -3213,31 +3195,6 @@ export default function AdminDashboard() {
                     />
                   </label>
 
-                  <label className="flex items-center justify-between cursor-pointer">
-                    <div>
-                      <p className="text-xs font-medium text-slate-700">Automated SMS Dispatch alerts</p>
-                      <p className="text-[10px] text-slate-400">Dispatch message details instantly to active responder mobiles.</p>
-                    </div>
-                    <input
-                      type="checkbox"
-                      checked={notificationsConfig.smsAlerts}
-                      onChange={(e) => setNotificationsConfig({ ...notificationsConfig, smsAlerts: e.target.checked })}
-                      className="h-4 w-4 rounded border-slate-300 text-red-600 focus:ring-red-500"
-                    />
-                  </label>
-
-                  <label className="flex items-center justify-between cursor-pointer">
-                    <div>
-                      <p className="text-xs font-medium text-slate-700">User Warning Push</p>
-                      <p className="text-[10px] text-slate-400">Send community push warnings to users near active hazards.</p>
-                    </div>
-                    <input
-                      type="checkbox"
-                      checked={notificationsConfig.residentPush}
-                      onChange={(e) => setNotificationsConfig({ ...notificationsConfig, residentPush: e.target.checked })}
-                      className="h-4 w-4 rounded border-slate-300 text-red-600 focus:ring-red-500"
-                    />
-                  </label>
                 </div>
               </div>
 
@@ -3264,68 +3221,6 @@ export default function AdminDashboard() {
                   className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-red-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-red-700 active:scale-[0.98]"
                 >
                   Save Notification Settings
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Tab: Location & GPS Settings */}
-          {activeSettingsTab === "location-gps" && (
-            <div className="space-y-6">
-              <div>
-                <h3 className="text-sm font-medium text-slate-900">Location & GPS Settings</h3>
-                <p className="text-xs text-slate-500 mt-0.5">Control live map tile configuration, update speed limits and geographic tracking.</p>
-              </div>
-
-              <div className="rounded-xl border border-slate-100 p-4 space-y-4">
-                <div className="space-y-1">
-                  <p className="text-xs font-medium text-slate-700">GPS Tracker Sync Refresh Rate ({locationConfig.refreshRate}s)</p>
-                  <p className="text-[10px] text-slate-400">Frequency rate for active mobile pings location updates.</p>
-                </div>
-                <input
-                  type="range"
-                  min="5"
-                  max="60"
-                  step="5"
-                  value={locationConfig.refreshRate}
-                  onChange={(e) => setLocationConfig({ ...locationConfig, refreshRate: parseInt(e.target.value) })}
-                  className="w-full h-1 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-red-600"
-                />
-                <div className="flex justify-between text-[10px] text-slate-400 font-medium">
-                  <span>5 Seconds (High Sync)</span>
-                  <span>60 Seconds (Low CPU)</span>
-                </div>
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="rounded-xl border border-slate-100 p-4 space-y-3">
-                  <p className="text-xs font-medium text-slate-700">Initial Center Latitude</p>
-                  <input
-                    type="text"
-                    value={locationConfig.lat}
-                    onChange={(e) => setLocationConfig({ ...locationConfig, lat: e.target.value })}
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium outline-none focus:border-red-500 focus:ring-1 focus:ring-red-600/10"
-                  />
-                </div>
-
-                <div className="rounded-xl border border-slate-100 p-4 space-y-3">
-                  <p className="text-xs font-medium text-slate-700">Initial Center Longitude</p>
-                  <input
-                    type="text"
-                    value={locationConfig.lng}
-                    onChange={(e) => setLocationConfig({ ...locationConfig, lng: e.target.value })}
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium outline-none focus:border-red-500 focus:ring-1 focus:ring-red-600/10"
-                  />
-                </div>
-              </div>
-
-              <div className="flex justify-end pt-2">
-                <button
-                  type="button"
-                  onClick={() => saveSettings("locationConfig", locationConfig)}
-                  className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-red-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-red-700 active:scale-[0.98]"
-                >
-                  Save Map Settings
                 </button>
               </div>
             </div>
