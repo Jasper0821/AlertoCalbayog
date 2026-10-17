@@ -351,6 +351,7 @@ export default function AdminDashboard() {
   const [agencyFilter, setAgencyFilter] = useState("all");
   const [userCategoryFilter, setUserCategoryFilter] = useState("all");
   const [userForm, setUserForm] = useState(emptyUserForm);
+  const [showUserPassword, setShowUserPassword] = useState(false);
   const [editingUserId, setEditingUserId] = useState(null);
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [selectedUserInfo, setSelectedUserInfo] = useState(null);
@@ -1613,6 +1614,7 @@ export default function AdminDashboard() {
   const resetUserForm = () => {
     setEditingUserId(null);
     setUserForm(emptyUserForm);
+    setShowUserPassword(false);
     setIsUserModalOpen(false);
     setError("");
   };
@@ -2364,7 +2366,30 @@ export default function AdminDashboard() {
               <form onSubmit={saveUser} className="mt-5 grid gap-3">
                 <input value={userForm.fullName} onChange={(event) => setUserForm({ ...userForm, fullName: event.target.value })} placeholder="Full name" className="rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-600/10" />
                 <input value={userForm.email} onChange={(event) => setUserForm({ ...userForm, email: event.target.value })} placeholder="Email" type="email" className="rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-600/10" />
-                <input value={userForm.password} onChange={(event) => setUserForm({ ...userForm, password: event.target.value })} placeholder={editingUserId ? "New password (optional)" : "Password"} type="password" className="rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-600/10" />
+                <div className="relative">
+                  <input value={userForm.password} onChange={(event) => setUserForm({ ...userForm, password: event.target.value })} placeholder={editingUserId ? "New password (optional)" : "Password"} type={showUserPassword ? "text" : "password"} className="w-full rounded-lg border border-slate-200 px-3 py-2 pr-10 text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-600/10" />
+                  <button
+                    type="button"
+                    onClick={() => setShowUserPassword((visible) => !visible)}
+                    aria-label={showUserPassword ? "Hide password" : "Show password"}
+                    aria-pressed={showUserPassword}
+                    className="absolute inset-y-0 right-0 flex items-center px-3 text-slate-400 transition hover:text-slate-600"
+                  >
+                    {showUserPassword ? (
+                      <svg aria-hidden="true" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M3 3l18 18" />
+                        <path d="M10.6 10.6a2 2 0 002.8 2.8" />
+                        <path d="M9.9 5.2A11.4 11.4 0 0112 5c5 0 8.3 4.1 9.5 7-.5 1.2-1.3 2.4-2.3 3.4" />
+                        <path d="M6.2 6.2C4.4 7.4 3.2 9.2 2.5 12c.6 1.5 1.5 2.8 2.7 3.8A10.2 10.2 0 0012 19c1.2 0 2.3-.2 3.3-.6" />
+                      </svg>
+                    ) : (
+                      <svg aria-hidden="true" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M2.5 12S6 5 12 5s9.5 7 9.5 7-3.5 7-9.5 7-9.5-7-9.5-7z" />
+                        <circle cx="12" cy="12" r="2.5" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <select
                     value={userForm.role}
