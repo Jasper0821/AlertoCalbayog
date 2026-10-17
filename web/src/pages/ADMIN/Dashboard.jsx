@@ -319,11 +319,6 @@ export default function AdminDashboard() {
     complexPassword: true,
     sessionTimeout: 60
   });
-  const [backupConfig, setBackupConfig] = useState({
-    interval: "weekly",
-    retention: "12"
-  });
-  const [serverBackups, setServerBackups] = useState([]);
   const [isTrashModalOpen, setIsTrashModalOpen] = useState(false);
   const [deletedReports, setDeletedReports] = useState([]);
   const [isFetchingDeleted, setIsFetchingDeleted] = useState(false);
@@ -530,7 +525,6 @@ export default function AdminDashboard() {
     try {
       const response = await api.get("/settings");
       if (response.data) {
-        if (response.data.backupConfig) setBackupConfig(response.data.backupConfig);
         if (response.data.locationConfig) setLocationConfig(response.data.locationConfig);
         if (response.data.securityConfig) {
           setSecurityConfig(response.data.securityConfig);
@@ -580,162 +574,6 @@ export default function AdminDashboard() {
       });
     }
   };
-
-  const fetchServerBackups = async () => {
-    try {
-      const response = await api.get("/backup/list");
-      setServerBackups(response.data);
-    } catch (err) {
-      console.error("Failed to load server backups:", err);
-    }
-  };
-
-  const handleRestoreFromFile = (filename) => {
-    Swal.fire({
-      title: "Restore from Server Backup",
-      html: `<div class='text-left text-xs space-y-2'><p class='font-semibold text-red-600'>WARNING: This will overwrite your current database with the backup file <strong>${filename}</strong>!</p><p>Are you sure you want to proceed?</p></div>`,
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#dc2626",
-      confirmButtonText: "Yes, restore now",
-      cancelButtonText: "Cancel"
-    }).then(async (result) => {
-      if (result.isConfirmed) {
-        Swal.fire({
-          title: "Restoring database...",
-          html: `Importing data from ${filename}. Please wait...`,
-          allowOutsideClick: false,
-          didOpen: () => {
-            Swal.showLoading();
-          }
-        });
-
-        try {
-          const response = await api.post(`/backup/restore/file/${filename}`);
-
-          Swal.fire({
-            title: "Restore Successful",
-            text: response.data.message || "Database successfully restored.",
-            icon: "success",
-            confirmButtonColor: "#dc2626"
-          }).then(() => {
-            window.location.reload();
-          });
-        } catch (err) {
-          Swal.fire({
-            title: "Restore Failed",
-            text: err.response?.data?.message || err.message,
-            icon: "error",
-            confirmButtonColor: "#dc2626"
-          });
-        }
-      }
-    });
-  };
-
-  const handleDownloadServerBackup = async (filename) => {
-    try {
-      const response = await api.get(`/backup/download/${filename}`, {
-        responseType: "blob"
-      });
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement("a");
-      link.href = url;
-      link.setAttribute("download", filename);
-      document.body.appendChild(link);
-      link.click();
-      link.parentNode.removeChild(link);
-      window.URL.revokeObjectURL(url);
-    } catch (err) {
-      Swal.fire({
-        title: "Download Failed",
-        text: err.message,
-        icon: "error",
-        confirmButtonColor: "#dc2626"
-      });
-    }
-  };
-
-  const handleDeleteServerBackup = (filename) => {
-    Swal.fire({
-      title: "Delete Backup File",
-      text: `Are you sure you want to permanently delete the backup file "${filename}" from the server?`,
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#dc2626",
-      confirmButtonText: "Yes, delete it",
-      cancelButtonText: "Cancel"
-    }).then(async (result) => {
-      if (result.isConfirmed) {
-        try {
-          await api.delete(`/backup/${filename}`);
-          await fetchServerBackups();
-          Swal.fire({
-            title: "Deleted",
-            text: "Backup file deleted successfully from server.",
-            icon: "success",
-            confirmButtonColor: "#dc2626"
-          });
-        } catch (err) {
-          Swal.fire({
-            title: "Delete Failed",
-            text: err.response?.data?.message || err.message,
-            icon: "error",
-            confirmButtonColor: "#dc2626"
-          });
-        }
-      }
-    });
-  };
-
-  const handleBackup = async () => {
-    Swal.fire({
-      title: "Creating Backup...",
-      text: "Generating JSON archive and saving to server...",
-      allowOutsideClick: false,
-      didOpen: () => {
-        Swal.showLoading();
-      }
-    });
-
-    try {
-      const response = await api.get("/backup/export");
-      const backupData = response.data;
-      const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-      const filename = `alerto_backup_manual_${timestamp}.json`;
-
-      const url = window.URL.createObjectURL(new Blob([JSON.stringify(backupData, null, 2)], { type: "application/json" }));
-      const link = document.createElement("a");
-      link.href = url;
-      link.setAttribute("download", filename);
-      document.body.appendChild(link);
-      link.click();
-      link.parentNode.removeChild(link);
-      window.URL.revokeObjectURL(url);
-
-      await fetchServerBackups();
-
-      Swal.fire({
-        title: "Backup Created",
-        text: "Database backup created and downloaded successfully.",
-        icon: "success",
-        confirmButtonColor: "#dc2626"
-      });
-    } catch (err) {
-      Swal.fire({
-        title: "Backup Failed",
-        text: err.response?.data?.message || err.message,
-        icon: "error",
-        confirmButtonColor: "#dc2626"
-      });
-    }
-  };
-
-  useEffect(() => {
-    if (activeSettingsTab === "backup-data") {
-      fetchServerBackups();
-    }
-  }, [activeSettingsTab]);
 
   useEffect(() => {
     const load = async () => {
@@ -3214,17 +3052,6 @@ export default function AdminDashboard() {
           </svg>
         )
       },
-      {
-        id: "backup-data",
-        label: "Backup & Data Management",
-        icon: (
-          <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-            <ellipse cx="12" cy="5" rx="9" ry="3" />
-            <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
-            <path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3" />
-          </svg>
-        )
-      }
     ];
 
     return (
@@ -3467,18 +3294,6 @@ export default function AdminDashboard() {
                 </div>
               </div>
 
-              <div className="rounded-xl border border-slate-100 p-4 space-y-3">
-                <p className="text-xs font-medium text-slate-700">Map Tile Provider</p>
-                <select
-                  value={locationConfig.provider}
-                  onChange={(e) => setLocationConfig({ ...locationConfig, provider: e.target.value })}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 outline-none transition focus:border-red-500 focus:ring-2"
-                >
-                  <option value="osm">OpenStreetMap Standard Tile</option>
-                  <option value="carto">CartoDB Positron (Light Mode Map)</option>
-                  <option value="satellite">Google Maps Satellite</option>
-                </select>
-              </div>
               <div className="flex justify-end pt-2">
                 <button
                   type="button"
@@ -3553,164 +3368,6 @@ export default function AdminDashboard() {
                 >
                   Save Security Settings
                 </button>
-              </div>
-            </div>
-          )}
-
-          {/* Tab: Backup & Data Management */}
-          {activeSettingsTab === "backup-data" && (
-            <div className="space-y-6">
-              <div>
-                <h3 className="text-sm font-medium text-slate-900">Backup & Data Management</h3>
-                <p className="text-xs text-slate-500 mt-0.5">Control data extraction, schedules back up archives and download CSV logs reports.</p>
-              </div>
-
-              <div className="rounded-xl border border-slate-100 p-4 space-y-3">
-                <h4 className="text-xs font-medium text-slate-600">Manual Operations</h4>
-                <p className="text-[10px] text-slate-500">Run manual archives to safeguard active databases before major updates.</p>
-
-                <div className="flex flex-wrap gap-2 pt-1">
-                  <button
-                    type="button"
-                    onClick={handleBackup}
-                    className="inline-flex items-center justify-center rounded-lg bg-red-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-red-700 active:scale-[0.98]"
-                  >
-                    Trigger Database Backup
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      fetchDeletedReports();
-                      setIsTrashModalOpen(true);
-                    }}
-                    className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-xs font-bold text-red-700 shadow-sm transition hover:bg-red-100 active:scale-[0.98]"
-                  >
-                    <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.2"><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                    View Trash Bin
-                  </button>
-                </div>
-              </div>
-
-              <div className="rounded-xl border border-slate-100 p-4 space-y-4">
-                <h4 className="text-xs font-medium text-slate-600">Auto Schedules Configurations</h4>
-
-                <div className="space-y-3">
-                  <div className="space-y-1.5">
-                    <p className="text-xs font-medium text-slate-700">Automated Backup Frequency</p>
-                    <select
-                      value={backupConfig.interval}
-                      onChange={(e) => setBackupConfig({ ...backupConfig, interval: e.target.value })}
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 outline-none transition focus:border-red-500 focus:ring-2"
-                    >
-                      <option value="daily">Daily Auto-Backup</option>
-                      <option value="weekly">Weekly Auto-Backup</option>
-                      <option value="monthly">Monthly Auto-Backup</option>
-                      <option value="disabled">Disabled (Manual Only)</option>
-                    </select>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <p className="text-xs font-medium text-slate-700">Incident Retention Period</p>
-                    <select
-                      value={backupConfig.retention}
-                      onChange={(e) => setBackupConfig({ ...backupConfig, retention: e.target.value })}
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 outline-none transition focus:border-red-500 focus:ring-2"
-                    >
-                      <option value="6">6 Months Retention</option>
-                      <option value="12">1 Year Retention</option>
-                      <option value="24">2 Years Retention</option>
-                      <option value="forever">Forever (No Purge)</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="flex justify-end pt-2">
-                  <button
-                    type="button"
-                    onClick={() => saveSettings("backupConfig", backupConfig)}
-                    className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-red-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-red-700 active:scale-[0.98]"
-                  >
-                    Save Schedule Settings
-                  </button>
-                </div>
-              </div>
-
-              <div className="rounded-xl border border-slate-100 p-4 space-y-4">
-                <h4 className="text-xs font-medium text-slate-600">Recent Server-side Backups</h4>
-                <p className="text-[10px] text-slate-500">Select, download, or restore directly from archives stored on the server.</p>
-
-                {serverBackups.length === 0 ? (
-                  <div className="text-center py-6 border border-slate-100 rounded-xl bg-slate-50/50">
-                    <p className="text-xs text-slate-400">No server-side backups found.</p>
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto rounded-xl border border-slate-100">
-                    <table className="w-full text-left text-xs border-collapse">
-                      <thead>
-                        <tr className="bg-slate-50 text-slate-500 font-medium border-b border-slate-100">
-                          <th className="p-3">Filename</th>
-                          <th className="p-3">Type</th>
-                          <th className="p-3">Size</th>
-                          <th className="p-3">Created</th>
-                          <th className="p-3 text-right">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {serverBackups.map((bk) => (
-                          <tr key={bk.filename} className="hover:bg-slate-50/50 text-slate-700 border-b border-slate-100">
-                            <td className="p-3 font-mono text-[10px] truncate max-w-[200px]" title={bk.filename}>
-                              {bk.filename}
-                            </td>
-                            <td className="p-3">
-                              <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium ${bk.type === "Automatic" ? "bg-blue-50 text-blue-700 border border-blue-100" : "bg-purple-50 text-purple-700 border border-purple-100"
-                                }`}>
-                                {bk.type}
-                              </span>
-                            </td>
-                            <td className="p-3 font-medium text-slate-500">
-                              {(bk.sizeBytes / 1024).toFixed(1)} KB
-                            </td>
-                            <td className="p-3 text-slate-500">
-                              {new Date(bk.createdAt).toLocaleString()}
-                            </td>
-                            <td className="p-3 text-right space-x-1.5 whitespace-nowrap">
-                              <button
-                                type="button"
-                                onClick={() => handleDownloadServerBackup(bk.filename)}
-                                className="inline-flex items-center justify-center rounded p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition"
-                                title="Download File"
-                              >
-                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                                </svg>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleRestoreFromFile(bk.filename)}
-                                className="inline-flex items-center justify-center rounded p-1 text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50 transition"
-                                title="Restore from this Backup"
-                              >
-                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 7.89M9 11l3-3 3 3m-3-3v12" />
-                                </svg>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteServerBackup(bk.filename)}
-                                className="inline-flex items-center justify-center rounded p-1 text-red-500 hover:text-red-700 hover:bg-red-50 transition"
-                                title="Delete Backup"
-                              >
-                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                </svg>
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
               </div>
             </div>
           )}
