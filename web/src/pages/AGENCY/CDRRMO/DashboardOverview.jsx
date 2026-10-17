@@ -168,7 +168,7 @@ export default function DashboardOverview({ reports = [], setActiveNav, onStatus
       icon:<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg> },
     { label:"Pending Cases",  value:pending, desc:"Awaiting dispatch or response",          iconBg:"#eff6ff", iconColor:"#1d4ed8",
       icon:<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="12" r="10"/><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l4 2"/></svg> },
-    { label:"Resolved", valueA:resolved, labelA:"Closed", valueB:total-resolved, labelB:"Ongoing", iconBg:"#f0fdf4", iconColor:"#166534",
+    { label:"Resolved", valueA:resolved, labelA:"Closed", valueB:active, labelB:"Ongoing", iconBg:"#f0fdf4", iconColor:"#166534",
       icon:<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> },
   ];
 
