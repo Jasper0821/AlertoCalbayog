@@ -35,7 +35,6 @@ import {
   MapPinIcon
 } from "./icons.jsx";
 import api from "../../api/axios.js";
-import { API_HOST } from "../../api/config.js";
 import socket from "../../api/socket.js";
 import Swal from "sweetalert2";
 import { getValidCalbayogBarangay } from "../../utils/barangays.js";
@@ -286,7 +285,7 @@ export default function AdminDashboard() {
     return NAV.some((item) => item.id === saved) ? saved : "overview";
   });
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [activeSettingsTab, setActiveSettingsTab] = useState("system-info");
+  const [activeSettingsTab, setActiveSettingsTab] = useState("emergency-config");
   const [activeCategories, setActiveCategories] = useState({
     fire: true,
     flood: true,
@@ -589,73 +588,6 @@ export default function AdminDashboard() {
     } catch (err) {
       console.error("Failed to load server backups:", err);
     }
-  };
-
-  const handleRestoreUpload = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      try {
-        const backupData = JSON.parse(event.target.result);
-
-        if (!backupData.version || !backupData.collections) {
-          throw new Error("Invalid backup file format. Missing collections or version metadata.");
-        }
-
-        Swal.fire({
-          title: "Restore Database",
-          html: "<div class='text-left text-xs space-y-2'><p class='font-semibold text-red-600'>WARNING: This will wipe all current incidents, messages, tracking logs, and users (except your active admin account) and replace them with the backup data!</p><p>Are you sure you want to proceed?</p></div>",
-          icon: "warning",
-          showCancelButton: true,
-          confirmButtonColor: "#dc2626",
-          confirmButtonText: "Yes, restore now",
-          cancelButtonText: "Cancel"
-        }).then(async (result) => {
-          if (result.isConfirmed) {
-            Swal.fire({
-              title: "Restoring database...",
-              html: "Wiping existing schemas and importing backup documents. Please wait...",
-              allowOutsideClick: false,
-              didOpen: () => {
-                Swal.showLoading();
-              }
-            });
-
-            try {
-              const response = await api.post("/backup/restore/upload", { backupData });
-
-              Swal.fire({
-                title: "Restore Successful",
-                text: response.data.message || "Database successfully restored.",
-                icon: "success",
-                confirmButtonColor: "#dc2626"
-              }).then(() => {
-                window.location.reload();
-              });
-            } catch (err) {
-              Swal.fire({
-                title: "Restore Failed",
-                text: err.response?.data?.message || err.message,
-                icon: "error",
-                confirmButtonColor: "#dc2626"
-              });
-            }
-          }
-        });
-
-      } catch (err) {
-        Swal.fire({
-          title: "Invalid Backup File",
-          text: err.message,
-          icon: "error",
-          confirmButtonColor: "#dc2626"
-        });
-      }
-    };
-    reader.readAsText(file);
-    e.target.value = "";
   };
 
   const handleRestoreFromFile = (filename) => {
@@ -3223,8 +3155,6 @@ export default function AdminDashboard() {
   };
 
   const renderSettings = () => {
-    const apiBase = API_HOST;
-
     const roleCounts = ["admin", "responder", "resident"].map((role) => ({
       role,
       count: users.filter((user) => user.role === role).length,
@@ -3243,35 +3173,7 @@ export default function AdminDashboard() {
       { label: "Resolved", body: "Incident successfully completed and archived in system logs.", color: "bg-slate-700", ring: "ring-slate-200", num: "04" },
     ];
 
-    const systemCards = [
-      { label: "API Base URL", value: apiBase, sub: "Used by authenticated admin requests" },
-      { label: "Socket Room", value: "admin", sub: "Real-time incident and status updates" },
-      { label: "Signed-in Admin", value: storedUser.fullName || "Admin", sub: storedUser.email || "Current browser session" },
-      { label: "Tracked Records", value: `${reports.length} incidents · ${users.length} users`, sub: "Loaded into this dashboard session" },
-    ];
-
-    const realtimeFeatures = [
-      { text: "Admin dashboard is connected to Socket Room: admin" },
-      { text: "Incident updates are broadcast instantly across all active users" },
-      { text: "Agency dashboards receive only relevant assigned incident data" },
-      { text: "Status changes propagate in real time without refresh delays" },
-      { text: "System ensures continuous live monitoring and coordination" },
-    ];
-
     const settingsNavItems = [
-      {
-        id: "system-info",
-        label: "System Information",
-        icon: (
-          <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="4" y="2" width="16" height="20" rx="2" ry="2" />
-            <line x1="9" y1="22" x2="9" y2="16" />
-            <line x1="15" y1="22" x2="15" y2="16" />
-            <line x1="9" y1="16" x2="15" y2="16" />
-            <path d="M8 6h.01M16 6h.01M8 10h.01M16 10h.01M12 6h.01M12 10h.01M8 14h.01M16 14h.01" />
-          </svg>
-        )
-      },
       {
         id: "emergency-config",
         label: "Emergency Configuration",
@@ -3359,42 +3261,6 @@ export default function AdminDashboard() {
 
         {/* Right Column Settings Detail Area */}
         <div className="flex-1 min-h-0 overflow-y-auto bg-white p-6 lg:p-8">
-
-          {/* Tab: System Information */}
-          {activeSettingsTab === "system-info" && (
-            <div className="space-y-6">
-              <div>
-                <h3 className="text-sm font-medium text-slate-900">System Information</h3>
-                <p className="text-xs text-slate-500 mt-0.5">Overview of core server variables and real-time state parameters.</p>
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                {systemCards.map((card) => (
-                  <div key={card.label} className="rounded-xl border border-slate-100 bg-slate-50/20 p-4">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-medium uppercase tracking-widest text-slate-400">{card.label}</span>
-                    </div>
-                    <p className="mt-2 text-xs font-medium text-slate-900 break-all leading-normal">{card.value}</p>
-                    <p className="text-[10px] text-slate-400 mt-1">{card.sub}</p>
-                  </div>
-                ))}
-              </div>
-
-              <div className="rounded-xl border border-slate-100 overflow-hidden">
-                <div className="bg-slate-50 px-4 py-3 border-b border-slate-100">
-                  <h4 className="text-[11px] font-medium uppercase tracking-widest text-slate-500">Real-Time State Indicators</h4>
-                </div>
-                <div className="divide-y divide-slate-100 bg-white">
-                  {realtimeFeatures.map((feat, idx) => (
-                    <div key={idx} className="flex items-center gap-3 p-3.5 text-xs">
-                      <span className="h-1.5 w-1.5 rounded-full bg-slate-300 shrink-0" />
-                      <p className="font-medium text-slate-600 leading-relaxed">{feat.text}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* Tab: Emergency Configuration */}
           {activeSettingsTab === "emergency-config" && (
@@ -3766,24 +3632,6 @@ export default function AdminDashboard() {
                   >
                     Save Schedule Settings
                   </button>
-                </div>
-              </div>
-
-              <div className="rounded-xl border border-slate-100 p-4 space-y-4">
-                <h4 className="text-xs font-medium text-slate-600">Database Restoration</h4>
-                <p className="text-[10px] text-slate-500">Restore database structure and documents from a local JSON backup archive.</p>
-                <div className="relative border-2 border-dashed border-slate-200 hover:border-red-500 transition rounded-xl p-6 flex flex-col items-center justify-center cursor-pointer">
-                  <input
-                    type="file"
-                    accept=".json"
-                    onChange={handleRestoreUpload}
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                  />
-                  <svg className="mx-auto h-8 w-8 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                  </svg>
-                  <p className="mt-2 text-xs font-medium text-slate-700">Click to upload or drag & drop backup JSON file</p>
-                  <p className="text-[10px] text-slate-400 mt-1">Accepts alerto_backup_*.json</p>
                 </div>
               </div>
 
