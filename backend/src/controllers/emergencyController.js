@@ -284,12 +284,27 @@ exports.createEmergencyReport = async (req, res) => {
       ? address
       : `${address}, ${locality}`;
 
+    // Optional quick details from the reporter. Bounded so a client cannot bloat
+    // the document; anything malformed is simply dropped.
+    const symptoms = Array.isArray(req.body.symptoms)
+      ? req.body.symptoms
+          .filter((s) => typeof s === "string" && s.trim())
+          .map((s) => s.trim().slice(0, 40))
+          .slice(0, 10)
+      : [];
+    const requestedPeople = parseInt(req.body.peopleCount, 10);
+    const peopleCount = Number.isFinite(requestedPeople)
+      ? Math.min(Math.max(requestedPeople, 1), 20)
+      : 1;
+
     const report = await EmergencyReport.create({
       userId: req.user.id,
       emergencyType,
       notifiedAgencies,
       description,
       proofPhotos,
+      symptoms,
+      peopleCount,
       location: {
         latitude,
         longitude,
@@ -303,7 +318,7 @@ exports.createEmergencyReport = async (req, res) => {
     });
 
     const populatedReport = await EmergencyReport.findById(report._id)
-      .populate("userId", "fullName email role phoneNumber avatar barangay completeAddress")
+      .populate("userId", "fullName email role phoneNumber residentVerificationStatus avatar barangay completeAddress")
       .populate("assignedResponder", "fullName email role agency phoneNumber");
 
     const io = req.app.get("io");
@@ -387,7 +402,7 @@ exports.getAllReports = async (req, res) => {
       .select("-proofPhotos -resolutionEvidence")
       // barangay/completeAddress are the reporter's REGISTERED address, shown to
       // dispatchers as labelled context. They are never the incident's location.
-      .populate("userId", "fullName email role phoneNumber barangay completeAddress")
+      .populate("userId", "fullName email role phoneNumber residentVerificationStatus barangay completeAddress")
       .populate("assignedResponder", "fullName email role agency phoneNumber")
       .sort({ createdAt: -1 })
       .limit(limit);
@@ -400,7 +415,11 @@ exports.getAllReports = async (req, res) => {
 
 exports.getMyReports = async (req, res) => {
   try {
-    const reports = await EmergencyReport.find({ userId: req.user.id, isDeleted: { $ne: true } })
+    const reports = await EmergencyReport.find({
+      userId: req.user.id,
+      isDeleted: { $ne: true },
+      hiddenByResident: { $ne: true },
+    })
       .select("-proofPhotos -resolutionEvidence")
       .populate("userId", "fullName email role")
       .populate("assignedResponder", "fullName email role agency phoneNumber")
@@ -416,7 +435,7 @@ exports.getReportById = async (req, res) => {
   try {
     const { id } = req.params;
     const report = await EmergencyReport.findById(id)
-      .populate("userId", "fullName email role phoneNumber avatar barangay completeAddress")
+      .populate("userId", "fullName email role phoneNumber residentVerificationStatus avatar barangay completeAddress")
       .populate("assignedResponder", "fullName email role agency phoneNumber");
 
     if (!report) {
@@ -424,6 +443,156 @@ exports.getReportById = async (req, res) => {
     }
 
     res.json(report);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Pushes a reporter-side change to the dashboards that hold the report, without
+// photos: those are loaded on demand via GET /emergency/:id.
+const broadcastReportChange = (req, report) => {
+  const io = req.app.get("io");
+  if (!io) return;
+  const lean = report.toObject();
+  delete lean.proofPhotos;
+  delete lean.resolutionEvidence;
+  io.to("admin").emit("reportStatusChanged", lean);
+  (report.notifiedAgencies || []).forEach((agency) => {
+    io.to(agency).emit("reportStatusChanged", lean);
+  });
+  io.to(report.userId.toString()).emit(`statusUpdate-${report._id}`, lean);
+};
+
+/**
+ * The reporter withdraws a report that is no longer needed. Only allowed while it
+ * is still pending: once an agency is responding, cancelling from the phone could
+ * recall a team already on the road, so that has to go through the hotline.
+ */
+exports.cancelMyReport = async (req, res) => {
+  try {
+    const report = await EmergencyReport.findById(req.params.id);
+    if (!report || report.isDeleted) {
+      return res.status(404).json({ message: "Report not found" });
+    }
+    if (report.userId.toString() !== req.user.id) {
+      return res.status(403).json({ message: "You can only cancel your own reports" });
+    }
+    if (report.status !== "pending") {
+      return res.status(409).json({
+        message: "Responders are already handling this report. Please call the hotline to cancel it.",
+        status: report.status,
+      });
+    }
+
+    report.status = "cancelled";
+    report.cancelledAt = new Date();
+    report.actionLog.push({
+      actorId: req.user.id,
+      actorRole: req.user.role,
+      actorName: "Reporter",
+      action: "cancelled_by_reporter",
+      fromStatus: "pending",
+      toStatus: "cancelled",
+      message: "Cancelled by the reporter: no longer needed.",
+    });
+    await report.save();
+
+    broadcastReportChange(req, report);
+    const lean = report.toObject();
+    delete lean.proofPhotos;
+    delete lean.resolutionEvidence;
+    res.json({ message: "Report cancelled", report: lean });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+/**
+ * The reporter has seen the responders' evidence and says they are okay. Recorded
+ * for the admin, who still makes the formal closure; the reporter's own list moves
+ * the report to "Closed".
+ */
+exports.confirmMyReport = async (req, res) => {
+  try {
+    const report = await EmergencyReport.findById(req.params.id);
+    if (!report || report.isDeleted) {
+      return res.status(404).json({ message: "Report not found" });
+    }
+    if (report.userId.toString() !== req.user.id) {
+      return res.status(403).json({ message: "You can only confirm your own reports" });
+    }
+    if (!["resolved", "closed"].includes(report.status)) {
+      return res.status(409).json({ message: "Responders haven't finished this report yet." });
+    }
+
+    if (!report.residentConfirmedAt) {
+      report.residentConfirmedAt = new Date();
+      report.actionLog.push({
+        actorId: req.user.id,
+        actorRole: req.user.role,
+        actorName: "Reporter",
+        action: "resident_confirmed",
+        fromStatus: report.status,
+        toStatus: report.status,
+        message: "Reporter confirmed the incident is resolved.",
+      });
+      await report.save();
+
+      try {
+        const notification = await Notification.create({
+          recipientRole: "admin",
+          reportId: report._id,
+          title: "Reporter confirmed resolution",
+          message: `The reporter confirmed report ${report._id} is resolved. It is ready to close.`,
+          category: "incident",
+          type: "status_update",
+          metadata: { status: report.status, reportId: report._id.toString(), residentConfirmed: true },
+        });
+        req.app.get("io")?.to("admin").emit("notification", notification);
+      } catch (err) {
+        console.warn("Resident confirmation notification failed:", err.message);
+      }
+      broadcastReportChange(req, report);
+    }
+
+    const lean = report.toObject();
+    delete lean.proofPhotos;
+    delete lean.resolutionEvidence;
+    res.json({ message: "Thanks for confirming", report: lean });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+/** Adds scene photos to a report after it was sent, up to the same 5-photo cap. */
+exports.addMyReportPhotos = async (req, res) => {
+  try {
+    const photos = Array.isArray(req.body.photos) ? req.body.photos : [];
+    if (photos.length === 0 || !photos.every(isValidEvidenceImage)) {
+      return res.status(400).json({ message: "Each photo must be an uploaded photo URL or an inline image." });
+    }
+
+    const report = await EmergencyReport.findById(req.params.id);
+    if (!report || report.isDeleted) {
+      return res.status(404).json({ message: "Report not found" });
+    }
+    if (report.userId.toString() !== req.user.id) {
+      return res.status(403).json({ message: "You can only add photos to your own reports" });
+    }
+    if (!["pending", "responding"].includes(report.status)) {
+      return res.status(409).json({ message: "This report is no longer active." });
+    }
+    if (report.proofPhotos.length + photos.length > 5) {
+      return res.status(400).json({
+        message: `A report can have at most 5 photos. You can add ${Math.max(0, 5 - report.proofPhotos.length)} more.`,
+      });
+    }
+
+    report.proofPhotos.push(...photos);
+    await report.save();
+
+    broadcastReportChange(req, report);
+    res.json({ message: "Photos added", report });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -443,6 +612,21 @@ exports.deleteMyReport = async (req, res) => {
     const isAdmin = req.user.role === "admin";
     if (!isAdmin && report.userId.toString() !== req.user.id) {
       return res.status(403).json({ message: "You can only delete your own reports" });
+    }
+
+    // A resident only removes the report from their own "My reports" list. This used
+    // to soft-delete the report itself and pull it from every agency dashboard, so a
+    // resident could make an emergency in progress vanish from responders' queues and
+    // erase the agencies' record of a closed case.
+    if (!isAdmin) {
+      if (["pending", "responding"].includes(report.status)) {
+        return res.status(409).json({
+          message: "Active reports can't be removed. Cancel the report first, or call the hotline.",
+        });
+      }
+      report.hiddenByResident = true;
+      await report.save();
+      return res.json({ message: "Report removed from your history" });
     }
 
     const notifiedAgencies = report.notifiedAgencies || [];
@@ -523,7 +707,7 @@ exports.getReportsByAgency = async (req, res) => {
 
     const reports = await EmergencyReport.find(query)
       .select("-proofPhotos -resolutionEvidence -actionLog")
-      .populate("userId", "fullName email role phoneNumber barangay completeAddress")
+      .populate("userId", "fullName email role phoneNumber residentVerificationStatus barangay completeAddress")
       .populate("assignedResponder", "fullName email role agency phoneNumber")
       .sort({ createdAt: -1 })
       .limit(limit);
@@ -567,7 +751,7 @@ exports.restoreReport = async (req, res) => {
     await report.save();
 
     const populatedReport = await EmergencyReport.findById(id)
-      .populate("userId", "fullName email role phoneNumber")
+      .populate("userId", "fullName email role phoneNumber residentVerificationStatus")
       .populate("assignedResponder", "fullName email role agency phoneNumber");
 
     const io = req.app.get("io");

@@ -13,6 +13,7 @@ const auditRoutes = require("./routes/auditRoutes");
 const settingsRoutes = require("./routes/settingsRoutes");
 const backupRoutes = require("./routes/backupRoutes");
 const uploadRoutes = require("./routes/uploadRoutes");
+const voterRoutes = require("./routes/voterRoutes");
 
 const app = express();
 
@@ -55,6 +56,7 @@ app.use("/api/audit", auditRoutes);
 app.use("/api/settings", settingsRoutes);
 app.use("/api/backup", backupRoutes);
 app.use("/api/uploads", uploadRoutes);
+app.use("/api/voters", voterRoutes);
 
 app.get("/", (req, res) => {
   res.send("AlertoCalbayog API is running");

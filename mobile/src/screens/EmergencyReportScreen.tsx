@@ -1,1396 +1,568 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  Alert,
-  ActivityIndicator,
-  Linking,
-  AppState,
-  Image,
-  ScrollView,
-  StyleSheet,
-  StatusBar,
-  TextInput,
-  Modal,
-} from "react-native";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { ActivityIndicator, KeyboardAvoidingView, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View, TouchableOpacity } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import * as Location from "expo-location";
-import * as ImagePicker from "expo-image-picker";
-import * as ImageManipulator from "expo-image-manipulator";
-import Header from "../components/Header";
-import { COLORS } from "../styles/colors";
-import CALBAYOG_BARANGAYS from "../constants/calbayogBarangays";
-import { uploadEvidenceImage } from "../api/uploads";
-import {
-  FireIcon,
-  MedicalIcon,
-  CrimeIcon,
-  FloodIcon,
-  OthersIcon,
-  CameraIcon,
-} from "../components/SvgIcons";
-import api, { backendUrl } from "../api/axios";
-import { getToken } from "../utils/Storage";
+import * as Haptics from "expo-haptics";
+import { ChevronLeft, Phone, Send } from "lucide-react-native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RouteProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../navigation/AppNavigator";
-
-type EmergencyReportScreenRouteProp = RouteProp<
-  RootStackParamList,
-  "EmergencyReport"
->;
-type EmergencyReportScreenNavigationProp = NativeStackNavigationProp<
-  RootStackParamList,
-  "EmergencyReport"
->;
+import LocationCard from "../components/LocationCard";
+import SymptomChips from "../components/SymptomChips";
+import PeopleStepper from "../components/PeopleStepper";
+import PhotoPicker, { type ScenePhoto } from "../components/PhotoPicker";
+import { useReportLocation } from "../hooks/useReportLocation";
+import { getEmergencyType } from "../constants/emergencyTypes";
+import { submitReport } from "../api/reports";
+import { showDialog } from "../utils/dialog";
+import { uploadEvidenceImage } from "../api/uploads";
+import { backendUrl } from "../api/axios";
+import { clearStorage } from "../utils/Storage";
+import { captureScenePhoto, ensureCameraPermission } from "../utils/capturePhoto";
+import { card, cardTitle, colors, fonts, fontSize, radius, spacing } from "../theme";
 
 interface Props {
-  route: EmergencyReportScreenRouteProp;
-  navigation: EmergencyReportScreenNavigationProp;
+  route: RouteProp<RootStackParamList, "EmergencyReport">;
+  navigation: NativeStackNavigationProp<RootStackParamList, "EmergencyReport">;
 }
 
+// Proof photos verify a report is real. The backend rejects fewer than 2 or more than 5.
 const MIN_PHOTOS = 2;
 const MAX_PHOTOS = 5;
 
 /**
- * How old the newest watched fix may be and still be sent as-is. A reporter who
- * has been on this screen for even a few seconds already has a fix this fresh,
- * so submit costs no GPS wait at all.
+ * How long SEND waits for photos still uploading. Past this the report goes out
+ * with those photos inline: a slow image host must never hold back an emergency.
  */
-const FRESH_FIX_MAX_AGE_MS = 30 * 1000;
+const UPLOAD_WAIT_MS = 15 * 1000;
 
-/**
- * Ceiling on how long submit may block waiting for a brand-new fix when no fresh
- * one exists. getCurrentPositionAsync has no timeout of its own: indoors or under
- * cover it can wait for a satellite lock indefinitely, which is what made SEND
- * feel frozen. After this we fall back to whatever position we already have.
- */
-const SUBMIT_FIX_TIMEOUT_MS = 8 * 1000;
+const waitAtMost = (promise: Promise<unknown>, ms: number) =>
+  Promise.race([promise, new Promise((resolve) => setTimeout(resolve, ms))]);
 
-/** Oldest cached fix we will accept as a last resort. */
-const LAST_KNOWN_MAX_AGE_MS = 5 * 60 * 1000;
-
-type Fix = Location.LocationObject;
-
-/** Resolves to null instead of hanging, so a slow GPS cannot block the report. */
-const withTimeout = <T,>(promise: Promise<T>, ms: number): Promise<T | null> =>
-  Promise.race([
-    promise.catch(() => null),
-    new Promise<null>((resolve) => setTimeout(() => resolve(null), ms)),
-  ]);
-
-export default function EmergencyReportScreen({
-  route,
-  navigation,
-}: Props): React.JSX.Element {
+export default function EmergencyReportScreen({ route, navigation }: Props): React.JSX.Element {
   const insets = useSafeAreaInsets();
   const { emergencyType } = route.params;
-  const [description, setDescription] = useState<string>("");
-  const [proofPhotos, setProofPhotos] = useState<string[]>([]);
-  // Indices of photos still uploading, so submit can wait for them.
-  const [uploadingSlots, setUploadingSlots] = useState<number[]>([]);
-  const [loading, setLoading] = useState<boolean>(false);
-  const [locationEnabled, setLocationEnabled] = useState<boolean>(false);
-  const [checkingLocation, setCheckingLocation] = useState<boolean>(true);
-  // Percentage of the report body uploaded. Photos are sent as base64, so on a
-  // weak mobile signal this is the difference between "is it frozen?" and
-  // watching real progress during the most stressful moment of the app.
-  const [uploadProgress, setUploadProgress] = useState<number>(0);
+  const type = getEmergencyType(emergencyType);
+  const location = useReportLocation();
 
-  // Address of THE INCIDENT, resolved on-device. The OS geocoder (Google Play
-  // Services / Apple) has far better Philippine coverage than the server-side
-  // Nominatim fallback, needs no network round-trip from the API host, and runs
-  // while the reporter is standing at the scene.
-  const [barangay, setBarangay] = useState<string>("");
-  const [street, setStreet] = useState<string>("");
-  const [purok, setPurok] = useState<string>("");
-  const [landmark, setLandmark] = useState<string>("");
-  const [accuracy, setAccuracy] = useState<number | null>(null);
-  const [resolvingAddress, setResolvingAddress] = useState<boolean>(false);
-  const [showLocationEdit, setShowLocationEdit] = useState<boolean>(false);
-  const [showBarangayPicker, setShowBarangayPicker] = useState<boolean>(false);
-  const [barangaySearch, setBarangaySearch] = useState<string>("");
+  const [landmark, setLandmark] = useState("");
+  const [symptoms, setSymptoms] = useState<string[]>([]);
+  const [peopleCount, setPeopleCount] = useState(1);
+  const [photos, setPhotos] = useState<ScenePhoto[]>([]);
+  const [note, setNote] = useState("");
+  const [sending, setSending] = useState(false);
+  const [progress, setProgress] = useState(0);
 
-  /**
-   * The newest position the device has produced since this screen opened, kept
-   * warm by the watcher below. Submit reads this instead of asking for a fresh
-   * fix, which is the whole reason SEND no longer waits on GPS.
-   */
-  const latestFixRef = useRef<Fix | null>(null);
+  // Read after awaits, where the state captured by the closure is stale.
+  const photosRef = useRef(photos);
+  photosRef.current = photos;
+  const uploadsRef = useRef(new Map<string, Promise<void>>());
+  const capturingRef = useRef(false);
+  const sentRef = useRef(false);
+  const scrollRef = useRef<ScrollView>(null);
+  const photoCardY = useRef(0);
 
-  const rememberFix = useCallback((fix: Fix | null) => {
-    if (!fix) return;
-    const previous = latestFixRef.current;
-    // Keep the newer reading. Watch updates and one-shot reads can interleave.
-    if (!previous || fix.timestamp >= previous.timestamp) {
-      latestFixRef.current = fix;
-      if (typeof fix.coords.accuracy === "number") {
-        setAccuracy(Math.round(fix.coords.accuracy));
-      }
-    }
-  }, []);
+  const hasDraft = photos.length > 0 || landmark.trim() !== "" || note.trim() !== "" || symptoms.length > 0;
 
-  const filteredBarangays = CALBAYOG_BARANGAYS.filter((bgy) =>
-    bgy.toLowerCase().includes(barangaySearch.toLowerCase())
+  // Backing out would silently throw away photos taken at the scene.
+  useEffect(
+    () =>
+      navigation.addListener("beforeRemove", (event) => {
+        if (sentRef.current || !hasDraft) return;
+        event.preventDefault();
+        showDialog("Discard this report?", "Your photos and details will be lost.", [
+          { text: "Keep editing", style: "cancel" },
+          { text: "Discard", style: "destructive", onPress: () => navigation.dispatch(event.data.action) },
+        ]);
+      }),
+    [navigation, hasDraft]
   );
 
-  const checkLocationStatus = useCallback(async () => {
-    try {
-      const serviceEnabled = await Location.hasServicesEnabledAsync();
-      if (!serviceEnabled) {
-        setLocationEnabled(false);
-        setCheckingLocation(false);
-        return;
-      }
+  const toggleSymptom = (option: string) => {
+    Haptics.selectionAsync().catch(() => {});
+    setSymptoms((prev) => (prev.includes(option) ? prev.filter((s) => s !== option) : [...prev, option]));
+  };
 
-      const { status } = await Location.getForegroundPermissionsAsync();
-      if (status !== "granted") {
-        const { status: newStatus } =
-          await Location.requestForegroundPermissionsAsync();
-        setLocationEnabled(newStatus === "granted");
-      } else {
-        setLocationEnabled(true);
+  /**
+   * Keeps the camera open shot after shot until the resident backs out or hits
+   * the limit. Each photo uploads in the background while the next is taken, and
+   * the hosted URL replaces the inline image; on failure the inline image stays.
+   */
+  const handleAddPhoto = useCallback(async () => {
+    if (capturingRef.current) return;
+    capturingRef.current = true;
+    try {
+      if (!(await ensureCameraPermission())) return;
+      let count = photosRef.current.length;
+      while (count < MAX_PHOTOS) {
+        const uri = await captureScenePhoto();
+        if (!uri) break;
+        const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        setPhotos((prev) => [...prev, { id, uri, uploading: true }]);
+        count += 1;
+
+        const upload = uploadEvidenceImage(uri, "proof")
+          .then((hosted) => {
+            setPhotos((prev) => prev.map((p) => (p.id === id ? { ...p, uri: hosted, uploading: false } : p)));
+          })
+          .finally(() => uploadsRef.current.delete(id));
+        uploadsRef.current.set(id, upload);
       }
     } catch {
-      setLocationEnabled(false);
+      showDialog("Camera unavailable", "The photo could not be taken. Please try again.");
     } finally {
-      setCheckingLocation(false);
+      capturingRef.current = false;
     }
   }, []);
 
-  useEffect(() => {
-    checkLocationStatus();
-  }, [checkLocationStatus]);
+  const removePhoto = (id: string) => setPhotos((prev) => prev.filter((p) => p.id !== id));
 
-  /**
-   * Resolves the incident's address as soon as the screen opens, so the lookup
-   * overlaps the time the reporter spends taking photos and costs them nothing.
-   * Everything it finds is editable below — a wrong barangay is worse than none.
-   */
-  const resolveAddress = useCallback(async () => {
-    setResolvingAddress(true);
-    try {
-      // Show the reporter something immediately. A cached fix is usually metres
-      // from the real one and arrives instantly, where a fresh High-accuracy fix
-      // can take tens of seconds — during which the screen used to sit blank.
-      const cached = await Location.getLastKnownPositionAsync({
-        maxAge: LAST_KNOWN_MAX_AGE_MS,
-      }).catch(() => null);
-      rememberFix(cached);
+  const missingPhotos = Math.max(0, MIN_PHOTOS - photos.length);
+  const locationReady = location.status === "ready";
+  const canSend = locationReady && missingPhotos === 0;
 
-      // Then take the good fix. Bounded, because an unbounded wait here left
-      // "Detecting location…" on screen indefinitely indoors.
-      const fresh = await withTimeout(
-        Location.getCurrentPositionAsync({
-          // The report is what responders navigate by, so it gets the best fix we
-          // can take. Live tracking already used High while this used Balanced.
-          accuracy: Location.Accuracy.High,
-        }),
-        SUBMIT_FIX_TIMEOUT_MS
-      );
-      rememberFix(fresh);
+  const handleSend = async () => {
+    if (sending) return;
 
-      const position = fresh || cached;
-      if (!position) return;
-
-      const [place] = await Location.reverseGeocodeAsync({
-        latitude: position.coords.latitude,
-        longitude: position.coords.longitude,
-      });
-      if (!place) return;
-
-      // Android usually reports the barangay in `district`. `subregion` is the
-      // province ("Samar") in the Philippines, so it only counts when it names an
-      // actual barangay — otherwise reports were labelled "Brgy. Samar".
-      const findBarangay = (value?: string | null) =>
-        CALBAYOG_BARANGAYS.find(
-          (bgy) => bgy.toLowerCase() === (value || "").trim().toLowerCase()
-        );
-      const district = (place.district || "").trim();
-      const detected =
-        findBarangay(district) ||
-        findBarangay(place.subregion) ||
-        (/^(district|calbayog( city)?|samar)$/i.test(district) ? "" : district);
-      if (detected) setBarangay(detected);
-
-      if (place.street) setStreet(place.street.trim());
-
-      // Some geocoders return the purok inside the district/subregion string.
-      const purokMatch = `${place.district || ""} ${place.subregion || ""}`.match(
-        /purok\s*([\w-]+)/i
-      );
-      if (purokMatch) setPurok(purokMatch[0].trim());
-
-      // `name` is usually the nearest named feature — a decent landmark seed. With
-      // nothing named nearby Android returns a Plus Code ("3H9V+8H2") instead, which
-      // is not a landmark and duplicated the code the dashboard derives from GPS.
-      const isPlusCode = /^[23456789CFGHJMPQRVWX]{4,8}\+[23456789CFGHJMPQRVWX]*$/i.test(
-        (place.name || "").trim()
-      );
-      if (place.name && place.name !== place.street && !isPlusCode) {
-        setLandmark(place.name.trim());
-      }
-    } catch {
-      // Non-fatal: the report still sends with coordinates, and the server will
-      // attempt its own lookup. Never block the emergency on an address.
-    } finally {
-      setResolvingAddress(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (locationEnabled) resolveAddress();
-  }, [locationEnabled, resolveAddress]);
-
-  /**
-   * Keeps a fix warm for the whole time the reporter spends photographing the
-   * scene. GPS is already powered up from the lookup above, so this costs little
-   * and means the position is ready the instant SEND is pressed rather than
-   * being requested from cold at the worst possible moment.
-   */
-  useEffect(() => {
-    if (!locationEnabled) return;
-
-    let subscription: Location.LocationSubscription | null = null;
-    let cancelled = false;
-
-    Location.watchPositionAsync(
-      {
-        accuracy: Location.Accuracy.High,
-        timeInterval: 3000,
-        distanceInterval: 5,
-      },
-      rememberFix
-    )
-      .then((sub) => {
-        if (cancelled) {
-          sub.remove();
-          return;
-        }
-        subscription = sub;
-      })
-      .catch(() => {
-        // Non-fatal: submit still falls back to a one-shot read.
-      });
-
-    return () => {
-      cancelled = true;
-      subscription?.remove();
-    };
-  }, [locationEnabled, rememberFix]);
-
-  useEffect(() => {
-    const subscription = AppState.addEventListener("change", (nextAppState) => {
-      if (nextAppState === "active") {
-        setCheckingLocation(true);
-        checkLocationStatus();
-      }
-    });
-
-    return () => subscription.remove();
-  }, [checkLocationStatus]);
-
-  const handleTakePhoto = async () => {
-    if (proofPhotos.length >= MAX_PHOTOS) {
-      Alert.alert(
-        "Maximum Limit Reached",
-        `You can upload a maximum of ${MAX_PHOTOS} proof photos per emergency report.`
-      );
-      return;
-    }
-
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== "granted") {
-      Alert.alert(
-        "Camera Permission Required",
-        "Camera permission is required to capture photos of the emergency scene as proof for responders."
-      );
-      return;
-    }
-
-    let currentCount = proofPhotos.length;
-
-    while (currentCount < MAX_PHOTOS) {
-      const result = await ImagePicker.launchCameraAsync({
-        allowsEditing: false,
-        quality: 0.6,
-      });
-
-      if (result.canceled || !result.assets || result.assets.length === 0) {
-        break;
-      }
-
-      const asset = result.assets[0];
-
-      // Compress and resize photo for sub-second report transmission
-      const manipulated = await ImageManipulator.manipulateAsync(
-        asset.uri,
-        [{ resize: { width: 1000 } }],
-        { compress: 0.55, format: ImageManipulator.SaveFormat.JPEG, base64: true }
-      );
-
-      const imageUri = manipulated.base64
-        ? `data:image/jpeg;base64,${manipulated.base64}`
-        : manipulated.uri;
-
-      const slot = currentCount;
-      setProofPhotos((prev) => [...prev, imageUri]);
-      currentCount++;
-
-      // Upload in the background so it overlaps the next capture instead of
-      // stacking megabytes of base64 onto the submit request. The hosted URL
-      // replaces the inline image in place; on failure the inline image stays.
-      setUploadingSlots((prev) => [...prev, slot]);
-      uploadEvidenceImage(imageUri, "proof")
-        .then((hosted) => {
-          if (hosted !== imageUri) {
-            setProofPhotos((prev) => prev.map((p, i) => (i === slot ? hosted : p)));
-          }
-        })
-        .finally(() => {
-          setUploadingSlots((prev) => prev.filter((i) => i !== slot));
-        });
-
-      if (currentCount >= MAX_PHOTOS) {
-        Alert.alert(
-          "Maximum Limit Reached",
-          `You have captured the maximum of ${MAX_PHOTOS} proof photos.`
-        );
-        break;
-      }
-    }
-  };
-
-  const handleRemovePhoto = (index: number) => {
-    setProofPhotos((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  const getEmergencyTheme = () => {
-    switch (emergencyType.toLowerCase()) {
-      case "fire":
-        return {
-          bg: "rgba(239, 68, 68, 0.08)",
-          border: "#FCA5A5",
-          text: "#DC2626",
-          badgeBg: "#EF4444",
-          btnBg: "#DC2626",
-          label: "FIRE EMERGENCY",
-          icon: <FireIcon size={22} color="#DC2626" />,
-        };
-      case "medical":
-        return {
-          bg: "rgba(16, 185, 129, 0.08)",
-          border: "#A7F3D0",
-          text: "#059669",
-          badgeBg: "#10B981",
-          btnBg: "#059669",
-          label: "MEDICAL EMERGENCY",
-          icon: <MedicalIcon size={22} color="#059669" />,
-        };
-      case "flood":
-        return {
-          bg: "rgba(14, 165, 233, 0.08)",
-          border: "#BAE6FD",
-          text: "#0284C7",
-          badgeBg: "#0EA5E9",
-          btnBg: "#0284C7",
-          label: "FLOOD EMERGENCY",
-          icon: <FloodIcon size={22} color="#0284C7" />,
-        };
-      case "crime":
-        return {
-          bg: "rgba(139, 92, 246, 0.08)",
-          border: "#DDD6FE",
-          text: "#7C3AED",
-          badgeBg: "#8B5CF6",
-          btnBg: "#7C3AED",
-          label: "CRIME / POLICE REPORT",
-          icon: <CrimeIcon size={22} color="#7C3AED" />,
-        };
-      case "others":
-        return {
-          bg: "rgba(245, 158, 11, 0.08)",
-          border: "#FDE68A",
-          text: "#D97706",
-          badgeBg: "#F59E0B",
-          btnBg: "#D97706",
-          label: "OTHER EMERGENCY",
-          icon: <OthersIcon size={22} color="#D97706" />,
-        };
-      default:
-        return {
-          bg: "rgba(59, 130, 246, 0.08)",
-          border: "#BFDBFE",
-          text: "#2563EB",
-          badgeBg: "#3B82F6",
-          btnBg: "#2563EB",
-          label: `${emergencyType.toUpperCase()} EMERGENCY`,
-          icon: <OthersIcon size={22} color="#2563EB" />,
-        };
-    }
-  };
-
-  const theme = getEmergencyTheme();
-  const photosReady = proofPhotos.length >= MIN_PHOTOS;
-  const photosRemaining = Math.max(0, MIN_PHOTOS - proofPhotos.length);
-  const isSubmitDisabled =
-    loading ||
-    !locationEnabled ||
-    checkingLocation ||
-    // Sending mid-upload would submit a base64 photo that is seconds away from
-    // having a hosted URL, bloating the payload for no reason.
-    uploadingSlots.length > 0 ||
-    proofPhotos.length < MIN_PHOTOS ||
-    proofPhotos.length > MAX_PHOTOS;
-
-  /**
-   * The position the report is sent with, in order of preference:
-   *
-   *   1. The warm fix the watcher has been maintaining — almost always present,
-   *      and returns instantly.
-   *   2. A fresh read, but capped so it cannot block the report indefinitely.
-   *   3. Any fix we already hold, even a slightly stale one.
-   *   4. A cached OS fix from the last five minutes.
-   *
-   * Only an unbounded stale position is refused outright: sending responders to
-   * where the phone was hours ago is worse than reporting no location at all.
-   */
-  const resolveSubmitPosition = async (): Promise<Fix | null> => {
-    const warm = latestFixRef.current;
-    if (warm && Date.now() - warm.timestamp < FRESH_FIX_MAX_AGE_MS) {
-      return warm;
-    }
-
-    const fresh = await withTimeout(
-      Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High }),
-      SUBMIT_FIX_TIMEOUT_MS
-    );
-    if (fresh) {
-      rememberFix(fresh);
-      return fresh;
-    }
-
-    if (latestFixRef.current) return latestFixRef.current;
-
-    return Location.getLastKnownPositionAsync({
-      maxAge: LAST_KNOWN_MAX_AGE_MS,
-    }).catch(() => null);
-  };
-
-  const handleSubmit = async () => {
-    if (!locationEnabled) {
-      Alert.alert(
-        "Location Required",
-        "Please enable your location services to submit an emergency report.",
+    if (!locationReady) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+      scrollRef.current?.scrollTo({ y: 0, animated: true });
+      showDialog(
+        "Turn on location",
+        "Responders need your GPS location to find you. Turn on location to send this report.",
         [
-          { text: "Open Settings", onPress: () => Linking.openSettings() },
-          { text: "Cancel", style: "cancel" },
+          { text: "Not now", style: "cancel" },
+          { text: "Turn on location", onPress: location.enableLocation },
         ]
       );
       return;
     }
 
-    if (proofPhotos.length < MIN_PHOTOS) {
-      Alert.alert(
-        "📷 Proof Required",
-        `Please take at least ${MIN_PHOTOS} photos of the scene using your camera before submitting your emergency report.`
+    if (missingPhotos > 0) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+      scrollRef.current?.scrollTo({ y: Math.max(0, photoCardY.current - spacing.lg), animated: true });
+      showDialog(
+        "Add scene photos",
+        `Take ${missingPhotos} more photo${missingPhotos === 1 ? "" : "s"} of the scene so responders can verify the report.`,
+        [
+          { text: "Not now", style: "cancel" },
+          { text: "Take photo", onPress: handleAddPhoto },
+        ]
       );
       return;
     }
 
-    setLoading(true);
-    setUploadProgress(0);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => {});
+    setSending(true);
     try {
-      const location = await resolveSubmitPosition();
-      if (!location) {
-        Alert.alert(
-          "Location Unavailable",
-          "Unable to determine your current location. Please make sure your GPS is turned on and try again.",
+      // Let in-flight uploads land so the report carries short hosted URLs
+      // instead of megabytes of base64 — but never wait indefinitely.
+      if (uploadsRef.current.size > 0) {
+        await waitAtMost(Promise.allSettled([...uploadsRef.current.values()]), UPLOAD_WAIT_MS);
+      }
+
+      const where = await location.resolveSubmitPosition();
+      if (!where) {
+        showDialog(
+          "Location unavailable",
+          "We could not get your location. Make sure GPS is on, step near a window or outside, and try again.",
           [
             { text: "Open Settings", onPress: () => Linking.openSettings() },
-            { text: "Cancel", style: "cancel" },
+            { text: "OK", style: "cancel" },
           ]
         );
-        setLoading(false);
         return;
       }
-      const token = await getToken();
 
-      const res = await api.post(
-        "/emergency",
+      const { reportId } = await submitReport(
         {
-          emergencyType,
-          description:
-            description.trim() ||
-            `${emergencyType.toUpperCase()} incident reported with ${proofPhotos.length} proof photos`,
-          proofPhotos,
-          latitude: location.coords.latitude,
-          longitude: location.coords.longitude,
-          // Resolved on-device above. The backend reads all of these and only
-          // falls back to its own geocoder for whatever is missing.
-          barangay: barangay.trim(),
-          street: street.trim(),
-          purok: purok.trim(),
-          landmark: landmark.trim(),
-          accuracy:
-            typeof location.coords.accuracy === "number"
-              ? Math.round(location.coords.accuracy)
-              : accuracy,
+          type: emergencyType,
+          latitude: where.position.latitude,
+          longitude: where.position.longitude,
+          accuracy: where.accuracy,
+          barangay: location.barangay,
+          street: location.street,
+          purok: location.purok,
+          landmark,
+          symptoms,
+          peopleCount,
+          photos: photosRef.current.map((p) => p.uri),
+          note,
         },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          onUploadProgress: (event) => {
-            if (event.total) {
-              setUploadProgress(Math.round((event.loaded / event.total) * 100));
-            }
-          },
-        }
+        setProgress
       );
 
-      // Straight to live tracking — that screen is itself the confirmation, and
-      // an extra "OK" tap is the last thing anyone needs mid-emergency.
-      navigation.navigate("LiveTracking", {
-        reportId: res.data.report._id,
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
-        emergencyType,
-      });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      sentRef.current = true;
+      // Replace, so Back from the status screen goes home instead of to a form
+      // that would send the same emergency twice.
+      navigation.replace("AlertSent", { reportId, emergencyType, peopleCount });
     } catch (error: any) {
-      const isRateLimit = error.response?.status === 429;
-      const isServiceUnavailable = error.response?.status === 503;
-
-      let errorMsg = error.response?.data?.message;
-      if (!errorMsg) {
-        if (isServiceUnavailable) {
-          errorMsg = "Database connection is currently establishing. Please wait a few seconds and tap Submit Report again.";
+      const status = error.response?.status;
+      if (status === 401) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
+        showDialog(
+          "Sign in again",
+          "Your sign-in has expired, so this report was not sent. Sign in and send it again, or call 911 now.",
+          [
+            { text: "Call 911", onPress: () => Linking.openURL("tel:911") },
+            {
+              text: "Sign in",
+              onPress: async () => {
+                await clearStorage();
+                sentRef.current = true; // Leaving on purpose: skip the discard prompt.
+                navigation.reset({ index: 0, routes: [{ name: "Login" }] });
+              },
+            },
+          ]
+        );
+        return;
+      }
+      let message = error.response?.data?.message;
+      if (!message) {
+        if (status === 503) {
+          message = "The server is starting up. Please wait a few seconds and tap Send again.";
         } else if (error.message === "Network Error") {
-          errorMsg = `Cannot connect to server at ${backendUrl}. Please check your connection.`;
+          message = `Cannot reach the server at ${backendUrl}. Check your connection, or call 911.`;
         } else {
-          errorMsg = error.message || "Failed to send report. Please try again.";
+          message = error.message || "The report could not be sent. Please try again.";
         }
       }
-
-      Alert.alert(
-        isRateLimit ? "Spam Protection Active" : "Submission Failed",
-        errorMsg
-      );
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
+      // 429 covers both a duplicate report and the 3-per-5-minutes limit; the
+      // server's message says which.
+      showDialog(status === 429 ? "Please wait" : "Not sent", message, [
+        { text: "Call 911", onPress: () => Linking.openURL("tel:911") },
+        { text: "OK", style: "cancel" },
+      ]);
     } finally {
-      setLoading(false);
-      setUploadProgress(0);
+      setSending(false);
+      setProgress(0);
     }
   };
 
-  const submitLabel = () => {
-    if (checkingLocation) return "CHECKING LOCATION…";
-    if (!locationEnabled) return "ENABLE LOCATION TO SEND";
-    if (!photosReady)
-      return `TAKE ${photosRemaining} MORE PHOTO${photosRemaining > 1 ? "S" : ""}`;
-    if (uploadingSlots.length > 0) return "UPLOADING PHOTOS…";
-    return "SEND EMERGENCY REPORT";
-  };
+  const blocker = !locationReady
+    ? location.status === "checking"
+      ? "Checking your location…"
+      : "Turn on location to send."
+    : missingPhotos > 0
+    ? `Take ${missingPhotos} more scene photo${missingPhotos === 1 ? "" : "s"} to send.`
+    : "";
+
+  const TypeIcon = type.Icon;
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="dark-content" />
-
-      <Header title="Report Emergency" showBack />
-
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-      >
-        {/* Emergency type — the single most important fact on the screen */}
-        <View
-          style={[
-            styles.typeBanner,
-            { backgroundColor: theme.bg, borderColor: theme.border },
-          ]}
+    <View style={styles.screen}>
+      {/* Header */}
+      <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
+        <Pressable
+          onPress={() => navigation.goBack()}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+          style={styles.back}
         >
-          <View style={[styles.typeIconCircle, { backgroundColor: theme.badgeBg }]}>
-            {theme.icon}
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.typeCaption}>YOU ARE REPORTING</Text>
-            <Text style={[styles.typeText, { color: theme.text }]}>
-              {theme.label}
-            </Text>
-          </View>
+          <ChevronLeft size={26} color={colors.text} />
+        </Pressable>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.title} accessibilityRole="header">
+            Report emergency
+          </Text>
+          <Text style={styles.subtitle}>Send first. Add details anytime.</Text>
         </View>
-
-        {/* Live GPS state. Previously only ever visible when broken, which left
-            residents with no confirmation their location was actually attached. */}
-        <View
-          style={[
-            styles.gpsChip,
-            checkingLocation
-              ? styles.gpsChipChecking
-              : locationEnabled
-              ? styles.gpsChipOk
-              : styles.gpsChipBad,
-          ]}
-        >
-          {checkingLocation ? (
-            <ActivityIndicator size="small" color="#64748B" />
-          ) : (
-            <View
-              style={[
-                styles.gpsDot,
-                { backgroundColor: locationEnabled ? "#10B981" : "#DC2626" },
-              ]}
-            />
-          )}
-          <View style={{ flex: 1, marginLeft: 10 }}>
-            <Text
-              style={[
-                styles.gpsTitle,
-                {
-                  color: checkingLocation
-                    ? "#475569"
-                    : locationEnabled
-                    ? "#047857"
-                    : "#991B1B",
-                },
-              ]}
-            >
-              {checkingLocation
-                ? "Checking your location…"
-                : locationEnabled
-                ? "Location ready"
-                : "Location services disabled"}
-            </Text>
-            <Text style={styles.gpsSub}>
-              {checkingLocation
-                ? "Making sure responders can find you"
-                : locationEnabled
-                ? accuracy !== null
-                  ? `Accurate to about ${accuracy}m`
-                  : "Your exact position will be sent with this report"
-                : "Responders cannot be dispatched without it"}
-            </Text>
-          </View>
-          {!checkingLocation && !locationEnabled && (
-            <TouchableOpacity
-              onPress={() => Linking.openSettings()}
-              style={styles.gpsFixBtn}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.gpsFixText}>FIX</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {/* Detected address. GPS gets responders to the block; barangay, purok and
-            a landmark get them to the door. Everything here is optional and
-            pre-filled — ignoring it costs the reporter nothing. */}
-        {locationEnabled && (
-          <View style={styles.addressCard}>
-            <View style={styles.addressHeader}>
-              <Text style={styles.addressPin}>📍</Text>
-              <View style={{ flex: 1 }}>
-                {resolvingAddress && !barangay ? (
-                  <Text style={styles.addressResolving}>Finding your address…</Text>
-                ) : (
-                  <Text style={styles.addressText}>
-                    {[
-                      landmark,
-                      street,
-                      purok,
-                      barangay ? `Brgy. ${barangay.replace(/^brgy\.?\s*/i, "")}` : "",
-                    ]
-                      .filter(Boolean)
-                      .join(", ") || "Address not detected — please add it"}
-                  </Text>
-                )}
-              </View>
-              <TouchableOpacity
-                onPress={() => setShowLocationEdit(!showLocationEdit)}
-                activeOpacity={0.7}
-                style={styles.addressEditBtn}
-              >
-                <Text style={styles.addressEditText}>
-                  {showLocationEdit ? "DONE" : "EDIT"}
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            {showLocationEdit && (
-              <View style={styles.addressFields}>
-                <Text style={styles.addressLabel}>BARANGAY</Text>
-                <View style={{ flexDirection: "row", alignItems: "center" }}>
-                  <TextInput
-                    style={[styles.addressInput, { flex: 1 }]}
-                    placeholder="Barangay"
-                    placeholderTextColor="#94A3B8"
-                    value={barangay}
-                    onChangeText={setBarangay}
-                    autoCapitalize="words"
-                  />
-                  <TouchableOpacity
-                    style={styles.addressListBtn}
-                    onPress={() => setShowBarangayPicker(true)}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.addressListText}>LIST</Text>
-                  </TouchableOpacity>
-                </View>
-
-                <Text style={styles.addressLabel}>PUROK / STREET</Text>
-                <TextInput
-                  style={styles.addressInput}
-                  placeholder="e.g. Purok 3, Rizal Street"
-                  placeholderTextColor="#94A3B8"
-                  value={purok || street}
-                  onChangeText={setPurok}
-                />
-              </View>
-            )}
-
-            <Text style={styles.addressLabel}>NEAREST LANDMARK</Text>
-            <TextInput
-              style={styles.addressInput}
-              placeholder="e.g. beside the blue water tank"
-              placeholderTextColor="#94A3B8"
-              value={landmark}
-              onChangeText={setLandmark}
-            />
-            <Text style={styles.addressHint}>
-              This is what responders use to find you on the last stretch.
-            </Text>
-          </View>
-        )}
-
-        {/* STEP 1 — Photos */}
-        <View style={styles.stepCard}>
-          <View style={styles.stepHeader}>
-            <View
-              style={[
-                styles.stepNumber,
-                photosReady && { backgroundColor: "#10B981" },
-              ]}
-            >
-              <Text style={styles.stepNumberText}>{photosReady ? "✓" : "1"}</Text>
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.stepTitle}>Scene photos</Text>
-              <Text style={styles.stepSub}>
-                {photosReady
-                  ? `${proofPhotos.length} photo${
-                      proofPhotos.length > 1 ? "s" : ""
-                    } attached — you can add up to ${MAX_PHOTOS}`
-                  : `Take ${photosRemaining} more photo${
-                      photosRemaining > 1 ? "s" : ""
-                    } to continue`}
-              </Text>
-            </View>
-          </View>
-
-          {/* Slot dots make the 2-photo minimum obvious at a glance */}
-          <View style={styles.slotRow}>
-            {Array.from({ length: MAX_PHOTOS }).map((_, i) => (
-              <View
-                key={i}
-                style={[
-                  styles.slotPip,
-                  i < proofPhotos.length && styles.slotPipFilled,
-                  i < MIN_PHOTOS && i >= proofPhotos.length && styles.slotPipRequired,
-                ]}
-              />
-            ))}
-            <Text style={styles.slotCaption}>
-              {proofPhotos.length}/{MAX_PHOTOS} · {MIN_PHOTOS} required
-            </Text>
-          </View>
-
-          <View style={styles.photoGrid}>
-            {proofPhotos.map((photo, index) => (
-              <View key={index} style={styles.thumbnailWrapper}>
-                <Image source={{ uri: photo }} style={styles.thumbnailImage} />
-                <TouchableOpacity
-                  onPress={() => handleRemovePhoto(index)}
-                  style={styles.removePhotoBtn}
-                  activeOpacity={0.8}
-                  hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
-                >
-                  <Text style={styles.removePhotoIcon}>✕</Text>
-                </TouchableOpacity>
-              </View>
-            ))}
-
-            {proofPhotos.length < MAX_PHOTOS && (
-              <TouchableOpacity
-                onPress={handleTakePhoto}
-                style={[
-                  styles.addPhotoCard,
-                  !photosReady && styles.addPhotoCardUrgent,
-                ]}
-                activeOpacity={0.7}
-              >
-                <CameraIcon size={26} color={photosReady ? "#0284C7" : "#DC2626"} />
-                <Text
-                  style={[
-                    styles.addPhotoText,
-                    !photosReady && { color: "#DC2626" },
-                  ]}
-                >
-                  Take Photo
-                </Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        </View>
-
-        {/* STEP 2 — Details */}
-        <View style={styles.stepCard}>
-          <View style={styles.stepHeader}>
-            <View style={[styles.stepNumber, styles.stepNumberOptional]}>
-              <Text style={styles.stepNumberText}>2</Text>
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.stepTitle}>
-                Details <Text style={styles.optionalTag}>optional</Text>
-              </Text>
-              <Text style={styles.stepSub}>
-                What is happening, and who needs help
-              </Text>
-            </View>
-          </View>
-
-          <TextInput
-            style={styles.textAreaInput}
-            placeholder="e.g. Kitchen fire on the second floor, one person still inside…"
-            placeholderTextColor="#94A3B8"
-            value={description}
-            onChangeText={setDescription}
-            multiline
-            textAlignVertical="top"
-          />
-        </View>
-
-        <Text style={styles.legalNote}>
-          False emergency reports are punishable by law. Your identity, device and
-          location are recorded with every report.
-        </Text>
-      </ScrollView>
-
-      {/* Barangay picker — same list and interaction as the registration screen */}
-      <Modal visible={showBarangayPicker} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeaderRow}>
-              <Text style={styles.modalTitle}>Select Barangay</Text>
-              <TouchableOpacity onPress={() => setShowBarangayPicker(false)}>
-                <Text style={styles.modalClose}>✕</Text>
-              </TouchableOpacity>
-            </View>
-
-            <TextInput
-              style={styles.modalSearchInput}
-              placeholder="Search barangay…"
-              placeholderTextColor="#94A3B8"
-              value={barangaySearch}
-              onChangeText={setBarangaySearch}
-            />
-
-            <ScrollView style={{ maxHeight: 320 }} keyboardShouldPersistTaps="handled">
-              {filteredBarangays.map((bgy) => (
-                <TouchableOpacity
-                  key={bgy}
-                  style={styles.barangayItem}
-                  onPress={() => {
-                    setBarangay(bgy);
-                    setShowBarangayPicker(false);
-                    setBarangaySearch("");
-                  }}
-                >
-                  <Text style={styles.barangayItemText}>Brgy. {bgy}</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Sticky action bar — the send button is never scrolled out of reach */}
-      <View
-        style={[
-          styles.footer,
-          { paddingBottom: Math.max(insets.bottom, 12) + 8 },
-        ]}
-      >
-        {loading && uploadProgress > 0 && (
-          <View style={styles.progressTrack}>
-            <View
-              style={[
-                styles.progressFill,
-                { width: `${uploadProgress}%`, backgroundColor: theme.btnBg },
-              ]}
-            />
-          </View>
-        )}
-
-        <TouchableOpacity
-          style={[
-            styles.submitBtn,
-            { backgroundColor: theme.btnBg },
-            isSubmitDisabled && styles.submitBtnDisabled,
-          ]}
-          onPress={handleSubmit}
-          disabled={isSubmitDisabled}
-          activeOpacity={0.85}
-        >
-          {loading ? (
-            <View style={styles.btnRow}>
-              <ActivityIndicator color="#FFFFFF" size="small" />
-              <Text style={[styles.submitBtnText, { marginLeft: 10 }]}>
-                {uploadProgress > 0 ? `SENDING… ${uploadProgress}%` : "SENDING…"}
-              </Text>
-            </View>
-          ) : (
-            <Text
-              style={[
-                styles.submitBtnText,
-                isSubmitDisabled && styles.submitBtnTextDisabled,
-              ]}
-            >
-              {submitLabel()}
-            </Text>
-          )}
-        </TouchableOpacity>
       </View>
+
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
+        <ScrollView
+          ref={scrollRef}
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Emergency type */}
+          <View style={[styles.typeBanner, { backgroundColor: type.color }]}>
+            <View style={styles.typeIcon}>
+              <TypeIcon size={24} color={colors.white} strokeWidth={2.6} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.typeCaption}>REPORTING</Text>
+              <Text style={styles.typeLabel}>{type.label}</Text>
+            </View>
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={() => navigation.goBack()}
+              accessibilityRole="button"
+              accessibilityLabel="Change emergency type"
+              style={styles.changeButton}
+            >
+              <Text style={styles.changeText}>Change</Text>
+            </TouchableOpacity>
+          </View>
+
+          <LocationCard
+            status={location.status}
+            position={location.position}
+            gpsPosition={location.gps?.position ?? null}
+            accuracy={location.accuracy}
+            pinPlaced={location.pin !== null}
+            street={location.street}
+            barangay={location.barangay}
+            resolvingAddress={location.resolvingAddress}
+            landmark={landmark}
+            onLandmarkChange={setLandmark}
+            onPinChange={location.placePin}
+            onBarangayChange={location.chooseBarangay}
+            onEnableLocation={location.enableLocation}
+          />
+
+          {/* What's happening */}
+          <View style={card}>
+            <Text style={cardTitle}>What's happening?</Text>
+            <Text style={styles.cardSubtitle}>Tap all that apply — optional</Text>
+            <SymptomChips options={type.symptoms} selected={symptoms} onToggle={toggleSymptom} />
+            <View style={styles.divider} />
+            <PeopleStepper value={peopleCount} onChange={setPeopleCount} />
+          </View>
+
+          <PhotoPicker
+            photos={photos}
+            min={MIN_PHOTOS}
+            max={MAX_PHOTOS}
+            onAdd={handleAddPhoto}
+            onRemove={removePhoto}
+            onLayout={(y) => (photoCardY.current = y)}
+          />
+
+          {/* Anything else */}
+          <View>
+            <Text style={styles.noteLabel}>
+              Anything else? <Text style={styles.noteHint}>· optional</Text>
+            </Text>
+            <TextInput
+              value={note}
+              onChangeText={setNote}
+              placeholder="e.g. Elderly man, collapsed on the stairs"
+              placeholderTextColor={colors.placeholder}
+              style={styles.noteInput}
+              multiline
+              maxLength={500}
+              textAlignVertical="top"
+              accessibilityLabel="Anything else, optional"
+            />
+          </View>
+        </ScrollView>
+
+        {/* Sticky footer: SEND is always on screen */}
+        <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.md }]}>
+          {blocker !== "" && (
+            <Text style={styles.blocker} accessibilityLiveRegion="polite">
+              {blocker}
+            </Text>
+          )}
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={handleSend}
+            disabled={sending}
+            accessibilityRole="button"
+            accessibilityLabel="Send alert now"
+            accessibilityHint={blocker || "Sends your emergency report and location to responders"}
+            accessibilityState={{ disabled: sending, busy: sending }}
+            style={[styles.sendButton, !canSend && !sending && styles.sendButtonBlocked]}
+          >
+            {sending ? (
+              <>
+                <ActivityIndicator color={colors.white} />
+                <Text style={styles.sendText}>
+                  {progress > 0 && progress < 100 ? `Sending… ${progress}%` : "Sending…"}
+                </Text>
+              </>
+            ) : (
+              <>
+                <Send size={22} color={colors.white} strokeWidth={2.4} />
+                <Text style={styles.sendText}>Send alert now</Text>
+              </>
+            )}
+          </TouchableOpacity>
+          <View style={styles.footerRow}>
+            <Text style={styles.footerNote}>Your location is shared when you send.</Text>
+            <Pressable
+              onPress={() => Linking.openURL("tel:911")}
+              accessibilityRole="button"
+              accessibilityLabel="Call 911 instead"
+              hitSlop={10}
+              style={styles.callLink}
+            >
+              <Phone size={15} color={colors.badgeText} strokeWidth={2.4} />
+              <Text style={styles.callLinkText}>Call 911 instead</Text>
+            </Pressable>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  screen: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: colors.background,
   },
-  scrollContent: {
-    paddingHorizontal: 16,
-    paddingTop: 10,
-    paddingBottom: 20,
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    paddingRight: spacing.lg,
+    paddingBottom: spacing.md,
+    backgroundColor: colors.white,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
-
-  /* Emergency type banner */
+  back: {
+    width: 48,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  title: {
+    fontFamily: fonts.extrabold,
+    fontSize: fontSize.xl,
+    color: colors.text,
+  },
+  subtitle: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+  },
+  content: {
+    padding: spacing.lg,
+    gap: spacing.md,
+  },
   typeBanner: {
     flexDirection: "row",
     alignItems: "center",
-    borderRadius: 18,
-    borderWidth: 1,
-    padding: 14,
-    marginBottom: 12,
+    gap: spacing.md,
+    padding: spacing.lg,
+    borderRadius: radius.lg,
   },
-  typeIconCircle: {
+  typeIcon: {
     width: 44,
     height: 44,
-    borderRadius: 22,
-    justifyContent: "center",
+    borderRadius: radius.md,
     alignItems: "center",
-    marginRight: 12,
-    backgroundColor: "#FFFFFF",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.18)",
   },
   typeCaption: {
-    fontSize: 9.5,
-    fontWeight: "900",
-    color: COLORS.textGray,
+    fontFamily: fonts.bold,
+    fontSize: 11,
     letterSpacing: 1,
-    marginBottom: 2,
+    color: "rgba(255,255,255,0.9)",
   },
-  typeText: {
-    fontSize: 15,
-    fontWeight: "900",
-    letterSpacing: 0.5,
+  typeLabel: {
+    fontFamily: fonts.extrabold,
+    fontSize: fontSize.xl,
+    color: colors.white,
   },
-
-  /* GPS status chip */
-  gpsChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderRadius: 14,
-    borderWidth: 1,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    marginBottom: 12,
-  },
-  gpsChipChecking: {
-    backgroundColor: "#F8FAFC",
-    borderColor: "#E2E8F0",
-  },
-  gpsChipOk: {
-    backgroundColor: "#ECFDF5",
-    borderColor: "#A7F3D0",
-  },
-  gpsChipBad: {
-    backgroundColor: "#FEF2F2",
-    borderColor: "#FECACA",
-  },
-  gpsDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-  },
-  gpsTitle: {
-    fontSize: 13,
-    fontWeight: "800",
-  },
-  gpsSub: {
-    fontSize: 11,
-    color: "#64748B",
-    marginTop: 1,
-  },
-  gpsFixBtn: {
-    backgroundColor: "#DC2626",
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-  },
-  gpsFixText: {
-    color: "#FFFFFF",
-    fontSize: 11,
-    fontWeight: "900",
-  },
-
-  /* Detected address */
-  addressCard: {
-    backgroundColor: COLORS.surface,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 16,
-    padding: 14,
-    marginBottom: 12,
-  },
-  addressHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 10,
-  },
-  addressPin: {
-    fontSize: 15,
-    marginRight: 8,
-  },
-  addressText: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: COLORS.primary,
-  },
-  addressResolving: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#94A3B8",
-    fontStyle: "italic",
-  },
-  addressEditBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 8,
-    backgroundColor: "#EFF6FF",
-    borderWidth: 1,
-    borderColor: "#BFDBFE",
-  },
-  addressEditText: {
-    fontSize: 10,
-    fontWeight: "900",
-    color: "#2563EB",
-  },
-  addressFields: {
-    marginBottom: 4,
-  },
-  addressLabel: {
-    fontSize: 9.5,
-    fontWeight: "900",
-    letterSpacing: 0.8,
-    color: COLORS.textGray,
-    marginBottom: 5,
-    marginTop: 6,
-  },
-  addressInput: {
-    backgroundColor: "#F8FAFC",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    height: 42,
-    fontSize: 13,
-    color: COLORS.primary,
-  },
-  addressListBtn: {
-    backgroundColor: "#EFF6FF",
-    borderWidth: 1,
-    borderColor: "#BFDBFE",
-    borderRadius: 10,
-    height: 42,
-    paddingHorizontal: 12,
-    justifyContent: "center",
-    alignItems: "center",
-    marginLeft: 8,
-  },
-  addressListText: {
-    fontSize: 10,
-    fontWeight: "900",
-    color: "#2563EB",
-  },
-  addressHint: {
-    fontSize: 10.5,
-    color: "#94A3B8",
-    marginTop: 6,
-  },
-
-  /* Barangay picker modal */
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(15, 23, 42, 0.6)",
-    justifyContent: "center",
-    padding: 20,
-  },
-  modalContent: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 20,
-    padding: 18,
-  },
-  modalHeaderRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  modalTitle: {
-    fontSize: 16,
-    fontWeight: "900",
-    color: COLORS.primary,
-  },
-  modalClose: {
-    fontSize: 16,
-    fontWeight: "800",
-    color: "#94A3B8",
-  },
-  modalSearchInput: {
-    backgroundColor: "#F8FAFC",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    height: 42,
-    fontSize: 13,
-    color: COLORS.primary,
-    marginBottom: 10,
-  },
-  barangayItem: {
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F1F5F9",
-  },
-  barangayItemText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: COLORS.primary,
-  },
-
-  /* Step cards */
-  stepCard: {
-    backgroundColor: COLORS.surface,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 20,
-    padding: 16,
-    marginBottom: 12,
-  },
-  stepHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 14,
-  },
-  stepNumber: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: "#0EA5E9",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 12,
-  },
-  stepNumberOptional: {
-    backgroundColor: "#94A3B8",
-  },
-  stepNumberText: {
-    color: "#FFFFFF",
-    fontSize: 13,
-    fontWeight: "900",
-  },
-  stepTitle: {
-    fontSize: 15,
-    fontWeight: "800",
-    color: COLORS.primary,
-  },
-  optionalTag: {
-    fontSize: 10.5,
-    fontWeight: "700",
-    color: COLORS.textGray,
-  },
-  stepSub: {
-    fontSize: 11.5,
-    color: "#64748B",
-    marginTop: 2,
-  },
-
-  /* Photo slot pips */
-  slotRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  slotPip: {
-    width: 26,
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: "#E2E8F0",
-    marginRight: 5,
-  },
-  slotPipFilled: {
-    backgroundColor: "#10B981",
-  },
-  slotPipRequired: {
-    backgroundColor: "#FCA5A5",
-  },
-  slotCaption: {
-    fontSize: 10.5,
-    fontWeight: "700",
-    color: COLORS.textGray,
-    marginLeft: 6,
-  },
-
-  /* Photo grid */
-  photoGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-  },
-  thumbnailWrapper: {
-    position: "relative",
-    width: 84,
-    height: 84,
-    borderRadius: 16,
-    overflow: "hidden",
-    borderWidth: 1,
-    borderColor: "#CBD5E1",
-    backgroundColor: "#F1F5F9",
-  },
-  thumbnailImage: {
-    width: "100%",
-    height: "100%",
-    resizeMode: "cover",
-  },
-  removePhotoBtn: {
-    position: "absolute",
-    top: 4,
-    right: 4,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: "#EF4444",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  removePhotoIcon: {
-    color: "#FFFFFF",
-    fontSize: 12,
-    fontWeight: "900",
-  },
-  addPhotoCard: {
-    width: 84,
-    height: 84,
-    borderRadius: 16,
+  changeButton: {
+    minHeight: 44,
+    paddingHorizontal: spacing.lg,
+    borderRadius: radius.full,
     borderWidth: 1.5,
-    borderStyle: "dashed",
-    borderColor: "rgba(14, 165, 233, 0.5)",
-    backgroundColor: "rgba(14, 165, 233, 0.06)",
-    justifyContent: "center",
+    borderColor: "rgba(255,255,255,0.85)",
     alignItems: "center",
+    justifyContent: "center",
   },
-  addPhotoCardUrgent: {
-    borderColor: "rgba(220, 38, 38, 0.55)",
-    backgroundColor: "rgba(220, 38, 38, 0.06)",
+  changeText: {
+    fontFamily: fonts.bold,
+    fontSize: fontSize.md,
+    color: colors.white,
   },
-  addPhotoText: {
-    fontSize: 10,
-    fontWeight: "800",
-    color: "#0284C7",
-    marginTop: 5,
+  cardSubtitle: {
+    marginTop: 2,
+    marginBottom: spacing.md,
+    fontFamily: fonts.regular,
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
   },
-
-  /* Description */
-  textAreaInput: {
-    backgroundColor: "#F8FAFC",
+  divider: {
+    height: 1,
+    backgroundColor: colors.border,
+    marginVertical: spacing.lg,
+  },
+  noteLabel: {
+    marginBottom: spacing.sm,
+    fontFamily: fonts.bold,
+    fontSize: fontSize.md,
+    color: colors.text,
+  },
+  noteHint: {
+    fontFamily: fonts.regular,
+    color: colors.textSecondary,
+  },
+  noteInput: {
+    minHeight: 96,
+    padding: spacing.md,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
-    borderRadius: 14,
-    padding: 12,
-    minHeight: 90,
-    fontSize: 14,
-    color: COLORS.primary,
-    lineHeight: 20,
+    borderColor: colors.inputBorder,
+    borderRadius: radius.md,
+    backgroundColor: colors.white,
+    fontFamily: fonts.regular,
+    fontSize: fontSize.md,
+    color: colors.text,
   },
-
-  legalNote: {
-    fontSize: 10.5,
-    color: "#94A3B8",
-    lineHeight: 15,
-    textAlign: "center",
-    paddingHorizontal: 12,
-    marginTop: 4,
-  },
-
-  /* Sticky footer */
   footer: {
-    backgroundColor: COLORS.surface,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    backgroundColor: colors.white,
     borderTopWidth: 1,
-    borderTopColor: COLORS.border,
-    paddingHorizontal: 16,
-    paddingTop: 12,
+    borderTopColor: colors.border,
   },
-  progressTrack: {
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: "#E2E8F0",
-    overflow: "hidden",
-    marginBottom: 10,
+  blocker: {
+    marginBottom: spacing.sm,
+    fontFamily: fonts.bold,
+    fontSize: fontSize.sm,
+    color: colors.destructive,
+    textAlign: "center",
   },
-  progressFill: {
-    height: "100%",
-    borderRadius: 2,
-  },
-  submitBtn: {
-    width: "100%",
-    height: 54,
-    borderRadius: 27,
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  submitBtnDisabled: {
-    backgroundColor: "#E2E8F0",
-    shadowOpacity: 0,
-    elevation: 0,
-  },
-  btnRow: {
+  sendButton: {
+    height: 58,
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+    borderRadius: radius.lg,
+    backgroundColor: colors.urgent,
   },
-  submitBtnText: {
-    fontSize: 14,
-    fontWeight: "900",
-    color: "#FFFFFF",
-    letterSpacing: 0.5,
+  // Still pressable: tapping explains what is missing instead of doing nothing.
+  sendButtonBlocked: {
+    opacity: 0.55,
   },
-  submitBtnTextDisabled: {
-    color: "#64748B",
+  sendText: {
+    fontFamily: fonts.extrabold,
+    fontSize: fontSize.xl,
+    color: colors.white,
+  },
+  footerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  footerNote: {
+    flexShrink: 1,
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+  },
+  callLink: {
+    minHeight: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  callLinkText: {
+    fontFamily: fonts.bold,
+    fontSize: fontSize.sm,
+    color: colors.badgeText,
   },
 });

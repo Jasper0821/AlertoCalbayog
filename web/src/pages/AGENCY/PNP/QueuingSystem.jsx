@@ -2,6 +2,7 @@ import { useState } from "react";
 import { formatLocationForTable } from "../../../utils/incidentFormatters.js";
 import IncidentDetailModal from "./IncidentDetailModal.jsx";
 import ResolutionEvidenceModal from "../ResolutionEvidenceModal.jsx";
+import RejectReportModal from "../RejectReportModal.jsx";
 
 const TYPE_LABELS = { fire: "Fire", flood: "Flood", crime: "Crime", medical: "Medical", emergency: "Others", others: "Others" };
 const TYPE_COLORS = {
@@ -24,9 +25,10 @@ export default function QueuingSystem({ reports = [], onStatusChange }) {
   const [resolvingIncidentId, setResolvingIncidentId] = useState(null);
   const [evidenceIncidentId, setEvidenceIncidentId] = useState(null);
   const [selectedReport, setSelectedReport] = useState(null);
+  const [rejectingId, setRejectingId] = useState(null);
 
   const activeReports = reports.filter(r =>
-    !["closed", "rejected"].includes((r.status || "").toLowerCase())
+    !["closed", "rejected", "cancelled"].includes((r.status || "").toLowerCase())
   );
 
   const pendingCount = activeReports.filter(r => (r.status || "").toLowerCase() === "pending").length;
@@ -35,6 +37,8 @@ export default function QueuingSystem({ reports = [], onStatusChange }) {
   const handleStatusSelect = (id, newStatus) => {
     if (newStatus === "resolved") {
       setResolvingIncidentId(id);
+    } else if (newStatus === "rejected") {
+      setRejectingId(id);
     } else {
       onStatusChange(id, newStatus);
     }
@@ -249,7 +253,16 @@ export default function QueuingSystem({ reports = [], onStatusChange }) {
         </div>
       )}
 
-      {evidenceIncidentId && <ResolutionEvidenceModal onClose={() => setEvidenceIncidentId(null)} onSubmit={async (images) => { await onStatusChange(evidenceIncidentId, "resolved", images); setEvidenceIncidentId(null); }} />}
+      {rejectingId && (
+        <RejectReportModal
+          onClose={() => setRejectingId(null)}
+          onSubmit={async (reason) => {
+            await onStatusChange(rejectingId, "rejected", [], { rejectionReason: reason });
+            setRejectingId(null);
+          }}
+        />
+      )}
+      {evidenceIncidentId && <ResolutionEvidenceModal onClose={() => setEvidenceIncidentId(null)} onSubmit={async (images, notes) => { await onStatusChange(evidenceIncidentId, "resolved", images, { resolutionNotes: notes }); setEvidenceIncidentId(null); }} />}
       <IncidentDetailModal report={selectedReport} onClose={() => setSelectedReport(null)} />
     </div>
   );

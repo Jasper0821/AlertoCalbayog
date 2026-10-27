@@ -1,57 +1,57 @@
-import React, { useState, useEffect, useRef } from "react";
-import { View, Text, TouchableOpacity, Animated, Easing, DeviceEventEmitter } from "react-native";
-import Header from "../components/Header";
-import IncidentPicker from "../components/IncidentPicker";
-import { clearStorage, getUser } from "../utils/Storage";
-import socket, { connectSocket } from "../api/socket";
+import React, { useEffect, useState } from "react";
+import { DeviceEventEmitter, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import * as Haptics from "expo-haptics";
+import { TriangleAlert } from "lucide-react-native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import Header from "../components/Header";
+import HotlineCard from "../components/HotlineCard";
+import LocationStatusChip from "../components/LocationStatusChip";
+import { getUser } from "../utils/Storage";
+import socket, { connectSocket } from "../api/socket";
+import { useReportLocation } from "../hooks/useReportLocation";
+import { getEmergencyType } from "../constants/emergencyTypes";
 import type { RootStackParamList } from "../navigation/AppNavigator";
-
-type HomeScreenNavigationProp = NativeStackNavigationProp<
-  RootStackParamList,
-  "Home"
->;
+import { colors, fonts, fontSize, radius, spacing } from "../theme";
 
 interface Props {
-  navigation: HomeScreenNavigationProp;
+  navigation: NativeStackNavigationProp<RootStackParamList, "Home">;
 }
 
-export default function HomeScreen({
-  navigation,
-}: Props): React.JSX.Element {
-  const [showPicker, setShowPicker] = useState(false);
+// Shortcuts that skip the type list. Keys match the backend's emergencyType enum.
+const SHORTCUTS: { key: string; label: string }[] = [
+  { key: "fire", label: "Fire" },
+  { key: "medical", label: "Medical" },
+  { key: "crime", label: "Crime" },
+  { key: "flood", label: "Flood" },
+];
 
-  // Pulse animation for the Send Report button
-  const pulseAnim = useRef(new Animated.Value(1)).current;
+export default function HomeScreen({ navigation }: Props): React.JSX.Element {
+  const insets = useSafeAreaInsets();
+  const { width, height } = useWindowDimensions();
+  // Live GPS status for the chip; the warm fix also means less waiting on the report screen.
+  const location = useReportLocation();
+  // Tracked by hand: NativeWind drops Pressable style functions on native.
+  const [pressed, setPressed] = useState(false);
 
+  // Live report updates for this resident, relayed to the header badge and to
+  // the status and notifications screens.
   useEffect(() => {
     let active = true;
-
-    const setupSocket = async () => {
+    (async () => {
       const user = await getUser();
       const userId = user?._id || user?.id;
-      if (!userId) return;
+      if (!userId || !active) return;
 
-      if (active) {
-        const joinUserRoom = () => {
-          socket.emit("joinRoom", userId);
-          console.log("Mobile socket connected and joined room:", userId);
-        };
+      const joinUserRoom = () => socket.emit("joinRoom", userId);
+      socket.off("connect", joinUserRoom);
+      socket.on("connect", joinUserRoom);
+      connectSocket();
 
-        socket.off("connect", joinUserRoom);
-        socket.on("connect", joinUserRoom);
-        connectSocket();
-
-        socket.on("notification", (notif: { title: string; message: string; reportId: string; status: string }) => {
-          console.log("Received status update notification:", notif);
-          
-          // Broadcast notification to other active screens (e.g. Header and NotificationsScreen)
-          DeviceEventEmitter.emit("reportStatusUpdated", notif);
-        });
-      }
-    };
-
-    setupSocket();
+      socket.on("notification", (notif: { title: string; message: string; reportId: string; status: string }) => {
+        DeviceEventEmitter.emit("reportStatusUpdated", notif);
+      });
+    })();
 
     return () => {
       active = false;
@@ -61,92 +61,195 @@ export default function HomeScreen({
     };
   }, []);
 
-  useEffect(() => {
-    const pulse = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, {
-          toValue: 1.06,
-          duration: 1200,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulseAnim, {
-          toValue: 1,
-          duration: 1200,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-      ])
-    );
-    pulse.start();
-    return () => pulse.stop();
-  }, [pulseAnim]);
+  // The main button may shrink on small phones so the shortcuts stay on screen.
+  const size = width < 360 || height < 700 ? 168 : 200;
 
-  const logout = async (): Promise<void> => {
-    try {
-      const { NativeModules } = require("react-native");
-      if (NativeModules.RNGoogleSignin) {
-        const { GoogleSignin } = require("@react-native-google-signin/google-signin");
-        await GoogleSignin.signOut();
-      }
-    } catch (e) {
-      // Ignore if native google signin is missing
-    }
-    await clearStorage();
-    navigation.replace("Login");
+  const openTypeList = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    navigation.navigate("ChooseEmergencyType");
+  };
+
+  const startReport = (emergencyType: string) => {
+    Haptics.selectionAsync().catch(() => {});
+    navigation.navigate("EmergencyReport", { emergencyType });
   };
 
   return (
-    <View className="flex-1 bg-darkBlue">
-      <Header title="Alerto Calbayog" />
+    <View style={styles.screen}>
+      <Header title="Alerto Calbayog" variant="plain" />
 
-      <View className="flex-1 items-center justify-center px-8">
-        {/* Top messaging */}
-        <View className="items-center mb-12">
-          <Text className="text-primary text-3xl font-black tracking-tight text-center mb-2">
-            Stay Safe, Calbayog
+      <ScrollView
+        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.lg }]}
+        showsVerticalScrollIndicator={false}
+      >
+        <LocationStatusChip
+          status={location.status}
+          hasPosition={location.position !== null}
+          barangay={location.barangay}
+          accuracy={location.accuracy}
+          onEnable={location.enableLocation}
+        />
+
+        <View style={styles.heading}>
+          <Text style={styles.title} accessibilityRole="header">
+            Need help now?
           </Text>
-          <Text className="text-textGray text-sm font-medium text-center leading-5">
-            Tap the button below to report an incident.{"\n"}Your location will be shared automatically.
+          <Text style={styles.subtitle}>
+            Tap the button, then choose what's happening. Your location is shared automatically.
           </Text>
         </View>
 
-        {/* Pulsing Send Report Button */}
-        <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
-          <TouchableOpacity
-            className="w-52 h-52 rounded-full items-center justify-center border-4 border-red shadow-2xl shadow-red/30"
-            style={{
-              backgroundColor: "rgba(185, 28, 28, 0.10)",
-            }}
-            onPress={() => setShowPicker(true)}
-            activeOpacity={0.8}
-          >
-            {/* Inner glow */}
-            <View
-              className="w-40 h-40 rounded-full items-center justify-center border-2 border-red/40"
-              style={{
-                backgroundColor: "rgba(185, 28, 28, 0.16)",
-              }}
-            >
-              <Text className="text-red text-lg font-black uppercase tracking-widest text-center">
-                Send{"\n"}Report
-              </Text>
+        <View style={styles.buttonArea}>
+          <View style={[styles.ring, { width: size + 64, height: size + 64, backgroundColor: "#FBE7E2" }]}>
+            <View style={[styles.ring, { width: size + 32, height: size + 32, backgroundColor: "#F6D2C9" }]}>
+              <Pressable
+                onPress={openTypeList}
+                onPressIn={() => setPressed(true)}
+                onPressOut={() => setPressed(false)}
+                accessibilityRole="button"
+                accessibilityLabel="Send report"
+                accessibilityHint="Opens the list of emergency types"
+                style={[
+                  styles.mainButton,
+                  { width: size, height: size, borderRadius: size / 2 },
+                  pressed && styles.mainButtonPressed,
+                ]}
+              >
+                <TriangleAlert size={40} color={colors.white} strokeWidth={2} />
+                <Text style={styles.mainLabel} maxFontSizeMultiplier={1.3} numberOfLines={2}>
+                  Send report
+                </Text>
+              </Pressable>
             </View>
-          </TouchableOpacity>
-        </Animated.View>
+          </View>
+        </View>
 
-        {/* Sub-label */}
-        <Text className="text-textGray text-xs font-bold uppercase tracking-[3px] mt-8 opacity-60">
-          Fire · Medical · Crime · Flood
-        </Text>
-      </View>
+        <Text style={styles.shortcutsLabel}>Or report a specific emergency</Text>
+        <View style={styles.shortcuts}>
+          {SHORTCUTS.map(({ key, label }) => {
+            const type = getEmergencyType(key);
+            const Icon = type.Icon;
+            return (
+              <TouchableOpacity
+                activeOpacity={0.8}
+                key={key}
+                onPress={() => startReport(key)}
+                accessibilityRole="button"
+                accessibilityLabel={`Report ${label.toLowerCase()} emergency`}
+                style={[styles.shortcut, { backgroundColor: type.tint }]}
+              >
+                <View style={[styles.shortcutIcon, { backgroundColor: type.color }]}>
+                  <Icon size={20} color={colors.white} strokeWidth={2} />
+                </View>
+                <Text style={styles.shortcutLabel} numberOfLines={1} maxFontSizeMultiplier={1.4}>
+                  {label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
 
-      {/* Incident Picker Modal */}
-      <IncidentPicker
-        visible={showPicker}
-        onClose={() => setShowPicker(false)}
-        navigation={navigation}
-      />
+        <View style={styles.hotline}>
+          <HotlineCard />
+        </View>
+      </ScrollView>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  content: {
+    flexGrow: 1,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg,
+  },
+  heading: {
+    alignItems: "center",
+    marginTop: spacing.lg,
+  },
+  title: {
+    textAlign: "center",
+    fontFamily: fonts.extrabold,
+    fontSize: 28,
+    color: colors.text,
+  },
+  subtitle: {
+    maxWidth: 300,
+    marginTop: spacing.sm,
+    textAlign: "center",
+    fontFamily: fonts.regular,
+    fontSize: fontSize.md,
+    lineHeight: 21,
+    color: colors.textSecondary,
+  },
+  // Takes the remaining height so the button sits centred between heading and shortcuts.
+  buttonArea: {
+    flexGrow: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: spacing.xl,
+  },
+  ring: {
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  mainButton: {
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    backgroundColor: colors.urgent,
+    boxShadow: "0 8px 24px rgba(194, 54, 30, 0.35)",
+  },
+  mainButtonPressed: {
+    backgroundColor: colors.urgentPressed,
+    transform: [{ scale: 0.97 }],
+  },
+  mainLabel: {
+    textAlign: "center",
+    fontFamily: fonts.extrabold,
+    fontSize: fontSize.xxl,
+    color: colors.white,
+  },
+  shortcutsLabel: {
+    marginBottom: spacing.sm,
+    textAlign: "center",
+    fontFamily: fonts.semibold,
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+  },
+  shortcuts: {
+    flexDirection: "row",
+    gap: spacing.sm,
+  },
+  shortcut: {
+    flex: 1,
+    minHeight: 84,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: 4,
+    borderRadius: radius.md,
+  },
+  shortcutIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  shortcutLabel: {
+    fontFamily: fonts.bold,
+    fontSize: fontSize.sm,
+    color: colors.text,
+  },
+  hotline: {
+    marginTop: spacing.lg,
+  },
+});

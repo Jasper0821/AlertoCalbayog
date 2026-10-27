@@ -411,8 +411,8 @@ export default function DashboardOverview({ reports = [], setActiveNav, onStatus
         <ResolutionEvidenceModal
           report={evidenceModalReport}
           onClose={() => setEvidenceModalReport(null)}
-          onSubmit={async (images) => {
-            await onStatusChange(evidenceModalReport._id, "resolved", images);
+          onSubmit={async (images, notes) => {
+            await onStatusChange(evidenceModalReport._id, "resolved", images, { resolutionNotes: notes });
             setEvidenceModalReport(null);
           }}
         />

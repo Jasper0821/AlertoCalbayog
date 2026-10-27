@@ -110,6 +110,17 @@ const userSchema = new mongoose.Schema(
       enum: ["pending", "verified", "rejected"],
       default: "pending",
     },
+    verifiedAt: {
+      type: Date,
+      default: null,
+    },
+    // "voters_list" when matched against the City's voters list, "admin" when an
+    // administrator verified the resident by hand.
+    verificationMethod: {
+      type: String,
+      enum: ["", "voters_list", "admin"],
+      default: "",
+    },
     accountStatus: {
       type: String,
       enum: ["active", "restricted", "suspended", "deactivated"],

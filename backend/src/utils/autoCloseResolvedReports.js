@@ -1,5 +1,6 @@
 const EmergencyReport = require("../models/EmergencyReport");
 const Notification = require("../models/Notification");
+const { statusTitle, statusMessage } = require("./reportStatusCopy");
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -35,23 +36,30 @@ async function closeExpiredResolvedReports(io) {
 
     const reportId = report._id.toString();
     const userId = report.userId?.toString();
+    // Photos stay out of socket payloads; dashboards load them on demand.
+    const lean = report.toObject();
+    delete lean.proofPhotos;
+    delete lean.resolutionEvidence;
+
     if (userId) {
       const notification = await Notification.create({
         userId,
         recipientRole: "resident",
         reportId,
-        title: "Incident Closed",
-        message: "Your resolved incident report has been automatically closed.",
+        title: statusTitle("closed"),
+        message: statusMessage("closed"),
         category: "incident",
         type: "status_update",
         metadata: { status: "closed", automatic: true },
       });
       io?.to(userId).emit("notification", notification);
+      // Only the owner. A bare io.emit sent this resident's full report, photos
+      // included, to every connected client.
+      io?.to(userId).emit(`statusUpdate-${reportId}`, lean);
     }
 
-    io?.emit(`statusUpdate-${reportId}`, report);
-    io?.to("admin").emit("reportStatusChanged", report);
-    (report.notifiedAgencies || []).forEach((agency) => io?.to(agency).emit("reportStatusChanged", report));
+    io?.to("admin").emit("reportStatusChanged", lean);
+    (report.notifiedAgencies || []).forEach((agency) => io?.to(agency).emit("reportStatusChanged", lean));
   }
 
   return reports.length;

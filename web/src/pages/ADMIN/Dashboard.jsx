@@ -32,8 +32,10 @@ import {
   LogoutIcon as LogOut,
   MenuIcon as Menu,
   ResponderIcon,
-  MapPinIcon
+  MapPinIcon,
+  VotersIcon
 } from "./icons.jsx";
+import VotersList from "./VotersList.jsx";
 import api from "../../api/axios.js";
 import socket from "../../api/socket.js";
 import Swal from "sweetalert2";
@@ -80,6 +82,8 @@ const STATUS_STYLES = {
   responded: { dot: "bg-emerald-500", text: "text-emerald-700", bg: "bg-emerald-50", border: "border-emerald-200", label: "Responded" },
   closed: { dot: "bg-slate-600", text: "text-slate-700", bg: "bg-slate-200", border: "border-slate-400", label: "Closed" },
   rejected: { dot: "bg-red-500", text: "text-red-700", bg: "bg-red-50", border: "border-red-200", label: "Rejected" },
+  // Reporters can now cancel; without this entry a cancelled report fell back to "Pending".
+  cancelled: { dot: "bg-slate-400", text: "text-slate-600", bg: "bg-slate-100", border: "border-slate-300", label: "Cancelled" },
 };
 
 const TYPE_LABELS = {
@@ -129,6 +133,7 @@ const NAV = [
   { id: "analytics", label: "Analytics", icon: BarChart2 },
   { id: "users", label: "User Management", icon: Users },
   { id: "responder-approvals", label: "Responder Approvals", icon: ResponderIcon },
+  { id: "voters-list", label: "Voters List", icon: VotersIcon },
   { id: "audit", label: "Audit Trail", icon: ClipboardList },
   { id: "settings", label: "Settings", icon: Settings },
 ];
@@ -1144,9 +1149,12 @@ export default function AdminDashboard() {
     }
   };
 
-  const closeReport = async (reportId) => {
+  const closeReport = async (reportId, residentConfirmedAt) => {
+    const confirmation = residentConfirmedAt
+      ? "The reporter confirmed it is resolved."
+      : "The reporter has not confirmed it is resolved yet.";
     const shouldClose = window.confirm(
-      "Close this incident?\n\nThis will mark the incident as officially closed. The reporter will be notified."
+      `Close this incident?\n\n${confirmation}\n\nThis marks the incident as officially closed. The reporter will be notified.`
     );
     if (!shouldClose) return;
     await updateReportStatus(reportId, "closed");
@@ -1611,6 +1619,24 @@ export default function AdminDashboard() {
     setError("");
   };
 
+  /** Manual override for residents the voters list can't match (typos, recent movers). */
+  const setResidentVerification = async (user, verified) => {
+    setError("");
+    const residentVerificationStatus = verified ? "verified" : "pending";
+    try {
+      await api.put(`/users/${user._id}`, { residentVerificationStatus });
+      setUsers((prev) =>
+        prev.map((u) =>
+          u._id === user._id
+            ? { ...u, residentVerificationStatus, verificationMethod: verified ? "admin" : "" }
+            : u
+        )
+      );
+    } catch (err) {
+      setError(err.response?.data?.message || "Unable to update verification");
+    }
+  };
+
   const deleteUser = async (userId) => {
     const shouldDelete = window.confirm("Remove this user account? This action cannot be undone.");
     if (!shouldDelete) return;
@@ -2014,6 +2040,13 @@ export default function AdminDashboard() {
                     <span className={`h-1.5 w-1.5 rounded-full ${statusInfo.dot}`} />
                     {statusInfo.label}
                   </span>
+                  {/* Tells the admin which resolved cases the reporter has signed off. */}
+                  {report.residentConfirmedAt && ["resolved", "closed"].includes((report.status || "").toLowerCase()) && (
+                    <p className="mt-1 text-[10px] font-black text-emerald-700">Reporter confirmed</p>
+                  )}
+                  {report.cancelledAt && (report.status || "").toLowerCase() === "cancelled" && (
+                    <p className="mt-1 text-[10px] font-black text-slate-500">By the reporter</p>
+                  )}
                 </td>
                 <td className="px-4 py-3">
                   <p className="text-xs font-bold text-slate-700">
@@ -2057,7 +2090,7 @@ export default function AdminDashboard() {
             <button
               id={`close-report-${report._id}`}
               disabled={isSaving}
-              onClick={() => closeReport(report._id)}
+              onClick={() => closeReport(report._id, report.residentConfirmedAt)}
               title="Close this resolved incident"
               className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-[10px] font-black text-emerald-700 transition hover:bg-emerald-100 active:scale-[0.98] disabled:opacity-50"
             >
@@ -2298,6 +2331,11 @@ export default function AdminDashboard() {
                     <td className="px-4 py-3">
                       <p className="font-bold text-slate-900">{user.fullName}</p>
                       <p className="text-xs text-slate-400">{user.email}</p>
+                      {(user.role || "resident") === "resident" && user.residentVerificationStatus === "verified" && (
+                        <span className="mt-1 inline-flex items-center rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-black text-emerald-700">
+                          Verified resident{user.verificationMethod === "voters_list" ? " · voters list" : user.verificationMethod === "admin" ? " · by admin" : ""}
+                        </span>
+                      )}
                     </td>
                     {!isUserDirectory && <td className="px-4 py-3 capitalize">
                       {user.role === "resident" ? "User" : user.role || "User"}
@@ -2325,6 +2363,14 @@ export default function AdminDashboard() {
                         <div className="flex flex-wrap gap-2">
                           <button onClick={() => setSelectedUserInfo(user)} className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-black text-blue-700 transition hover:border-blue-300 hover:bg-blue-100 active:scale-[0.98]">View Info</button>
                           <button onClick={() => editUser(user)} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-black text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 active:scale-[0.98]">Edit</button>
+                          {(user.role || "resident") === "resident" && (
+                            <button
+                              onClick={() => setResidentVerification(user, user.residentVerificationStatus !== "verified")}
+                              className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-black text-emerald-700 transition hover:border-emerald-300 hover:bg-emerald-100 active:scale-[0.98]"
+                            >
+                              {user.residentVerificationStatus === "verified" ? "Unverify" : "Verify"}
+                            </button>
+                          )}
                           <button onClick={() => deleteUser(user._id)} className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-black text-red-700 transition hover:border-red-300 hover:bg-red-100 active:scale-[0.98]">Remove</button>
                         </div>
                       </td>
@@ -3390,6 +3436,7 @@ export default function AdminDashboard() {
     if (activeNav === "analytics") return renderAnalytics();
     if (activeNav === "users") return renderUsers();
     if (activeNav === "responder-approvals") return renderResponderApprovals();
+    if (activeNav === "voters-list") return <VotersList />;
     if (activeNav === "audit") return renderAudit();
     return renderSettings();
   };
@@ -3529,6 +3576,10 @@ export default function AdminDashboard() {
           ...(reporterAddress(report) ? [["Reporter's address", reporterAddress(report)]] : []),
           ["Reported", report.createdAt ? new Date(report.createdAt).toLocaleString() : "—"],
           [isRejected ? "Rejected" : "Closed", eventDate ? new Date(eventDate).toLocaleString() : "N/A"],
+          ...(report.resolutionNotes ? [["What responders did", report.resolutionNotes]] : []),
+          ...(report.rejectionReason ? [["Rejection reason", report.rejectionReason]] : []),
+          ...(report.residentConfirmedAt ? [["Reporter confirmed", new Date(report.residentConfirmedAt).toLocaleString()]] : []),
+          ...(report.cancelledAt ? [["Cancelled by reporter", new Date(report.cancelledAt).toLocaleString()]] : []),
         ];
         // Sourced from the detail fetch above, not from the stripped list object.
         // The old proofImages/media/images/imageUrl/image fallbacks were dead —

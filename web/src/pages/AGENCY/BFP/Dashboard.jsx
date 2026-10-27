@@ -3,7 +3,7 @@ import api from "../../../api/axios.js";
 import socket from "../../../api/socket.js";
 import Swal from "sweetalert2";
 import { clearDashboardNavigationState } from "../../../utils/dashboardSession.js";
-import { formatLocationForTable } from "../../../utils/incidentFormatters.js";
+import { formatLocationForTable, ENDED_STATUSES } from "../../../utils/incidentFormatters.js";
 
 // Components
 import DashboardOverview from "./DashboardOverview.jsx";
@@ -120,6 +120,9 @@ function BfpDashboard() {
   // Real-time dispatch modal states
   const [activeAlert, setActiveAlert] = useState(null);
   const [alertQueue, setAlertQueue] = useState([]);
+  // Socket handlers are created once; this lets them see which alert is open now.
+  const activeAlertIdRef = useRef(null);
+  activeAlertIdRef.current = activeAlert?._id || null;
 
   // Real-time dynamic clock state
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -187,10 +190,11 @@ function BfpDashboard() {
     return () => clearInterval(timer);
   }, []);
 
-  const handleStatusChange = async (id, newStatus, evidenceImages = []) => {
+  // `details` carries resolutionNotes when resolving and rejectionReason when rejecting.
+  const handleStatusChange = async (id, newStatus, evidenceImages = [], details = {}) => {
     setStatusOverrides(prev => ({ ...prev, [id]: newStatus }));
     try {
-      const res = await api.put(`/emergency/${id}`, { status: newStatus, evidenceImages });
+      const res = await api.put(`/emergency/${id}`, { status: newStatus, evidenceImages, ...details });
       const updatedReport = res.data?.report;
       if (updatedReport?._id) {
         setReports(prev => prev.map(r => r._id === updatedReport._id ? updatedReport : r));
@@ -446,6 +450,28 @@ function BfpDashboard() {
         delete next[updatedReport._id];
         return next;
       });
+
+      // The report ended while its incoming-alert prompt was open or queued, most
+      // often because the reporter cancelled it. Dispatching it would only fail.
+      // A colleague merely marking it "responding" is not an end: on a shared
+      // report (fire alerts both BFP and CDRRMO) the other agency still has to act.
+      if (ENDED_STATUSES.includes((updatedReport.status || "").toLowerCase())) {
+        setAlertQueue(prev => prev.filter(item => item._id !== updatedReport._id));
+        if (activeAlertIdRef.current === updatedReport._id) {
+          setActiveAlert(null);
+          stopSiren();
+          Swal.fire({
+            toast: true,
+            position: "top-end",
+            icon: "info",
+            title: updatedReport.status === "cancelled"
+              ? "The reporter cancelled this report."
+              : `This report is now ${updatedReport.status}.`,
+            showConfirmButton: false,
+            timer: 4000,
+          });
+        }
+      }
     };
 
     const onLiveLocationUpdate = ({ reportId, latitude, longitude }) => {
@@ -1029,6 +1055,10 @@ function BfpDashboard() {
                     value: activeAlert.userId?.fullName || activeAlert.name || "Anonymous",
                     bold: true,
                   },
+                  // Matched against the City voters list, or verified by an admin.
+                  ...(activeAlert.userId?.residentVerificationStatus === "verified"
+                    ? [{ label: "Identity", value: "Verified resident" }]
+                    : []),
                   {
                     label: "Contact No.",
                     value: activeAlert.userId?.phoneNumber || activeAlert.phoneNumber || "N/A",

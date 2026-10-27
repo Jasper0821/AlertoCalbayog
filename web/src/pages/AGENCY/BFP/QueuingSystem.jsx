@@ -2,6 +2,7 @@ import { useState } from "react";
 import { formatLocationForTable, getIncidentId } from "../../../utils/incidentFormatters.js";
 import IncidentDetailModal from "../PNP/IncidentDetailModal.jsx";
 import ResolutionEvidenceModal from "../ResolutionEvidenceModal.jsx";
+import RejectReportModal from "../RejectReportModal.jsx";
 
 const TYPE_LABELS = { fire: "Fire" };
 const TYPE_COLORS = {
@@ -19,15 +20,18 @@ export default function QueuingSystem({ reports = [], onStatusChange }) {
   const [resolvingIncidentId, setResolvingIncidentId] = useState(null);
   const [evidenceIncidentId, setEvidenceIncidentId] = useState(null);
   const [selectedReport, setSelectedReport] = useState(null);
+  const [rejectingId, setRejectingId] = useState(null);
 
   // Everything not yet closed or rejected. Resolved reports stay here until an admin closes them.
   const activeReports = reports.filter(r => 
-    !["closed", "rejected"].includes((r.status || "").toLowerCase())
+    !["closed", "rejected", "cancelled"].includes((r.status || "").toLowerCase())
   );
 
   const handleStatusSelect = (id, newStatus) => {
     if (newStatus === "resolved" || newStatus === "responded") {
       setResolvingIncidentId(id);
+    } else if (newStatus === "rejected") {
+      setRejectingId(id);
     } else {
       onStatusChange(id, newStatus);
     }
@@ -180,12 +184,21 @@ export default function QueuingSystem({ reports = [], onStatusChange }) {
       )}
 
       {/* Resolution Evidence Modal */}
+      {rejectingId && (
+        <RejectReportModal
+          onClose={() => setRejectingId(null)}
+          onSubmit={async (reason) => {
+            await onStatusChange(rejectingId, "rejected", [], { rejectionReason: reason });
+            setRejectingId(null);
+          }}
+        />
+      )}
       {evidenceIncidentId && (
         <ResolutionEvidenceModal
           report={reports.find(r => r._id === evidenceIncidentId)}
           onClose={() => setEvidenceIncidentId(null)}
-          onSubmit={async (images) => {
-            await onStatusChange(evidenceIncidentId, "resolved", images);
+          onSubmit={async (images, notes) => {
+            await onStatusChange(evidenceIncidentId, "resolved", images, { resolutionNotes: notes });
             setEvidenceIncidentId(null);
           }}
         />

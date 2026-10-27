@@ -172,7 +172,13 @@ exports.updateUser = async (req, res) => {
     if (status !== undefined) updates.status = status;
     if (barangay !== undefined) updates.barangay = barangay;
     if (completeAddress !== undefined) updates.completeAddress = completeAddress;
-    if (residentVerificationStatus !== undefined) updates.residentVerificationStatus = residentVerificationStatus;
+    if (residentVerificationStatus !== undefined) {
+      updates.residentVerificationStatus = residentVerificationStatus;
+      // Record that an administrator, not the voters list, made this call.
+      const verified = residentVerificationStatus === "verified";
+      updates.verifiedAt = verified ? new Date() : null;
+      updates.verificationMethod = verified ? "admin" : "";
+    }
     if (accountStatus !== undefined) updates.accountStatus = accountStatus;
     if (googleVerified !== undefined) updates.googleVerified = googleVerified;
 

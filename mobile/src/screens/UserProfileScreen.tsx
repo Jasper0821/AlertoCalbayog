@@ -17,6 +17,7 @@ import * as ImagePicker from "expo-image-picker";
 import Header from "../components/Header";
 import { getUser, saveUser, getToken } from "../utils/Storage";
 import api from "../api/axios";
+import { getVoterRequirements, verifyVoter, voterFollowUp, type VoterRequirements } from "../api/voters";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../navigation/AppNavigator";
 
@@ -42,8 +43,17 @@ export default function UserProfileScreen({ navigation }: Props): React.JSX.Elem
   const [showAvatarPicker, setShowAvatarPicker] = useState<boolean>(false);
   const [uploadingAvatar, setUploadingAvatar] = useState<boolean>(false);
 
+  // Voters-list verification.
+  const [voterReq, setVoterReq] = useState<VoterRequirements>({ available: false, needsBirthdate: false });
+  const [voterLast, setVoterLast] = useState<string>("");
+  const [voterFirst, setVoterFirst] = useState<string>("");
+  const [voterMiddle, setVoterMiddle] = useState<string>("");
+  const [voterBirthdate, setVoterBirthdate] = useState<string>("");
+  const [verifying, setVerifying] = useState<boolean>(false);
+
   useEffect(() => {
     loadUserData();
+    getVoterRequirements().then(setVoterReq);
   }, []);
 
   const handleTakePhoto = async () => {
@@ -193,6 +203,43 @@ export default function UserProfileScreen({ navigation }: Props): React.JSX.Elem
     }
   };
 
+  const isVerified =
+    (user?.residentVerificationStatus || user?.resident_verification_status) === "verified";
+
+  const handleVerifyVoter = async () => {
+    if (!voterLast.trim() || !voterFirst.trim()) {
+      Alert.alert("Input Required", "Enter your last and first name as on your voter's record.");
+      return;
+    }
+    if (!user?.barangay) {
+      Alert.alert("Barangay needed", "Add your barangay under Account Details first.");
+      return;
+    }
+    if (voterReq.needsBirthdate && !/^\d{4}-\d{2}-\d{2}$/.test(voterBirthdate.trim())) {
+      Alert.alert("Birthdate needed", "Enter your birthdate as YYYY-MM-DD, for example 1990-05-17.");
+      return;
+    }
+    setVerifying(true);
+    try {
+      const result = await verifyVoter({
+        lastName: voterLast.trim(),
+        firstName: voterFirst.trim(),
+        middleName: voterMiddle.trim(),
+        birthdate: voterBirthdate.trim(),
+      });
+      if (result.status === "verified") {
+        const updated = { ...user, residentVerificationStatus: "verified", verificationMethod: "voters_list" };
+        setUser(updated);
+        await saveUser(updated);
+        Alert.alert("You're verified", "Responders will see you as a verified resident of Calbayog.");
+      } else {
+        Alert.alert("Not verified yet", voterFollowUp(result));
+      }
+    } finally {
+      setVerifying(false);
+    }
+  };
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -270,6 +317,51 @@ export default function UserProfileScreen({ navigation }: Props): React.JSX.Elem
                 <Text style={styles.infoLabel}>Emergency Contact</Text>
                 <Text style={styles.infoVal}>{user?.emergencyContactNumber || "N/A"}</Text>
               </View>
+            </View>
+          )}
+        </View>
+
+        {/* Voter verification: a "Verified resident" badge responders see on reports */}
+        <View style={styles.detailsCard}>
+          <Text style={styles.cardTitle}>Resident verification</Text>
+          {isVerified ? (
+            <Text style={[styles.infoVal, styles.verifiedText]} accessibilityLiveRegion="polite">
+              ✓ Verified resident
+              {user?.verificationMethod === "admin" ? " · confirmed by the City" : " · voters list"}
+            </Text>
+          ) : !voterReq.available ? (
+            <Text style={styles.voterHint}>
+              Not verified. Voter verification isn't available yet; the City hasn't loaded its voters list.
+            </Text>
+          ) : (
+            <View style={styles.form}>
+              <Text style={styles.voterHint}>
+                Not verified. Enter your name exactly as on your voter's record. It's checked once against the
+                City's voters list for Brgy. {user?.barangay || "(add your barangay above)"} and not stored.
+              </Text>
+              <Text style={styles.fieldLabel}>LAST NAME</Text>
+              <TextInput style={styles.input} value={voterLast} onChangeText={setVoterLast} autoCapitalize="words" />
+              <Text style={styles.fieldLabel}>FIRST NAME</Text>
+              <TextInput style={styles.input} value={voterFirst} onChangeText={setVoterFirst} autoCapitalize="words" />
+              <Text style={styles.fieldLabel}>MIDDLE NAME</Text>
+              <TextInput style={styles.input} value={voterMiddle} onChangeText={setVoterMiddle} autoCapitalize="words" />
+              {voterReq.needsBirthdate && (
+                <>
+                  <Text style={styles.fieldLabel}>BIRTHDATE (YYYY-MM-DD)</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={voterBirthdate}
+                    onChangeText={setVoterBirthdate}
+                    keyboardType="numbers-and-punctuation"
+                    maxLength={10}
+                    placeholder="1990-05-17"
+                    placeholderTextColor="#64748B"
+                  />
+                </>
+              )}
+              <TouchableOpacity style={styles.saveBtn} onPress={handleVerifyVoter} disabled={verifying}>
+                {verifying ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.saveBtnText}>VERIFY NOW</Text>}
+              </TouchableOpacity>
             </View>
           )}
         </View>
@@ -385,6 +477,18 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     marginTop: 2,
+  },
+  verifiedText: {
+    marginTop: 10,
+    color: "#34D399",
+    fontWeight: "800",
+  },
+  voterHint: {
+    marginTop: 8,
+    marginBottom: 10,
+    color: "#94A3B8",
+    fontSize: 12,
+    lineHeight: 18,
   },
   form: {
     gap: 12,
