@@ -2,6 +2,9 @@ import { useRef, useState, useCallback, useEffect } from "react";
 import { uploadEvidenceImage } from "../../api/uploads.js";
 
 const MAX_IMAGES = 10;
+const MAX_NOTES = 500;
+// Uploaded files are scaled down to this before upload, like camera captures.
+const MAX_DIMENSION = 1280;
 
 function CameraIcon({ className = "h-5 w-5" }) {
   return (
@@ -12,14 +15,38 @@ function CameraIcon({ className = "h-5 w-5" }) {
   );
 }
 
+/** Reads an image file and returns it as a JPEG data URI no larger than MAX_DIMENSION. */
+function fileToJpeg(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Could not read the file."));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error("That file is not a supported image."));
+      img.onload = () => {
+        const scale = Math.min(1, MAX_DIMENSION / Math.max(img.width, img.height));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL("image/jpeg", 0.85));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 export default function ResolutionEvidenceModal({ onClose, onSubmit }) {
   const videoRef   = useRef(null);
   const canvasRef  = useRef(null);
   const streamRef  = useRef(null);
+  const fileRef    = useRef(null);
 
+  // Each photo keeps a stable id, so an upload that finishes after an earlier photo
+  // was removed still replaces the right one. (Array positions shifted under it.)
   const [images,   setImages]   = useState([]);
-  // Indices of photos still uploading, so submit can wait for them.
-  const [uploading, setUploading] = useState([]);
+  const [notes,    setNotes]    = useState("");
   const [error,    setError]    = useState("");
   const [saving,   setSaving]   = useState(false);
   const [camReady, setCamReady] = useState(false);
@@ -63,13 +90,31 @@ export default function ResolutionEvidenceModal({ onClose, onSubmit }) {
       setStarting(false);
       const msg =
         err.name === "NotAllowedError"
-          ? "Camera permission denied. Please allow camera access in your browser."
+          ? "Camera permission denied. Allow camera access, or upload photos instead."
           : err.name === "NotFoundError"
-          ? "No camera found on this device."
+          ? "No camera found on this device. Upload photos instead."
           : `Camera error: ${err.message}`;
       setCamError(msg);
     }
   };
+
+  /**
+   * Adds a photo and uploads it straight away, so the wait overlaps the next shot
+   * rather than stacking up as megabytes of base64 at submit time. The hosted URL
+   * replaces the data URI; on failure the data URI simply stays.
+   */
+  const addImage = useCallback((dataUrl) => {
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    setImages(prev => [...prev, { id, src: dataUrl, uploading: true }]);
+    setError("");
+    uploadEvidenceImage(dataUrl, "resolution")
+      .then((hosted) => {
+        setImages(prev => prev.map((img) => (img.id === id ? { ...img, src: hosted } : img)));
+      })
+      .finally(() => {
+        setImages(prev => prev.map((img) => (img.id === id ? { ...img, uploading: false } : img)));
+      });
+  }, []);
 
   const capturePhoto = useCallback(() => {
     const video  = videoRef.current;
@@ -83,38 +128,37 @@ export default function ResolutionEvidenceModal({ onClose, onSubmit }) {
     canvas.width  = video.videoWidth  || 1280;
     canvas.height = video.videoHeight || 720;
     canvas.getContext("2d").drawImage(video, 0, 0);
+    addImage(canvas.toDataURL("image/jpeg", 0.85));
+  }, [camReady, images.length, addImage]);
 
-    const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
-    const slot = images.length;
-    setImages(prev => [...prev, dataUrl]);
-    setError("");
+  // For a dispatcher without a camera, or photos taken on a responder's phone.
+  const handleFiles = async (event) => {
+    const files = Array.from(event.target.files || []).filter((f) => f.type.startsWith("image/"));
+    event.target.value = "";
+    const room = MAX_IMAGES - images.length;
+    if (files.length > room) setError(`Only ${room} more photo${room === 1 ? "" : "s"} can be added.`);
+    for (const file of files.slice(0, room)) {
+      try {
+        addImage(await fileToJpeg(file));
+      } catch (err) {
+        setError(err.message);
+      }
+    }
+  };
 
-    // Upload immediately so the wait overlaps the responder taking the next shot,
-    // rather than stacking up as megabytes of base64 at submit time. The URL
-    // replaces the data URI in place; on failure the data URI simply stays.
-    setUploading(prev => [...prev, slot]);
-    uploadEvidenceImage(dataUrl, "resolution")
-      .then((hosted) => {
-        if (hosted !== dataUrl) {
-          setImages(prev => prev.map((img, i) => (i === slot ? hosted : img)));
-        }
-      })
-      .finally(() => {
-        setUploading(prev => prev.filter((i) => i !== slot));
-      });
-  }, [camReady, images.length]);
+  const removeImage = (id) => setImages(prev => prev.filter((img) => img.id !== id));
 
-  const removeImage = (idx) => setImages(prev => prev.filter((_, i) => i !== idx));
+  const stillUploading = images.some((img) => img.uploading);
 
   const submit = async () => {
     if (!images.length) return setError("At least one photo is required.");
-    if (uploading.length > 0) {
+    if (stillUploading) {
       return setError("Please wait — photos are still uploading.");
     }
     setSaving(true);
     stopStream();
     try {
-      await onSubmit(images);
+      await onSubmit(images.map((img) => img.src), notes.trim());
     } finally {
       setSaving(false);
     }
@@ -135,9 +179,9 @@ export default function ResolutionEvidenceModal({ onClose, onSubmit }) {
             <CameraIcon className="h-5 w-5 text-emerald-400" />
           </div>
           <div className="flex-1 min-w-0">
-            <h3 className="font-black text-sm tracking-wide uppercase">Scene Evidence Required</h3>
+            <h3 className="font-black text-sm tracking-wide uppercase">Resolve incident</h3>
             <p className="text-xs text-white/50 mt-0.5">
-              Take live photos of the scene before resolving — {images.length}/{MAX_IMAGES} captured
+              Add scene photos and a short note. The reporter sees both — {images.length}/{MAX_IMAGES} photos
             </p>
           </div>
           {!saving && (
@@ -145,6 +189,7 @@ export default function ResolutionEvidenceModal({ onClose, onSubmit }) {
               onClick={() => { stopStream(); onClose(); }}
               className="ml-2 text-white/40 hover:text-white transition-colors shrink-0"
               title="Close"
+              aria-label="Close"
             >
               <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -209,6 +254,7 @@ export default function ResolutionEvidenceModal({ onClose, onSubmit }) {
                   disabled={remaining === 0}
                   className="h-16 w-16 rounded-full border-4 border-white bg-white/20 hover:bg-white/35 backdrop-blur-sm transition-all active:scale-90 disabled:opacity-30 disabled:cursor-not-allowed shadow-xl flex items-center justify-center"
                   title="Capture photo"
+                  aria-label="Capture photo"
                 >
                   <span className="h-11 w-11 rounded-full bg-white block shadow-inner" />
                 </button>
@@ -220,25 +266,56 @@ export default function ResolutionEvidenceModal({ onClose, onSubmit }) {
             )}
           </div>
 
+          {/* ── upload instead of / as well as the camera ── */}
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3">
+            <p className="text-xs text-slate-600">
+              No camera here, or photos on a responder's phone? Upload them instead.
+            </p>
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              disabled={remaining === 0 || saving}
+              className="shrink-0 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Upload photos
+            </button>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={handleFiles}
+            />
+          </div>
+
           {/* ── captured thumbnails ── */}
           {images.length > 0 && (
             <div>
               <p className="mb-2 text-[10px] font-black uppercase tracking-widest text-slate-400">
-                Captured ({images.length}/{MAX_IMAGES})
+                Photos ({images.length}/{MAX_IMAGES})
               </p>
               <div className="grid grid-cols-5 gap-2">
-                {images.map((src, idx) => (
-                  <div key={idx} className="relative aspect-square overflow-hidden rounded-lg border border-slate-200 group">
+                {images.map((img, idx) => (
+                  <div key={img.id} className="relative aspect-square overflow-hidden rounded-lg border border-slate-200 group">
                     <img
-                      src={src}
+                      src={img.src}
                       alt={`Evidence ${idx + 1}`}
                       className="h-full w-full object-cover"
                     />
+                    {img.uploading && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+                        <svg className="h-4 w-4 text-white animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path strokeLinecap="round" d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4" />
+                        </svg>
+                      </div>
+                    )}
                     <button
                       type="button"
-                      onClick={() => removeImage(idx)}
-                      className="absolute right-0.5 top-0.5 h-5 w-5 rounded bg-slate-900/70 text-white text-xs font-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={() => removeImage(img.id)}
+                      className="absolute right-0.5 top-0.5 h-5 w-5 rounded bg-slate-900/70 text-white text-xs font-black flex items-center justify-center opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
                       title="Remove"
+                      aria-label={`Remove photo ${idx + 1}`}
                     >
                       ×
                     </button>
@@ -248,16 +325,32 @@ export default function ResolutionEvidenceModal({ onClose, onSubmit }) {
             </div>
           )}
 
+          {/* ── what was done ── */}
+          <div>
+            <label htmlFor="resolution-notes" className="mb-1.5 block text-[10px] font-black uppercase tracking-widest text-slate-500">
+              What did your team do? <span className="normal-case font-semibold tracking-normal text-slate-400">· shown to the reporter</span>
+            </label>
+            <textarea
+              id="resolution-notes"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value.slice(0, MAX_NOTES))}
+              rows={3}
+              placeholder="e.g. Scene secured. No injuries. One person taken to the district hospital."
+              className="w-full resize-none rounded-xl border border-slate-300 px-3 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100"
+            />
+            <p className="mt-1 text-right text-[10px] text-slate-400 tabular-nums">{notes.length}/{MAX_NOTES}</p>
+          </div>
+
           {/* ── error ── */}
           {error && (
-            <p className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs font-semibold text-red-600">
-              ⚠️ {error}
+            <p role="alert" className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs font-semibold text-red-600">
+              {error}
             </p>
           )}
 
           {images.length === 0 && !camError && (
             <p className="text-center text-xs text-slate-400">
-              Press the shutter button to capture scene photos. At least <strong>1 photo</strong> is required.
+              Capture or upload scene photos. At least <strong>1 photo</strong> is required.
             </p>
           )}
         </div>
@@ -274,7 +367,7 @@ export default function ResolutionEvidenceModal({ onClose, onSubmit }) {
 
           <button
             onClick={submit}
-            disabled={!images.length || saving}
+            disabled={!images.length || saving || stillUploading}
             className="flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-xs font-black text-white shadow-lg shadow-emerald-600/20 hover:bg-emerald-700 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed uppercase tracking-wide"
           >
             {saving ? (
@@ -284,12 +377,14 @@ export default function ResolutionEvidenceModal({ onClose, onSubmit }) {
                 </svg>
                 Saving…
               </>
+            ) : stillUploading ? (
+              "Uploading photos…"
             ) : (
               <>
                 <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                Submit Proof &amp; Resolve
+                Submit &amp; Resolve
               </>
             )}
           </button>

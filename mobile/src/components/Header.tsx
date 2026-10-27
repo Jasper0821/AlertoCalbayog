@@ -7,17 +7,22 @@ import { COLORS } from "../styles/colors";
 import api from "../api/axios";
 import { getToken } from "../utils/Storage";
 import HamburgerMenuSheet from "./HamburgerMenuSheet";
+import { Bell, Menu } from "lucide-react-native";
+import * as theme from "../theme";
 
 interface Props {
   title: string;
   showBack?: boolean;
   showActions?: boolean;
+  /** "plain": flat white bar used by the redesigned home screen. */
+  variant?: "default" | "plain";
 }
 
 export default function Header({
   title,
   showBack,
   showActions = true,
+  variant = "default",
 }: Props): React.JSX.Element {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
@@ -57,10 +62,49 @@ export default function Header({
     };
   }, [showActions]);
 
+  if (variant === "plain") {
+    const badge = unreadCount > 99 ? "99+" : String(unreadCount);
+    return (
+      <>
+        <View style={[plain.bar, { paddingTop: insets.top + 8 }]}>
+          <Text style={plain.title} accessibilityRole="header">
+            {title}
+          </Text>
+          {showActions && (
+            <View style={plain.actions}>
+              <TouchableOpacity
+                onPress={() => navigation.navigate("Notifications" as never)}
+                accessibilityRole="button"
+                accessibilityLabel={unreadCount > 0 ? `Notifications, ${badge} unread` : "Notifications"}
+                style={plain.icon}
+              >
+                <Bell size={22} color={theme.colors.text} strokeWidth={2} />
+                {unreadCount > 0 && (
+                  <View style={plain.badge}>
+                    <Text style={plain.badgeText}>{badge}</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => setModalVisible(true)}
+                accessibilityRole="button"
+                accessibilityLabel="Menu"
+                style={plain.icon}
+              >
+                <Menu size={24} color={theme.colors.text} strokeWidth={2} />
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+        <HamburgerMenuSheet visible={isModalVisible} onClose={() => setModalVisible(false)} />
+      </>
+    );
+  }
+
   return (
     <>
-      <View 
-        className="pb-6 px-5 w-full flex-row items-center justify-between" 
+      <View
+        className="pb-6 px-5 w-full flex-row items-center justify-between"
         style={{ paddingTop: Math.max(insets.top, 20) }}
       >
         <View className="flex-row items-center flex-1">
@@ -122,6 +166,54 @@ export default function Header({
     </>
   );
 }
+
+const plain = StyleSheet.create({
+  bar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingLeft: theme.spacing.lg,
+    paddingRight: theme.spacing.sm,
+    paddingBottom: theme.spacing.sm,
+    backgroundColor: theme.colors.white,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  title: {
+    flexShrink: 1,
+    fontFamily: theme.fonts.extrabold,
+    fontSize: 19,
+    color: theme.colors.text,
+  },
+  actions: {
+    flexDirection: "row",
+  },
+  icon: {
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  badge: {
+    position: "absolute",
+    top: 5,
+    right: 3,
+    minWidth: 18,
+    height: 18,
+    paddingHorizontal: 4,
+    borderRadius: 9,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.colors.urgent,
+    borderWidth: 1.5,
+    borderColor: theme.colors.white,
+  },
+  badgeText: {
+    fontFamily: theme.fonts.extrabold,
+    fontSize: 10,
+    color: theme.colors.white,
+  },
+});
 
 const styles = StyleSheet.create({
   backButton: {

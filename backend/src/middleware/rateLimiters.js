@@ -1,4 +1,4 @@
-const rateLimit = require("express-rate-limit");
+const { rateLimit, ipKeyGenerator } = require("express-rate-limit");
 
 // No custom keyGenerator here on purpose. "trust proxy" in app.js already makes
 // req.ip the real client address behind Render, and the library's default key
@@ -53,4 +53,26 @@ const otpLimiter = rateLimit({
   ),
 });
 
-module.exports = { registerLimiter, loginLimiter, otpLimiter };
+/**
+ * Voter verification answers "is this person on the voters list?", so unlimited
+ * tries would let someone check whether a neighbor is a registered voter. Capped
+ * per account and per connection; a genuine resident needs only a few tries.
+ */
+const voterVerifyLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  limit: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => (req.user?.id ? `user:${req.user.id}` : ipKeyGenerator(req.ip)),
+  handler: limitResponse("Too many verification attempts. Please try again in an hour."),
+});
+
+const voterVerifyIpLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  limit: 15,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: limitResponse("Too many verification attempts from this connection. Please try again in an hour."),
+});
+
+module.exports = { registerLimiter, loginLimiter, otpLimiter, voterVerifyLimiter, voterVerifyIpLimiter };

@@ -14,7 +14,10 @@ const socket: Socket = io(SOCKET_URL, {
   upgrade: true,
   timeout: 10000,
   reconnection: true,
-  reconnectionAttempts: 5,
+  // Keep retrying: a cap of 5 gave up for good during a Render cold start or a
+  // patch of bad signal, and the resident silently stopped receiving status updates.
+  reconnectionAttempts: Infinity,
+  reconnectionDelayMax: 10000,
 });
 
 // Add basic listeners to surface connection issues during development.

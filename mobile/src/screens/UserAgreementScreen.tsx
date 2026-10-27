@@ -214,6 +214,7 @@ While emergency services strive to respond rapidly, the app developer and munici
 
 1. INFORMATION WE COLLECT
 We collect verified account details (Name, Email, Profile Picture via Google Sign-In), device IP address, contact phone numbers, and precise GPS location during incident reporting.
+If you choose to verify as a registered voter, the name, barangay and (if asked) birthdate you enter are compared once with the voters list the City obtained from COMELEC under a data-sharing agreement. Only the result is kept on your account; the list is stored as one-way codes, not names.
 
 2. HOW WE USE YOUR DATA
 Your personal data and GPS coordinates are used exclusively to dispatch emergency responders to your location and notify you regarding incident updates.

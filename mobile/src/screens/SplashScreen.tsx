@@ -44,7 +44,16 @@ export default function SplashScreen({ navigation }: Props): React.JSX.Element {
         }
       } catch (err: any) {
         console.log("Session check error:", err?.message || err);
-        // If offline / network error but stored token exists, maintain persistent session
+        // The server answered and rejected the session (expired, signed by another
+        // server's JWT_SECRET, or the account is gone). Keeping it would open Home
+        // with a token that fails every request — including sending a report.
+        const status = err?.response?.status;
+        if (status === 401 || status === 403 || status === 404) {
+          await clearStorage();
+          if (isMounted) navigation.replace("Login");
+          return;
+        }
+        // Offline or timed out: keep the stored session so the app still opens.
         const token = await getToken();
         if (token) {
           if (isMounted) navigation.replace("Home");

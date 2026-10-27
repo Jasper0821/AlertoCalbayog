@@ -9,7 +9,10 @@ const {
   deleteAllClosedReports,
   getReportsByAgency,
   getDeletedReports,
-  restoreReport
+  restoreReport,
+  cancelMyReport,
+  confirmMyReport,
+  addMyReportPhotos
 } = require("../controllers/emergencyController");
 const { updateReportStatus } = require("../controllers/reportController");
 const authMiddleware = require("../middleware/authMiddleware");
@@ -22,6 +25,9 @@ router.get("/deleted", authMiddleware, getDeletedReports);
 router.get("/agency/:agency", authMiddleware, getReportsByAgency);
 router.get("/:id", authMiddleware, getReportById);
 router.post("/:id/restore", authMiddleware, restoreReport);
+router.post("/:id/cancel", authMiddleware, cancelMyReport);
+router.post("/:id/confirm", authMiddleware, confirmMyReport);
+router.post("/:id/photos", authMiddleware, addMyReportPhotos);
 router.delete("/:id", authMiddleware, deleteMyReport);
 router.put("/:id", authMiddleware, updateReportStatus);
 

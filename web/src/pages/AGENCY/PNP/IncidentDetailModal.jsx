@@ -172,6 +172,13 @@ export default function IncidentDetailModal({ report: initialReport, onClose }) 
     ? report.assignedAgency
     : (report.notifiedAgencies || []).join(", ") || "None";
 
+  const symptoms = Array.isArray(report.symptoms) ? report.symptoms : [];
+  const people = Number(report.peopleCount) || 0;
+  const reportedNeeds = [
+    people > 0 ? `${people} ${people === 1 ? "person" : "people"}` : "",
+    symptoms.join(", "),
+  ].filter(Boolean).join(" · ");
+
   const responderVal = report.assignedResponder
     ? `${report.assignedResponder.fullName} (${report.assignedResponder.agency || agencyFallback})`
     : agencyFallback;
@@ -179,6 +186,8 @@ export default function IncidentDetailModal({ report: initialReport, onClose }) 
   const rows = [
     { label: "Incident ID", value: getIncidentId(report), mono: true },
     { label: "Reporter", value: report.userId?.fullName || "Anonymous" },
+    // Matched against the City voters list, or verified by an admin.
+    ...(report.userId?.residentVerificationStatus === "verified" ? [{ label: "Identity", value: "Verified resident" }] : []),
     { label: "Contact No.", value: phone ?? "N/A", mono: !!phone },
     { label: "Type", value: report.emergencyType || "Others", capitalize: true },
     { label: "Exact Location", value: locationText },
@@ -189,6 +198,16 @@ export default function IncidentDetailModal({ report: initialReport, onClose }) 
     { label: "Status", value: report.status || "pending", capitalize: true },
     { label: "Priority", value: getPriority(report), capitalize: true },
     { label: "Responder", value: responderVal },
+    // Picked by the reporter in the app ("What's happening?" chips and head count).
+    ...(reportedNeeds ? [{ label: "Reported needs", value: reportedNeeds }] : []),
+    ...(report.resolutionNotes ? [{ label: "What responders did", value: report.resolutionNotes }] : []),
+    ...(report.rejectionReason ? [{ label: "Rejection reason", value: report.rejectionReason }] : []),
+    ...(report.residentConfirmedAt
+      ? [{ label: "Reporter confirmed", value: new Date(report.residentConfirmedAt).toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" }) }]
+      : []),
+    ...(report.cancelledAt
+      ? [{ label: "Cancelled by reporter", value: new Date(report.cancelledAt).toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" }) }]
+      : []),
     { label: "Date & Time", value: dateStr },
   ];
 

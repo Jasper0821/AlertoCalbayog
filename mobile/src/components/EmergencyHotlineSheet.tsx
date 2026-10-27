@@ -18,7 +18,7 @@ import { PhoneIcon, MessageIcon, CloseIcon, ShieldCheckIcon } from "./SvgIcons";
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 // ── Types ────────────────────────────────────────────────────
-interface HotlineEntry {
+export interface HotlineEntry {
   agency: string;
   number: string;         // display number (e.g. "0905-4254-511")
   dialNumber: string;     // tel-ready (e.g. "+639054254511")
@@ -233,7 +233,8 @@ function ActionSheet({ visible, hotline, onClose }: ActionSheetProps): React.JSX
 }
 
 // ── Hotlines Data ────────────────────────────────────────────
-const HOTLINES: HotlineEntry[] = [
+// Exported so the report status screen can dial the handling agency directly.
+export const HOTLINES: HotlineEntry[] = [
   {
     agency: "PNP Calbayog",
     number: "0905-4254-511",

@@ -2,6 +2,7 @@ const EmergencyReport = require("../models/EmergencyReport");
 const User = require("../models/User");
 const Notification = require("../models/Notification");
 const { isValidEvidenceImage } = require("../utils/evidenceImages");
+const { ASSIGNED_TITLE, statusTitle, statusMessage } = require("../utils/reportStatusCopy");
 
 const ALLOWED_STATUS_UPDATES = new Set(["pending", "responding", "resolved", "closed", "cancelled", "rejected"]);
 const TERMINAL_REPORT_STATUSES = new Set(["resolved", "closed", "cancelled", "rejected"]);
@@ -22,30 +23,10 @@ const isAllowedStatusTransition = (fromStatus, toStatus, isAdmin = false) => {
 
 const populateReport = (query) =>
   query
-    .populate("userId", "fullName email role phoneNumber")
+    .populate("userId", "fullName email role phoneNumber residentVerificationStatus")
     .populate("assignedResponder", "fullName email role agency phoneNumber");
 
-const buildStatusMessage = (status) => {
-  if (status === "pending") {
-    return "Your incident report has been received and is waiting for response.";
-  }
-  if (status === "responding") {
-    return "Rescue/responders are on the way to your incident.";
-  }
-  if (status === "resolved") {
-    return "Your incident has been completed.";
-  }
-  if (status === "closed") {
-    return "Your incident report has been officially closed by the administration.";
-  }
-  if (status === "cancelled") {
-    return "Your incident report has been cancelled and removed from the active queue.";
-  }
-  if (status === "rejected") {
-    return "Your incident report has been rejected. Please ensure your reports are legitimate emergencies.";
-  }
-  return `Your incident report status has been updated to ${status}.`;
-};
+const buildStatusMessage = (status) => statusMessage(status);
 
 const emitReportChange = async (req, report, notificationMessage, notificationType = "status_update") => {
   const io = req.app.get("io");
@@ -61,6 +42,9 @@ const emitReportChange = async (req, report, notificationMessage, notificationTy
   delete lean.resolutionEvidence;
 
   const userIdStr = report.userId && report.userId._id ? report.userId._id.toString() : report.userId?.toString();
+  // Plain-language title naming what actually happened, rather than the same
+  // "Incident Update" for every change.
+  const residentTitle = notificationType === "responder_assigned" ? ASSIGNED_TITLE : statusTitle(report.status);
   if (userIdStr && notificationMessage) {
     // Persist the notification in the database for the incident owner
     try {
@@ -68,7 +52,7 @@ const emitReportChange = async (req, report, notificationMessage, notificationTy
         userId: userIdStr,
         recipientRole: "resident",
         reportId,
-        title: report.status === "resolved" ? "Responder Completed Scene" : "Incident Update",
+        title: residentTitle,
         message: notificationMessage,
         category: "incident",
         type: notificationType,
@@ -85,9 +69,11 @@ const emitReportChange = async (req, report, notificationMessage, notificationTy
     } catch (err) {
       console.error("Failed to persist notification:", err.message);
       io.to(userIdStr).emit("notification", {
-        title: "Incident Update",
+        title: residentTitle,
         message: notificationMessage,
         reportId,
+        status: report.status,
+        metadata: { status: report.status, reportId },
         type: notificationType,
         read: false,
         createdAt: new Date().toISOString(),
@@ -184,6 +170,12 @@ exports.updateReportStatus = async (req, res) => {
         return res.status(400).json({ message: "Submit between 1 and 10 valid incident proof images." });
       }
       report.resolutionEvidence = evidenceImages;
+      // Optional, but it is what tells the reporter what was actually done.
+      report.resolutionNotes = String(req.body.resolutionNotes || "").trim().slice(0, 500);
+    }
+
+    if (status === "rejected" && previousStatus !== "rejected") {
+      report.rejectionReason = String(req.body.rejectionReason || "").trim().slice(0, 200);
     }
 
     report.status = status;
@@ -219,10 +211,15 @@ exports.updateReportStatus = async (req, res) => {
       message: `Status changed from ${previousStatus} to ${status}`
     });
     await report.save();
-    await report.populate("userId", "fullName email role phoneNumber");
+    await report.populate("userId", "fullName email role phoneNumber residentVerificationStatus");
     await report.populate("assignedResponder", "fullName email role agency phoneNumber");
 
-    await emitReportChange(req, report, buildStatusMessage(status), "status_update");
+    // A rejected reporter is told why; otherwise the standard plain-language message.
+    const residentMessage =
+      status === "rejected" && report.rejectionReason
+        ? `Dispatch could not accept this report: ${report.rejectionReason}. Call the hotline if you still need help.`
+        : buildStatusMessage(status);
+    await emitReportChange(req, report, residentMessage, "status_update");
 
     res.json({
       message: "Report status updated",
@@ -275,7 +272,7 @@ exports.assignReportResponder = async (req, res) => {
     await emitReportChange(
       req,
       populatedReport,
-      `A responder has been assigned to your incident report. Current status: ${populatedReport.status}.`,
+      `${responder.fullName} (${responder.agency}) is handling your report.`,
       "responder_assigned"
     );
 

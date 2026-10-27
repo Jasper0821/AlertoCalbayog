@@ -144,6 +144,17 @@ export function MenuIcon(props) {
   );
 }
 
+export function VotersIcon(props) {
+  return (
+    <Icon {...props}>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <circle cx="9" cy="11" r="2.5" />
+      <path d="M5.5 17c.8-1.8 2-2.6 3.5-2.6s2.7.8 3.5 2.6" />
+      <polyline points="14.5 11 16 12.5 19 9.5" />
+    </Icon>
+  );
+}
+
 export function ArchiveIcon(props) {
   return (
     <Icon {...props}>

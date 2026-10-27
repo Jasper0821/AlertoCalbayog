@@ -49,6 +49,17 @@ const notificationSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
       index: true
+    },
+    // Per-resident state for broadcasts (userId null) shown to every resident.
+    // `read` above is a single flag on a shared document, so one resident reading
+    // or deleting an advisory used to do it for the whole city.
+    readBy: {
+      type: [mongoose.Schema.Types.ObjectId],
+      default: undefined
+    },
+    hiddenFor: {
+      type: [mongoose.Schema.Types.ObjectId],
+      default: undefined
     }
   },
   { timestamps: true }

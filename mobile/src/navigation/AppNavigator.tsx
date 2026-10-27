@@ -8,8 +8,10 @@ import PasswordLoginScreen from "../screens/PasswordLoginScreen";
 import RegisterScreen from "../screens/RegisterScreen";
 import OtpVerificationScreen from "../screens/OtpVerificationScreen";
 import HomeScreen from "../screens/HomeScreen";
+import ChooseEmergencyTypeScreen from "../screens/ChooseEmergencyTypeScreen";
 import EmergencyReportScreen from "../screens/EmergencyReportScreen";
-import LiveTrackingScreen from "../screens/LiveTrackingScreen";
+import AlertSentScreen from "../screens/AlertSentScreen";
+import ResolutionReportScreen from "../screens/ResolutionReportScreen";
 import ReportHistoryScreen from "../screens/ReportHistoryScreen";
 import UserAgreementScreen from "../screens/UserAgreementScreen";
 import NotificationsScreen from "../screens/NotificationsScreen";
@@ -45,8 +47,12 @@ export type RootStackParamList = {
   };
   ForgotPassword: { step?: "request" | "verify" | "reset"; resetToken?: string; email?: string } | undefined;
   Home: undefined;
+  ChooseEmergencyType: undefined;
   EmergencyReport: { emergencyType: string };
-  LiveTracking: { reportId: string; latitude: number; longitude: number; emergencyType: string; reportStatus?: string };
+  // Live status of a sent report. Opened right after sending and from Report History.
+  AlertSent: { reportId: string; emergencyType: string; peopleCount?: number; reportStatus?: string };
+  // What responders did once a report is resolved: their photos and who handled it.
+  ResolutionReport: { reportId: string };
   ReportHistory: undefined;
   UserAgreement: undefined;
   Notifications: undefined;
@@ -72,8 +78,10 @@ export default function AppNavigator(): React.JSX.Element {
         <Stack.Screen name="OtpVerification" component={OtpVerificationScreen} />
         <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
         <Stack.Screen name="Home" component={HomeScreen} />
+        <Stack.Screen name="ChooseEmergencyType" component={ChooseEmergencyTypeScreen} />
         <Stack.Screen name="EmergencyReport" component={EmergencyReportScreen} />
-        <Stack.Screen name="LiveTracking" component={LiveTrackingScreen} />
+        <Stack.Screen name="AlertSent" component={AlertSentScreen} />
+        <Stack.Screen name="ResolutionReport" component={ResolutionReportScreen} />
         <Stack.Screen name="ReportHistory" component={ReportHistoryScreen} />
         <Stack.Screen name="UserAgreement" component={UserAgreementScreen} />
         <Stack.Screen name="Notifications" component={NotificationsScreen} />

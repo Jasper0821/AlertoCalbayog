@@ -29,3 +29,8 @@ services:
       # this client. Google Sign-In is refused while it is unset.
       - key: GOOGLE_WEB_CLIENT_ID
         sync: false
+      # Secret for the voters-list fingerprints (16+ random characters). Without it
+      # voter verification stays off. Changing it later invalidates the loaded list,
+      # so the list must be uploaded again.
+      - key: VOTER_MATCH_SECRET
+        sync: false

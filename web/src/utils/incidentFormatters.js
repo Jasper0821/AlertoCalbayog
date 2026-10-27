@@ -233,6 +233,9 @@ export function accuracyLabel(report) {
   return `±${Math.round(accuracy)} m`;
 }
 
+/** Statuses after which a report can no longer be dispatched. */
+export const ENDED_STATUSES = ["cancelled", "rejected", "resolved", "closed"];
+
 export function normalizeIncidentStatus(status) {
   if (!status) return "pending";
   const s = status.toLowerCase().trim();

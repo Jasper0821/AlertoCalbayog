@@ -22,6 +22,7 @@ const pages = {
           "Precise GPS location, barangay, street, purok and landmark details at the time you submit a report.",
           "Photos and descriptions attached to emergency reports.",
           "Device IP address and browser or device information, recorded for security and accountability.",
+          "If you choose to verify as a registered voter: the name, barangay and (if asked) birthdate you enter are compared once with the voters list the City obtained from COMELEC under a data-sharing agreement. Only the result (verified or not) is kept on your account; the list itself is stored as one-way codes, not names.",
         ],
       },
       {
