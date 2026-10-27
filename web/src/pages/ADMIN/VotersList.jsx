@@ -100,7 +100,11 @@ export default function VotersList() {
       const { data } = await api.get("/voters/status");
       setStatus(data);
     } catch (err) {
-      setError(err.response?.data?.message || "Could not load the voters list status.");
+      setError(
+        err.response?.status === 404
+          ? "The server doesn't have the voters list feature yet. Deploy the latest backend, then refresh this page."
+          : err.response?.data?.message || "Could not load the voters list status."
+      );
     } finally {
       setLoadingStatus(false);
     }
