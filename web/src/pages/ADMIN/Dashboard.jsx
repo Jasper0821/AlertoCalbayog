@@ -2625,6 +2625,7 @@ export default function AdminDashboard() {
       otp_failed: "OTP Verification Failed",
       password_reset: "Password Reset",
       password_changed: "Password Changed",
+      report_submitted: "Emergency Report Submitted",
     };
 
     const AUDIT_ACTION_STYLES = {
@@ -2635,6 +2636,7 @@ export default function AdminDashboard() {
       otp_failed: { bg: "bg-amber-50", text: "text-amber-700", border: "border-amber-200", dot: "bg-amber-500" },
       password_reset: { bg: "bg-indigo-50", text: "text-indigo-700", border: "border-indigo-200", dot: "bg-indigo-500" },
       password_changed: { bg: "bg-purple-50", text: "text-purple-700", border: "border-purple-200", dot: "bg-purple-500" },
+      report_submitted: { bg: "bg-orange-50", text: "text-orange-700", border: "border-orange-200", dot: "bg-orange-500" },
     };
 
     const exportCsv = (rows, filename) => {

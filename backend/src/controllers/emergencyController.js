@@ -1,6 +1,7 @@
 const EmergencyReport = require("../models/EmergencyReport");
 const { isValidEvidenceImage } = require("../utils/evidenceImages");
 const Notification = require("../models/Notification");
+const AuditLog = require("../models/AuditLog");
 const mapAgencies = require("../utils/agencyMapper");
 const { getSettingValue } = require("./settingsController");
 
@@ -323,6 +324,21 @@ exports.createEmergencyReport = async (req, res) => {
 
     const io = req.app.get("io");
     const residentInfo = populatedReport.userId;
+
+    // System Monitoring: record the report submission in the Audit Trail
+    const ua = req.headers["user-agent"] || "";
+    await AuditLog.create({
+      category: "user_activity",
+      action: "report_submitted",
+      actorId: req.user.id,
+      actorName: residentInfo?.fullName || "Unknown",
+      actorEmail: residentInfo?.email || "",
+      actorRole: residentInfo?.role || "",
+      details: `Submitted a ${emergencyType} emergency report at ${exactLocationName || barangay || "unknown location"} (Report ID: ${report._id}).`,
+      source: req.headers["x-app-source"] || (/android|iphone|ipad|mobile|expo/i.test(ua) ? "mobile" : "web"),
+      userAgent: ua,
+      ipAddress: req.headers["x-forwarded-for"]?.split(",")[0] || req.socket?.remoteAddress || "",
+    }).catch((err) => console.warn("Report audit log error:", err.message));
 
     // Photos are stripped from the broadcast. Sending them meant ~40MB of egress
     // per report once the fan-out across both agency rooms and admin is counted,
