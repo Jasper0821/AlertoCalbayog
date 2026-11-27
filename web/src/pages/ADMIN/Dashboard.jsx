@@ -297,6 +297,8 @@ export default function AdminDashboard() {
     return NAV.some((item) => item.id === saved) ? saved : "overview";
   });
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  // Bumped when a resident sends a Voter's ID, so an open review page reloads.
+  const [voterIdRefreshKey, setVoterIdRefreshKey] = useState(0);
   const [activeSettingsTab, setActiveSettingsTab] = useState("emergency-config");
   const [activeCategories, setActiveCategories] = useState({
     fire: true,
