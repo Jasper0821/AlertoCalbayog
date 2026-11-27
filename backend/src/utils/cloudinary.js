@@ -1,3 +1,4 @@
+const crypto = require("crypto");
 const cloudinary = require("cloudinary").v2;
 
 const CLOUD_NAME = process.env.CLOUDINARY_CLOUD_NAME?.trim();
@@ -56,4 +57,72 @@ const signUpload = (kind) => {
   return { signature, timestamp, folder, apiKey: API_KEY, cloudName: CLOUD_NAME };
 };
 
-module.exports = { cloudinary, signUpload, isConfigured, UPLOAD_FOLDERS };
+/**
+ * Voter's ID photos are identity documents, so they are stored as "authenticated"
+ * assets, which Cloudinary refuses to serve without a signature. Each upload is
+ * signed for one exact public_id inside the resident's own folder, so a photo
+ * submitted later can be checked to belong to the resident submitting it.
+ */
+const VOTER_ID_FOLDER = "alerto/voter-id";
+const VOTER_ID_TYPE = "authenticated";
+
+const signVoterIdUpload = (userId, side) => {
+  if (!isConfigured) return null;
+
+  const timestamp = Math.round(Date.now() / 1000);
+  const publicId = `${VOTER_ID_FOLDER}/${userId}/${side}-${crypto.randomBytes(8).toString("hex")}`;
+  const signature = cloudinary.utils.api_sign_request(
+    { timestamp, public_id: publicId, type: VOTER_ID_TYPE },
+    API_SECRET
+  );
+
+  return { signature, timestamp, publicId, type: VOTER_ID_TYPE, apiKey: API_KEY, cloudName: CLOUD_NAME };
+};
+
+/** A link that shows the photo for 10 minutes; only the admin review endpoint hands these out. */
+const voterIdViewUrl = (publicId) =>
+  isConfigured && publicId
+    ? cloudinary.utils.private_download_url(publicId, "jpg", {
+        type: VOTER_ID_TYPE,
+        expires_at: Math.round(Date.now() / 1000) + 10 * 60,
+      })
+    : "";
+
+const logCleanupError = (what, err) =>
+  console.warn(`[Cloudinary] Could not delete ${what}:`, err?.error?.message || err?.message || err);
+
+/** Deletes every Voter's ID photo a resident uploaded, submitted or not. */
+const deleteVoterIdImages = async (userId) => {
+  if (!isConfigured || !userId) return;
+  try {
+    await cloudinary.api.delete_resources_by_prefix(`${VOTER_ID_FOLDER}/${userId}/`, {
+      type: VOTER_ID_TYPE,
+      invalidate: true,
+    });
+  } catch (err) {
+    logCleanupError(`Voter's ID photos of user ${userId}`, err);
+  }
+};
+
+/** Deletes specific Voter's ID photos, e.g. the ones a new submission replaces. */
+const deleteVoterIdImagesById = async (publicIds) => {
+  const ids = (publicIds || []).filter(Boolean);
+  if (!isConfigured || ids.length === 0) return;
+  try {
+    await cloudinary.api.delete_resources(ids, { type: VOTER_ID_TYPE, invalidate: true });
+  } catch (err) {
+    logCleanupError("replaced Voter's ID photos", err);
+  }
+};
+
+module.exports = {
+  cloudinary,
+  signUpload,
+  isConfigured,
+  UPLOAD_FOLDERS,
+  VOTER_ID_FOLDER,
+  signVoterIdUpload,
+  voterIdViewUrl,
+  deleteVoterIdImages,
+  deleteVoterIdImagesById,
+};

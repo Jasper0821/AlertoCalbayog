@@ -18,7 +18,14 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Location from "expo-location";
 import api, { backendUrl, warmUpServer } from "../api/axios";
 import { saveToken, saveUser } from "../utils/Storage";
-import { getVoterRequirements, voterFollowUp, type VoterRequirements, type VoterResult } from "../api/voters";
+import { getVoterIdAvailable, submitVoterId } from "../api/voterId";
+import VoterIdForm, {
+  emptyVoterIdDraft,
+  isVoterIdStarted,
+  voterIdMissing,
+  type VoterIdDraft,
+} from "../components/VoterIdForm";
+import { showDialog } from "../utils/dialog";
 import CALBAYOG_BARANGAYS from "../constants/calbayogBarangays";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RouteProp } from "@react-navigation/native";
@@ -75,16 +82,13 @@ export default function RegisterScreen({ navigation, route }: Props): React.JSX.
   const [completeAddress, setCompleteAddress] = useState<string>("");
   const [showOptional, setShowOptional] = useState<boolean>(false);
 
-  // Optional voters-list check. Offered only once the City has loaded a list.
-  const [voterReq, setVoterReq] = useState<VoterRequirements>({ available: false, needsBirthdate: false });
-  const [showVoter, setShowVoter] = useState<boolean>(false);
-  const [voterLast, setVoterLast] = useState<string>("");
-  const [voterFirst, setVoterFirst] = useState<string>("");
-  const [voterMiddle, setVoterMiddle] = useState<string>("");
-  const [voterBirthdate, setVoterBirthdate] = useState<string>("");
+  // Optional Voter's ID verification, offered when the server can store the photos.
+  const [voterIdAvailable, setVoterIdAvailable] = useState<boolean>(false);
+  const [showVoterId, setShowVoterId] = useState<boolean>(false);
+  const [voterId, setVoterId] = useState<VoterIdDraft>(emptyVoterIdDraft);
 
   useEffect(() => {
-    getVoterRequirements().then(setVoterReq);
+    getVoterIdAvailable().then(setVoterIdAvailable);
   }, []);
 
   // Data Privacy Act: consent must be an affirmative act, so this starts unchecked.
@@ -214,32 +218,16 @@ export default function RegisterScreen({ navigation, route }: Props): React.JSX.
       return;
     }
 
-    // Voter details are optional, but a check that was started must be complete.
-    const wantsVoterCheck =
-      voterReq.available && [voterLast, voterFirst, voterMiddle, voterBirthdate].some((v) => v.trim());
-    if (wantsVoterCheck) {
-      if (!voterLast.trim() || !voterFirst.trim()) {
-        Alert.alert("Voter details incomplete", "Enter your last and first name, or clear the voter fields to skip.");
-        return;
-      }
-      if (!barangay.trim()) {
-        setShowOptional(true);
-        Alert.alert("Barangay needed", "Add your barangay under Address & emergency contact to verify as a voter.");
-        return;
-      }
-      if (voterReq.needsBirthdate && !/^\d{4}-\d{2}-\d{2}$/.test(voterBirthdate.trim())) {
-        Alert.alert("Birthdate needed", "Enter your birthdate as YYYY-MM-DD, for example 1990-05-17.");
+    // The Voter's ID is optional, but photos that were started must be complete.
+    const sendVoterId = voterIdAvailable && isVoterIdStarted(voterId);
+    if (sendVoterId) {
+      const missing = voterIdMissing(voterId);
+      if (missing) {
+        setShowVoterId(true);
+        Alert.alert("Voter's ID incomplete", `${missing}\n\nOr tap "Remove photos" to skip this step.`);
         return;
       }
     }
-    const voter = wantsVoterCheck
-      ? {
-          lastName: voterLast.trim(),
-          firstName: voterFirst.trim(),
-          middleName: voterMiddle.trim(),
-          birthdate: voterBirthdate.trim(),
-        }
-      : undefined;
 
     setLoading(true);
 
@@ -251,7 +239,6 @@ export default function RegisterScreen({ navigation, route }: Props): React.JSX.
             barangay: barangay.trim(),
             completeAddress: completeAddress.trim(),
             termsAccepted: agreeTerms,
-            voter,
           })
         : await api.post("/auth/register", {
             fullName: fullName.trim(),
@@ -263,7 +250,6 @@ export default function RegisterScreen({ navigation, route }: Props): React.JSX.
             // Recorded server-side so the resident is not stopped by the User
             // Agreement screen on their next launch.
             termsAccepted: agreeTerms,
-            voter,
           });
 
       await saveToken(res.data.token);
@@ -272,12 +258,24 @@ export default function RegisterScreen({ navigation, route }: Props): React.JSX.
       // Instant access to Emergency Dashboard (Home)
       navigation.replace("Home");
 
-      // The voter check never holds up sign-up; its result is just reported.
-      const voterResult = (res.data.voterVerification || null) as VoterResult | null;
-      if (voterResult?.status === "verified") {
-        Alert.alert("You're verified", "Responders will see you as a verified resident of Calbayog.");
-      } else if (voterResult) {
-        Alert.alert("Not verified yet", voterFollowUp(voterResult));
+      // The photos go up after sign-up so they never hold it up; only the outcome is reported.
+      if (sendVoterId && voterId.front && voterId.selfie) {
+        const result = await submitVoterId({
+          documentType: voterId.documentType,
+          front: voterId.front,
+          selfie: voterId.selfie,
+        });
+        if (result.ok) {
+          showDialog(
+            "Voter's ID sent",
+            "The City will check your photos and notify you. Once approved, responders will see you as a verified resident."
+          );
+        } else {
+          showDialog(
+            "Voter's ID not sent",
+            `${result.message}\n\nYour account is ready and you can send reports. You can send your Voter's ID again from your Profile.`
+          );
+        }
       }
     } catch (error: any) {
       setLoading(false);
@@ -486,75 +484,24 @@ export default function RegisterScreen({ navigation, route }: Props): React.JSX.
               </View>
             )}
 
-            {/* Optional voters-list check, offered only when the City has loaded a list */}
-            {voterReq.available && (
+            {/* Optional Voter's ID verification for the "Verified resident" tag */}
+            {voterIdAvailable && (
               <>
                 <TouchableOpacity
                   style={styles.optionalToggle}
-                  onPress={() => setShowVoter(!showVoter)}
+                  onPress={() => setShowVoterId(!showVoterId)}
                   activeOpacity={0.7}
                   accessibilityRole="button"
-                  accessibilityState={{ expanded: showVoter }}
+                  accessibilityState={{ expanded: showVoterId }}
                 >
                   <Text style={styles.optionalToggleText}>
-                    {showVoter ? "−" : "+"}  Verify as a registered voter (optional)
+                    {showVoterId ? "−" : "+"}  Verify with your Voter's ID (optional)
                   </Text>
                 </TouchableOpacity>
 
-                {showVoter && (
+                {showVoterId && (
                   <View style={styles.optionalBlock}>
-                    <Text style={styles.voterNote}>
-                      Get a "Verified resident" badge that responders see on your reports. Your details are checked
-                      once against the City's voters list and are not stored. Enter your name exactly as on your
-                      voter's record, and add your barangay above.
-                    </Text>
-                    <View style={styles.inputGroup}>
-                      <Text style={styles.label}>LAST NAME</Text>
-                      <TextInput
-                        style={styles.input}
-                        placeholder="e.g. Dela Cruz"
-                        placeholderTextColor="#64748B"
-                        value={voterLast}
-                        onChangeText={setVoterLast}
-                        autoCapitalize="words"
-                      />
-                    </View>
-                    <View style={styles.inputGroup}>
-                      <Text style={styles.label}>FIRST NAME</Text>
-                      <TextInput
-                        style={styles.input}
-                        placeholder="e.g. Juan"
-                        placeholderTextColor="#64748B"
-                        value={voterFirst}
-                        onChangeText={setVoterFirst}
-                        autoCapitalize="words"
-                      />
-                    </View>
-                    <View style={styles.inputGroup}>
-                      <Text style={styles.label}>MIDDLE NAME</Text>
-                      <TextInput
-                        style={styles.input}
-                        placeholder="e.g. Santos"
-                        placeholderTextColor="#64748B"
-                        value={voterMiddle}
-                        onChangeText={setVoterMiddle}
-                        autoCapitalize="words"
-                      />
-                    </View>
-                    {voterReq.needsBirthdate && (
-                      <View style={styles.inputGroup}>
-                        <Text style={styles.label}>BIRTHDATE</Text>
-                        <TextInput
-                          style={styles.input}
-                          placeholder="YYYY-MM-DD, e.g. 1990-05-17"
-                          placeholderTextColor="#64748B"
-                          value={voterBirthdate}
-                          onChangeText={setVoterBirthdate}
-                          keyboardType="numbers-and-punctuation"
-                          maxLength={10}
-                        />
-                      </View>
-                    )}
+                    <VoterIdForm value={voterId} onChange={setVoterId} disabled={loading} />
                   </View>
                 )}
               </>
@@ -801,12 +748,6 @@ const styles = StyleSheet.create({
     borderTopColor: "#16273E",
     paddingTop: 14,
     marginBottom: 4,
-  },
-  voterNote: {
-    color: "#94A3B8",
-    fontSize: 12,
-    lineHeight: 18,
-    marginBottom: 14,
   },
   locationBtn: {
     flexDirection: "row",

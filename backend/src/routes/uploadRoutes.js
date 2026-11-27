@@ -2,7 +2,7 @@ const express = require("express");
 const router = express.Router();
 const protect = require("../middleware/authMiddleware");
 const { signUpload, isConfigured } = require("../utils/cloudinary");
-const { otpLimiter } = require("../middleware/rateLimiters");
+const { uploadSignatureLimiter } = require("../middleware/rateLimiters");
 
 /**
  * Hands an authenticated client the short-lived signature it needs to upload one
@@ -12,7 +12,7 @@ const { otpLimiter } = require("../middleware/rateLimiters");
  * Responds 503 (not 500) when Cloudinary is unconfigured, so clients can cleanly
  * fall back to inline base64 rather than failing the report.
  */
-router.get("/signature", protect, otpLimiter, (req, res) => {
+router.get("/signature", protect, uploadSignatureLimiter, (req, res) => {
   if (!isConfigured) {
     return res.status(503).json({
       message: "Image hosting is not configured on the server.",

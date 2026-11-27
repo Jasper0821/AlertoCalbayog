@@ -53,26 +53,35 @@ const otpLimiter = rateLimit({
   ),
 });
 
-/**
- * Voter verification answers "is this person on the voters list?", so unlimited
- * tries would let someone check whether a neighbor is a registered voter. Capped
- * per account and per connection; a genuine resident needs only a few tries.
- */
-const voterVerifyLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hour
-  limit: 5,
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => (req.user?.id ? `user:${req.user.id}` : ipKeyGenerator(req.ip)),
-  handler: limitResponse("Too many verification attempts. Please try again in an hour."),
-});
+// Keyed per signed-in account, so residents sharing one connection don't use up each other's limit.
+const perUser = (req) => (req.user?.id ? `user:${req.user.id}` : ipKeyGenerator(req.ip));
 
-const voterVerifyIpLimiter = rateLimit({
+/**
+ * Sending a Voter's ID takes two upload signatures and one submission, so this
+ * allows a few retakes and resends an hour while stopping a script from filling
+ * the review queue or our Cloudinary storage.
+ */
+const voterIdLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
   limit: 15,
   standardHeaders: true,
   legacyHeaders: false,
-  handler: limitResponse("Too many verification attempts from this connection. Please try again in an hour."),
+  keyGenerator: perUser,
+  handler: limitResponse("Too many Voter's ID requests. Please try again in an hour."),
 });
 
-module.exports = { registerLimiter, loginLimiter, otpLimiter, voterVerifyLimiter, voterVerifyIpLimiter };
+/**
+ * Each signature authorises one photo upload to our Cloudinary account. A report
+ * carries up to five scene photos and more can be added after sending, so this is
+ * far looser than the OTP limit it replaced on that route.
+ */
+const uploadSignatureLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  limit: 40,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: perUser,
+  handler: limitResponse("Too many photo uploads. Please wait a few minutes and try again."),
+});
+
+module.exports = { registerLimiter, loginLimiter, otpLimiter, voterIdLimiter, uploadSignatureLimiter };

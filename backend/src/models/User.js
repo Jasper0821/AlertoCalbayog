@@ -114,12 +114,26 @@ const userSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
-    // "voters_list" when matched against the City's voters list, "admin" when an
-    // administrator verified the resident by hand.
+    // "voters_id" when an administrator approved the resident's Voter's ID photos,
+    // "admin" when one verified them by hand. "voters_list" is kept for accounts
+    // verified by the voters-list check that Voter's ID review replaced.
     verificationMethod: {
       type: String,
-      enum: ["", "voters_list", "admin"],
+      enum: ["", "voters_id", "admin", "voters_list"],
       default: "",
+    },
+    // The resident's latest Voter's ID submission. The photos are private Cloudinary
+    // assets, deleted as soon as an administrator has reviewed them.
+    voterIdReview: {
+      status: { type: String, enum: ["", "pending", "approved", "rejected"], default: "" },
+      documentType: { type: String, enum: ["", "voters_id", "voters_certification"], default: "" },
+      frontPublicId: { type: String, default: "" },
+      selfiePublicId: { type: String, default: "" },
+      submittedAt: { type: Date, default: null },
+      reviewedAt: { type: Date, default: null },
+      reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+      reviewedByName: { type: String, default: "" },
+      rejectionReason: { type: String, default: "" },
     },
     accountStatus: {
       type: String,
@@ -194,6 +208,11 @@ function transformUserJSON(doc, ret) {
   ret.last_ip_address = ret.lastIpAddress || "";
   delete ret.password;
   delete ret.visiblePassword;
+  // Voter's ID photos are only reachable through the admin review endpoint.
+  if (ret.voterIdReview) {
+    delete ret.voterIdReview.frontPublicId;
+    delete ret.voterIdReview.selfiePublicId;
+  }
   return ret;
 }
 

@@ -35,7 +35,7 @@ import {
   MapPinIcon,
   VotersIcon
 } from "./icons.jsx";
-import VotersList from "./VotersList.jsx";
+import VoterIdReview from "./VoterIdReview.jsx";
 import api from "../../api/axios.js";
 import socket from "../../api/socket.js";
 import Swal from "sweetalert2";
@@ -124,6 +124,13 @@ const CATEGORY_COLORS = {
 
 const PIE_COLORS = ["#f59e0b", "#0d9488", "#2563eb", "#059669", "#64748b", "#4f46e5"];
 
+// How a resident got the "Verified resident" tag. "voters_list" is from the check Voter's ID replaced.
+const VERIFICATION_METHOD_LABELS = {
+  voters_id: "Voter's ID",
+  admin: "by admin",
+  voters_list: "voters list",
+};
+
 const NAV = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "queuing", label: "Queuing System", icon: Menu },
@@ -133,7 +140,7 @@ const NAV = [
   { id: "analytics", label: "Analytics", icon: BarChart2 },
   { id: "users", label: "User Management", icon: Users },
   { id: "responder-approvals", label: "Responder Approvals", icon: ResponderIcon },
-  { id: "voters-list", label: "Voters List", icon: VotersIcon },
+  { id: "voter-id", label: "Voter's ID Review", icon: VotersIcon },
   { id: "audit", label: "Audit Trail", icon: ClipboardList },
   { id: "settings", label: "Settings", icon: Settings },
 ];
@@ -681,6 +688,11 @@ export default function AdminDashboard() {
           safeSetItem("adminNotifications", JSON.stringify(next));
           return next;
         });
+        // A new Voter's ID request: refresh the sidebar count and the review page.
+        if (notification.metadata?.voterIdReview === "pending") {
+          fetchUsers();
+          setVoterIdRefreshKey((key) => key + 1);
+        }
     };
 
     const upsertReport = (report) => {
@@ -1619,19 +1631,24 @@ export default function AdminDashboard() {
     setError("");
   };
 
-  /** Manual override for residents the voters list can't match (typos, recent movers). */
+  /** Copies a resident's new verification state into the users list (and the sidebar count). */
+  const applyVerificationChange = (userId, changes) => {
+    if (!changes) return;
+    const { residentVerificationStatus, verificationMethod, verifiedAt, voterIdReview } = changes;
+    setUsers((prev) =>
+      prev.map((u) =>
+        u._id === userId ? { ...u, residentVerificationStatus, verificationMethod, verifiedAt, voterIdReview } : u
+      )
+    );
+  };
+
+  /** Manual override, e.g. for a resident who showed their Voter's ID in person. */
   const setResidentVerification = async (user, verified) => {
     setError("");
     const residentVerificationStatus = verified ? "verified" : "pending";
     try {
-      await api.put(`/users/${user._id}`, { residentVerificationStatus });
-      setUsers((prev) =>
-        prev.map((u) =>
-          u._id === user._id
-            ? { ...u, residentVerificationStatus, verificationMethod: verified ? "admin" : "" }
-            : u
-        )
-      );
+      const { data } = await api.put(`/users/${user._id}`, { residentVerificationStatus });
+      applyVerificationChange(user._id, data.user);
     } catch (err) {
       setError(err.response?.data?.message || "Unable to update verification");
     }
@@ -2333,8 +2350,17 @@ export default function AdminDashboard() {
                       <p className="text-xs text-slate-400">{user.email}</p>
                       {(user.role || "resident") === "resident" && user.residentVerificationStatus === "verified" && (
                         <span className="mt-1 inline-flex items-center rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-black text-emerald-700">
-                          Verified resident{user.verificationMethod === "voters_list" ? " · voters list" : user.verificationMethod === "admin" ? " · by admin" : ""}
+                          Verified resident{VERIFICATION_METHOD_LABELS[user.verificationMethod] ? ` · ${VERIFICATION_METHOD_LABELS[user.verificationMethod]}` : ""}
                         </span>
+                      )}
+                      {(user.role || "resident") === "resident" && user.residentVerificationStatus !== "verified" && user.voterIdReview?.status === "pending" && (
+                        <button
+                          type="button"
+                          onClick={() => setActiveNav("voter-id")}
+                          className="mt-1 inline-flex items-center rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-black text-amber-700 hover:bg-amber-100"
+                        >
+                          Voter's ID to review
+                        </button>
                       )}
                     </td>
                     {!isUserDirectory && <td className="px-4 py-3 capitalize">
@@ -3438,7 +3464,7 @@ export default function AdminDashboard() {
     if (activeNav === "analytics") return renderAnalytics();
     if (activeNav === "users") return renderUsers();
     if (activeNav === "responder-approvals") return renderResponderApprovals();
-    if (activeNav === "voters-list") return <VotersList />;
+    if (activeNav === "voter-id") return <VoterIdReview onReviewed={applyVerificationChange} refreshKey={voterIdRefreshKey} />;
     if (activeNav === "audit") return renderAudit();
     return renderSettings();
   };
@@ -3467,7 +3493,9 @@ export default function AdminDashboard() {
               ? reports.filter((report) => (report.status || "").toLowerCase() === "pending").length
               : item.id === "responder-approvals"
                 ? users.filter((user) => user.role === "responder" && (user.status === "pending" || !user.status)).length
-                : 0;
+                : item.id === "voter-id"
+                  ? users.filter((user) => user.voterIdReview?.status === "pending").length
+                  : 0;
             return (
               <button
                 key={item.id}
