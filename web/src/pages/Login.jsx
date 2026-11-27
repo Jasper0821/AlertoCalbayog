@@ -141,12 +141,6 @@ function Login() {
                 <label className="text-[12px] font-bold text-slate-600" htmlFor="password">
                   Password
                 </label>
-                <Link
-                  to="/forgot-password"
-                  className="text-[11px] font-bold text-blue-600 hover:text-blue-700 hover:underline transition-all"
-                >
-                  Forgot Password?
-                </Link>
               </div>
               <div className="relative flex items-center">
                 <span className="absolute left-3.5 text-slate-400">

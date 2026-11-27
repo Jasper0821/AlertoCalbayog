@@ -163,13 +163,6 @@ export default function PasswordLoginScreen({
               onChangeText={setPassword}
             />
 
-            {/* Forgot Password Link */}
-            <View style={styles.forgotPassRow}>
-              <TouchableOpacity onPress={() => navigation.navigate("ForgotPassword")}>
-                <Text style={styles.forgotPassText}>Forgot Password?</Text>
-              </TouchableOpacity>
-            </View>
-
             {/* Sign In Button */}
             <TouchableOpacity
               style={[
@@ -348,17 +341,6 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     opacity: 0.65,
   },
-  forgotPassRow: {
-    alignItems: "flex-end",
-    marginTop: -4,
-    marginBottom: 16,
-  },
-  forgotPassText: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: COLORS.primary,
-  },
-
   /* ── Login Button ── */
   loginButton: {
     backgroundColor: COLORS.primary,
