@@ -7,7 +7,6 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const { sendOtpEmail, sendRegistrationOtpEmail } = require("../utils/mailer");
 const { getSettingValue } = require("./settingsController");
-const { verifyResidentAsVoter } = require("../utils/voterVerification");
 
 const OTP_EXPIRY_MINUTES = 7;
 const CURRENT_TERMS_VERSION = process.env.CURRENT_TERMS_VERSION || "1.0";
@@ -143,17 +142,6 @@ exports.register = async (req, res) => {
 
       const token = generateToken(user._id, user.role);
 
-      // Optional voters-list check. Never fails the registration: a resident who is
-      // not found simply keeps an unverified account and can retry from their profile.
-      const voterVerification = req.body.voter
-        ? await verifyResidentAsVoter(user, { ...req.body.voter, barangay: user.barangay }, req.app.get("io")).catch(
-            (err) => {
-              console.warn("Voter check at registration failed:", err.message);
-              return null;
-            }
-          )
-        : null;
-
       // The mobile form carries its own "I agree" checkbox, so record the acceptance here.
       // Without this the resident is bounced back to the User Agreement screen on their
       // next launch — an extra blocking step in the middle of an emergency.
@@ -202,7 +190,6 @@ exports.register = async (req, res) => {
       return res.status(201).json({
         message: "User registered successfully",
         token,
-        voterVerification,
         user: {
           id: user._id,
           fullName: user.fullName,
@@ -1181,20 +1168,9 @@ exports.googleRegister = async (req, res) => {
       metadata: { userId: user._id.toString(), role: user.role, barangay: user.barangay },
     });
 
-    // Optional voters-list check, as in the mobile registration. Never fails sign-up.
-    const voterVerification = req.body.voter
-      ? await verifyResidentAsVoter(user, { ...req.body.voter, barangay: user.barangay }, req.app.get("io")).catch(
-          (err) => {
-            console.warn("Voter check at Google registration failed:", err.message);
-            return null;
-          }
-        )
-      : null;
-
     return res.status(201).json({
       message: "Resident registration completed successfully",
       isNewResident: false,
-      voterVerification,
       token: generateToken(user._id, user.role),
       termsAccepted: false,
       termsVersion: CURRENT_TERMS_VERSION,
@@ -1338,6 +1314,15 @@ exports.verifySession = async (req, res) => {
         completeAddress: user.completeAddress || "",
         accountStatus: user.accountStatus || "active",
         residentVerificationStatus: user.residentVerificationStatus || "pending",
+        verificationMethod: user.verificationMethod || "",
+        // Status only: the photos are never sent back to the app.
+        voterIdReview: {
+          status: user.voterIdReview?.status || "",
+          documentType: user.voterIdReview?.documentType || "",
+          submittedAt: user.voterIdReview?.submittedAt || null,
+          reviewedAt: user.voterIdReview?.reviewedAt || null,
+          rejectionReason: user.voterIdReview?.rejectionReason || "",
+        },
         authProvider: user.authProvider || "local",
         isEmailVerified: user.isEmailVerified || false,
         googleVerified: !!user.googleId,

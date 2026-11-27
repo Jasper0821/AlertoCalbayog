@@ -4,6 +4,9 @@ const Notification = require("../models/Notification");
 const bcrypt = require("bcryptjs");
 const { getSettingValue } = require("./settingsController");
 const { sendResponderApprovalEmail } = require("../utils/mailer");
+const { deleteVoterIdImages } = require("../utils/cloudinary");
+
+const normalizeName = (name) => String(name || "").trim().replace(/\s+/g, " ").toLowerCase();
 
 // Validates password complexity based on the stored securityConfig setting
 const checkPasswordComplexity = async (password) => {
@@ -149,13 +152,14 @@ exports.updateUser = async (req, res) => {
       fullName, email, password, role, agency, phoneNumber, status,
       barangay, completeAddress, residentVerificationStatus, accountStatus, googleVerified
     } = req.body;
-    const existingUser = await User.findById(id).select("role status");
+    const existingUser = await User.findById(id).select("role status voterIdReview.status");
 
     if (!existingUser) {
       return res.status(404).json({ message: "User not found" });
     }
 
     const updates = {};
+    let settlesVoterId = false;
     if (fullName !== undefined) updates.fullName = fullName;
     if (email !== undefined) {
       const normalizedEmail = email.toLowerCase().trim();
@@ -174,10 +178,22 @@ exports.updateUser = async (req, res) => {
     if (completeAddress !== undefined) updates.completeAddress = completeAddress;
     if (residentVerificationStatus !== undefined) {
       updates.residentVerificationStatus = residentVerificationStatus;
-      // Record that an administrator, not the voters list, made this call.
+      // Record that an administrator, not a Voter's ID review, made this call.
       const verified = residentVerificationStatus === "verified";
       updates.verifiedAt = verified ? new Date() : null;
       updates.verificationMethod = verified ? "admin" : "";
+      // Verifying by hand settles a Voter's ID request still waiting for review.
+      settlesVoterId = verified && existingUser.voterIdReview?.status === "pending";
+      if (settlesVoterId) {
+        Object.assign(updates, {
+          "voterIdReview.status": "approved",
+          "voterIdReview.reviewedAt": new Date(),
+          "voterIdReview.reviewedBy": req.user.id,
+          "voterIdReview.reviewedByName": req.user.fullName || "Admin",
+          "voterIdReview.frontPublicId": "",
+          "voterIdReview.selfiePublicId": "",
+        });
+      }
     }
     if (accountStatus !== undefined) updates.accountStatus = accountStatus;
     if (googleVerified !== undefined) updates.googleVerified = googleVerified;
@@ -192,6 +208,7 @@ exports.updateUser = async (req, res) => {
       runValidators: true
     }).select("-password");
 
+    if (settlesVoterId) await deleteVoterIdImages(id);
 
     const auditAction = password ? "password_changed" : "user_updated";
     const auditDetails = password
@@ -259,6 +276,9 @@ exports.deleteUser = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
+    // Any Voter's ID photos still stored for this resident go with the account.
+    if (user.role === "resident") await deleteVoterIdImages(id);
+
     await AuditLog.create({
       category: "user_activity",
       action: "user_deleted",
@@ -298,7 +318,20 @@ exports.updateProfile = async (req, res) => {
     } = req.body;
 
     const updates = {};
-    if (fullName !== undefined) updates.fullName = fullName;
+    if (fullName !== undefined) {
+      updates.fullName = fullName;
+      // The "Verified resident" tag vouches for the name on the account, so a
+      // different name has to be verified again.
+      const current = await User.findById(id).select("fullName residentVerificationStatus");
+      if (current?.residentVerificationStatus === "verified" && normalizeName(current.fullName) !== normalizeName(fullName)) {
+        Object.assign(updates, {
+          residentVerificationStatus: "pending",
+          verifiedAt: null,
+          verificationMethod: "",
+          "voterIdReview.status": "",
+        });
+      }
+    }
     if (email !== undefined) {
       const normalizedEmail = email.toLowerCase().trim();
       const existingUser = await User.findOne({ email: normalizedEmail, _id: { $ne: id } });

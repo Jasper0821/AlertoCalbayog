@@ -17,9 +17,30 @@ import * as ImagePicker from "expo-image-picker";
 import Header from "../components/Header";
 import { getUser, saveUser, getToken } from "../utils/Storage";
 import api from "../api/axios";
-import { getVoterRequirements, verifyVoter, voterFollowUp, type VoterRequirements } from "../api/voters";
+import {
+  DOCUMENT_LABELS,
+  getVoterIdAvailable,
+  submitVoterId,
+  withdrawVoterId,
+  type VoterIdDocument,
+  type VoterIdReview,
+} from "../api/voterId";
+import VoterIdForm, { emptyVoterIdDraft, voterIdMissing, type VoterIdDraft } from "../components/VoterIdForm";
+import { showDialog } from "../utils/dialog";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../navigation/AppNavigator";
+
+// How the resident got the "Verified resident" tag. "voters_list" is from the check Voter's ID replaced.
+const METHOD_LABELS: Record<string, string> = {
+  voters_id: " · Voter's ID",
+  admin: " · confirmed by the City",
+  voters_list: " · voters list",
+};
+
+const normalizeName = (name: string) => name.trim().replace(/\s+/g, " ").toLowerCase();
+const asSentence = (text = "") => (!text || /[.!?]$/.test(text) ? text : `${text}.`);
+const formatDay = (value?: string | null) =>
+  value ? new Date(value).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" }) : "";
 
 type UserProfileScreenNavigationProp = NativeStackNavigationProp<
   RootStackParamList,
@@ -43,17 +64,20 @@ export default function UserProfileScreen({ navigation }: Props): React.JSX.Elem
   const [showAvatarPicker, setShowAvatarPicker] = useState<boolean>(false);
   const [uploadingAvatar, setUploadingAvatar] = useState<boolean>(false);
 
-  // Voters-list verification.
-  const [voterReq, setVoterReq] = useState<VoterRequirements>({ available: false, needsBirthdate: false });
-  const [voterLast, setVoterLast] = useState<string>("");
-  const [voterFirst, setVoterFirst] = useState<string>("");
-  const [voterMiddle, setVoterMiddle] = useState<string>("");
-  const [voterBirthdate, setVoterBirthdate] = useState<string>("");
-  const [verifying, setVerifying] = useState<boolean>(false);
+  // Voter's ID verification.
+  const [voterIdAvailable, setVoterIdAvailable] = useState<boolean>(false);
+  const [voterId, setVoterId] = useState<VoterIdDraft>(emptyVoterIdDraft);
+  const [sendingVoterId, setSendingVoterId] = useState<boolean>(false);
+  const [withdrawing, setWithdrawing] = useState<boolean>(false);
+
+  const isVerified =
+    (user?.residentVerificationStatus || user?.resident_verification_status) === "verified";
+  const review: VoterIdReview = user?.voterIdReview || { status: "" };
+  const documentName = DOCUMENT_LABELS[review.documentType as VoterIdDocument] || "Voter's ID";
 
   useEffect(() => {
     loadUserData();
-    getVoterRequirements().then(setVoterReq);
+    getVoterIdAvailable().then(setVoterIdAvailable);
   }, []);
 
   const handleTakePhoto = async () => {
@@ -168,12 +192,28 @@ export default function UserProfileScreen({ navigation }: Props): React.JSX.Elem
     }
   };
 
-  const handleSaveProfile = async () => {
+  const handleSaveProfile = () => {
     if (!fullName.trim()) {
       Alert.alert("Input Required", "Full Name is required.");
       return;
     }
 
+    // The server removes the "Verified resident" tag when the name changes, so say so first.
+    if (isVerified && normalizeName(fullName) !== normalizeName(user?.fullName || user?.full_name || "")) {
+      showDialog(
+        "Change your name?",
+        "Your Verified resident tag will be removed, and you'll need to send your Voter's ID again.",
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Change name", onPress: () => saveProfile() },
+        ]
+      );
+      return;
+    }
+    saveProfile();
+  };
+
+  const saveProfile = async () => {
     setSaving(true);
     try {
       const token = await getToken();
@@ -203,41 +243,61 @@ export default function UserProfileScreen({ navigation }: Props): React.JSX.Elem
     }
   };
 
-  const isVerified =
-    (user?.residentVerificationStatus || user?.resident_verification_status) === "verified";
+  const updateReview = async (next: VoterIdReview) => {
+    const updated = { ...user, voterIdReview: next };
+    setUser(updated);
+    await saveUser(updated);
+  };
 
-  const handleVerifyVoter = async () => {
-    if (!voterLast.trim() || !voterFirst.trim()) {
-      Alert.alert("Input Required", "Enter your last and first name as on your voter's record.");
+  const handleSendVoterId = async () => {
+    const missing = voterIdMissing(voterId);
+    if (missing || !voterId.front || !voterId.selfie) {
+      showDialog("Almost there", missing);
       return;
     }
-    if (!user?.barangay) {
-      Alert.alert("Barangay needed", "Add your barangay under Account Details first.");
-      return;
-    }
-    if (voterReq.needsBirthdate && !/^\d{4}-\d{2}-\d{2}$/.test(voterBirthdate.trim())) {
-      Alert.alert("Birthdate needed", "Enter your birthdate as YYYY-MM-DD, for example 1990-05-17.");
-      return;
-    }
-    setVerifying(true);
+    setSendingVoterId(true);
     try {
-      const result = await verifyVoter({
-        lastName: voterLast.trim(),
-        firstName: voterFirst.trim(),
-        middleName: voterMiddle.trim(),
-        birthdate: voterBirthdate.trim(),
+      const result = await submitVoterId({
+        documentType: voterId.documentType,
+        front: voterId.front,
+        selfie: voterId.selfie,
       });
-      if (result.status === "verified") {
-        const updated = { ...user, residentVerificationStatus: "verified", verificationMethod: "voters_list" };
-        setUser(updated);
-        await saveUser(updated);
-        Alert.alert("You're verified", "Responders will see you as a verified resident of Calbayog.");
+      if (result.ok) {
+        if (result.review) await updateReview(result.review);
+        setVoterId(emptyVoterIdDraft);
+        showDialog(
+          "Voter's ID sent",
+          "The City will check your photos and notify you. Once approved, responders will see you as a verified resident."
+        );
       } else {
-        Alert.alert("Not verified yet", voterFollowUp(result));
+        showDialog("Voter's ID not sent", result.message);
+        // e.g. an administrator verified the account in the meantime.
+        if (result.review) loadUserData();
       }
     } finally {
-      setVerifying(false);
+      setSendingVoterId(false);
     }
+  };
+
+  const handleWithdrawVoterId = () => {
+    showDialog(
+      "Cancel your request?",
+      "Your photos will be deleted and the City won't review them. You can send new ones anytime.",
+      [
+        { text: "Keep request", style: "cancel" },
+        {
+          text: "Cancel request",
+          style: "destructive",
+          onPress: async () => {
+            setWithdrawing(true);
+            const result = await withdrawVoterId();
+            setWithdrawing(false);
+            if (result.ok) await updateReview(result.review || { status: "" });
+            else showDialog("Couldn't cancel", result.message);
+          },
+        },
+      ]
+    );
   };
 
   if (loading) {
@@ -321,46 +381,44 @@ export default function UserProfileScreen({ navigation }: Props): React.JSX.Elem
           )}
         </View>
 
-        {/* Voter verification: a "Verified resident" badge responders see on reports */}
+        {/* Resident verification: the "Verified resident" tag responders see on reports */}
         <View style={styles.detailsCard}>
           <Text style={styles.cardTitle}>Resident verification</Text>
           {isVerified ? (
             <Text style={[styles.infoVal, styles.verifiedText]} accessibilityLiveRegion="polite">
-              ✓ Verified resident
-              {user?.verificationMethod === "admin" ? " · confirmed by the City" : " · voters list"}
+              ✓ Verified resident{METHOD_LABELS[user?.verificationMethod] || ""}
             </Text>
-          ) : !voterReq.available ? (
+          ) : review.status === "pending" ? (
+            <View accessibilityLiveRegion="polite">
+              <Text style={styles.pendingText}>Waiting for review</Text>
+              <Text style={styles.voterHint}>
+                Your {documentName} is with the City{review.submittedAt ? ` since ${formatDay(review.submittedAt)}` : ""}.
+                You'll get a notification once it's checked.
+              </Text>
+              <TouchableOpacity onPress={handleWithdrawVoterId} disabled={withdrawing} accessibilityRole="button">
+                <Text style={styles.cancelLink}>{withdrawing ? "CANCELLING…" : "CANCEL REQUEST"}</Text>
+              </TouchableOpacity>
+            </View>
+          ) : !voterIdAvailable ? (
             <Text style={styles.voterHint}>
-              Not verified. Voter verification isn't available yet; the City hasn't loaded its voters list.
+              Not verified. Sending a Voter's ID isn't available right now. Please try again later.
             </Text>
           ) : (
             <View style={styles.form}>
-              <Text style={styles.voterHint}>
-                Not verified. Enter your name exactly as on your voter's record. It's checked once against the
-                City's voters list for Brgy. {user?.barangay || "(add your barangay above)"} and not stored.
-              </Text>
-              <Text style={styles.fieldLabel}>LAST NAME</Text>
-              <TextInput style={styles.input} value={voterLast} onChangeText={setVoterLast} autoCapitalize="words" />
-              <Text style={styles.fieldLabel}>FIRST NAME</Text>
-              <TextInput style={styles.input} value={voterFirst} onChangeText={setVoterFirst} autoCapitalize="words" />
-              <Text style={styles.fieldLabel}>MIDDLE NAME</Text>
-              <TextInput style={styles.input} value={voterMiddle} onChangeText={setVoterMiddle} autoCapitalize="words" />
-              {voterReq.needsBirthdate && (
-                <>
-                  <Text style={styles.fieldLabel}>BIRTHDATE (YYYY-MM-DD)</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={voterBirthdate}
-                    onChangeText={setVoterBirthdate}
-                    keyboardType="numbers-and-punctuation"
-                    maxLength={10}
-                    placeholder="1990-05-17"
-                    placeholderTextColor="#64748B"
-                  />
-                </>
+              {review.status === "rejected" ? (
+                <Text style={styles.rejectedText}>
+                  Your last {documentName} wasn't accepted. {asSentence(review.rejectionReason)} Send new photos below.
+                </Text>
+              ) : (
+                <Text style={styles.voterHint}>Not verified yet.</Text>
               )}
-              <TouchableOpacity style={styles.saveBtn} onPress={handleVerifyVoter} disabled={verifying}>
-                {verifying ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.saveBtnText}>VERIFY NOW</Text>}
+              <VoterIdForm value={voterId} onChange={setVoterId} disabled={sendingVoterId} />
+              <TouchableOpacity style={styles.saveBtn} onPress={handleSendVoterId} disabled={sendingVoterId}>
+                {sendingVoterId ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.saveBtnText}>SEND FOR REVIEW</Text>
+                )}
               </TouchableOpacity>
             </View>
           )}
@@ -489,6 +547,24 @@ const styles = StyleSheet.create({
     color: "#94A3B8",
     fontSize: 12,
     lineHeight: 18,
+  },
+  pendingText: {
+    marginTop: 10,
+    color: "#FBBF24",
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  rejectedText: {
+    marginTop: 8,
+    color: "#FCA5A5",
+    fontSize: 12,
+    lineHeight: 18,
+    fontWeight: "600",
+  },
+  cancelLink: {
+    color: "#F87171",
+    fontSize: 12,
+    fontWeight: "900",
   },
   form: {
     gap: 12,

@@ -22,7 +22,7 @@ const pages = {
           "Precise GPS location, barangay, street, purok and landmark details at the time you submit a report.",
           "Photos and descriptions attached to emergency reports.",
           "Device IP address and browser or device information, recorded for security and accountability.",
-          "If you choose to verify as a registered voter: the name, barangay and (if asked) birthdate you enter are compared once with the voters list the City obtained from COMELEC under a data-sharing agreement. Only the result (verified or not) is kept on your account; the list itself is stored as one-way codes, not names.",
+          "If you choose to verify with your Voter's ID: a photo of your Voter's ID or Voter's Certification and a selfie holding it. They are stored privately, seen only by City administrators to confirm you are a registered voter of Calbayog, and deleted as soon as your request is approved, rejected or cancelled. Only the result is kept on your account.",
         ],
       },
       {
